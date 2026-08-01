@@ -4,31 +4,38 @@ TIANTI 是一个面向公开访客的 `cosplay / 国风达人展示 + 活动档�
 
 ## 快速开始
 
-1. 复制环境变量模板
+1. 切换到项目固定的 Node.js 版本
 
-   ```powershell
-   Copy-Item .env.example .env.local
+   ```bash
+   nvm use
    ```
 
-2. 安装依赖
+2. 复制环境变量模板
 
-   ```powershell
-   npm install
+   ```bash
+   cp .env.example .env.local
    ```
 
-3. 启动开发环境
+3. 按锁文件安装依赖
 
-   ```powershell
+   ```bash
+   npm ci
+   ```
+
+4. 启动开发环境
+
+   ```bash
    npm run dev
    ```
 
-4. 可选：初始化数据库
+5. 可选：初始化一个确认可以清空的数据库
 
-   ```powershell
-   npm run db:generate
+   ```bash
    npm run db:push
    npm run db:seed
    ```
+
+   `db:push` 会修改 `DATABASE_URL` 指向的数据库，`db:seed` 会先清空应用表；不要对生产库或需要保留内容的数据库运行。
 
 当前标准运行时为 `Node 24`，`.nvmrc`、`environment.yml` 与 GitHub Actions 已统一到同一基线。
 
@@ -64,6 +71,7 @@ SEED_EDITOR_TWO_PASSWORD=
 - `npm run dev`
 - `npm run build`
 - `npm run lint`
+- `npx tsc --noEmit --types node,vitest/globals`
 - `npm test`
 - `npm run test:e2e:smoke`
 - `npm run test:e2e`
@@ -89,14 +97,15 @@ SEED_EDITOR_TWO_PASSWORD=
 3. 合并到 `main`。
 4. 确认 Vercel production 指向与 `main` 相同的提交。
 
-当前基线收口版本为 `v4.0`，对应功能分支命名使用 `codex/tianti-v4.0`。
+当前可部署基线以 GitHub `main` 为准；功能分支统一使用 `codex/<task-slug>` 命名。
 
 ## 标准发布检查清单
 
 合并或上线前至少执行：
 
-```powershell
+```bash
 npm run lint
+npx tsc --noEmit --types node,vitest/globals
 npm test
 npm run build
 npm run test:e2e:smoke
@@ -104,7 +113,7 @@ npm run test:e2e:smoke
 
 发布前建议再补一轮全量 E2E：
 
-```powershell
+```bash
 npm run test:e2e
 ```
 
@@ -120,22 +129,21 @@ npm run test:e2e
 
 ## 文档
 
-- [V4.0 完成报告](docs/v4.0-completion-report.md)
-- [V3.3 完成报告](docs/v3.3-completion-report.md)
 - [发布流程](docs/release-flow.md)
-- [V3.2 完成报告](docs/v3.2-completion-report.md)
-- [V3.1 完成报告](docs/v3.1-completion-report.md)
-- [V1 完成报告](docs/v1-completion-report.md)
-## Orphan Asset Cleanup
+- [后端开发规范](.trellis/spec/backend/index.md)
+- [前端开发规范](.trellis/spec/frontend/index.md)
 
-Production deployments now include a Vercel Cron Job that calls `/api/cron/cleanup-orphan-assets`
-once per day. The cleanup only targets assets that:
+历史计划与完成报告不再作为当前文档维护；如需追溯，请查阅 Git 历史。
 
-- still have an R2 object key, or can derive one from the public R2 URL
-- are not referenced by talents or archives
-- are older than the configured grace window
+## 孤立素材清理
 
-Environment variables for this flow:
+`vercel.json` 配置了每天调用一次 `/api/cron/cleanup-orphan-assets` 的 Vercel Cron Job。清理只处理：
+
+- 仍有 R2 object key，或能从 R2 公共 URL 推导 object key 的素材
+- 未被达人或档案引用的素材
+- 已超过配置保留窗口的素材
+
+所需环境变量：
 
 ```env
 CRON_SECRET=...
@@ -143,5 +151,4 @@ ORPHAN_ASSET_GRACE_MINUTES=30
 ORPHAN_ASSET_CLEANUP_LIMIT=50
 ```
 
-The cron route requires `Authorization: Bearer ${CRON_SECRET}` and is intended for production
-automation only.
+Cron 路由要求 `Authorization: Bearer ${CRON_SECRET}`，仅用于生产自动化。

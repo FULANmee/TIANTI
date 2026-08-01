@@ -1,105 +1,139 @@
 # TIANTI 发布流程
 
-本文档以 `v3.3` 基线为准，目标是把仓库分支、GitHub 提交和 Vercel deployment 的关系固定到一套可复核流程里。
+这份流程不绑定某个历史版本、旧账号、固定 Vercel 项目名或部署 URL。每次发布都以当前 GitHub 仓库的提交和当前 Vercel 项目设置为准。
 
-## 1. 版本与分支约定
+## 1. 真相来源
 
-- `main`
-  - 只承接可上线版本
-  - 对应 Vercel production
-- `codex/*`
-  - 用于功能开发和联调
-  - 对应 Vercel preview
-- 当前基线收口版本使用 `codex/tianti-v3.3`
+- GitHub origin/main：当前可发布代码基线
+- Pull Request 与 GitHub Actions：变更范围和自动检查记录
+- Vercel 项目设置中的 Git Repository 连接：production/preview 的仓库来源
+- Vercel deployment 详情：实际部署的分支、提交 SHA、状态和 URL
+- src/db/schema.ts、drizzle/*.sql 与 drizzle/meta/**：数据库结构和迁移历史
 
-## 2. 本地基线
+本地 .vercel/project.json 由 vercel link 生成且被 .gitignore 忽略，只表示这台电脑的本地链接。它不是团队或生产连接的仓库内真相来源。
 
-- 标准运行时：`Node 24`
-- 真相来源：
-  - `.nvmrc`
-  - `environment.yml`
-  - `.github/workflows/ci.yml`
-- Vercel linkage 真相来源：
-  - `.vercel/project.json`
+## 2. 分支与运行时
 
-## 3. 合并前检查
+- main 只承接准备上线的版本，并对应 Vercel production。
+- codex/<task-slug> 用于功能开发、PR 和 Vercel preview。
+- 其他分支是否触发 preview 取决于当前 Vercel Git 集成设置；不要从旧报告推断。
+
+统一使用 Node 24，以 package.json、.nvmrc、environment.yml 和 GitHub Actions 为准。
+
+首次在新电脑操作：
+
+~~~bash
+nvm use
+npm ci
+git remote -v
+git fetch origin
+~~~
+
+需要用 Vercel CLI 检查部署时可运行 vercel link 选择当前账号下的正确项目。链接前在 Vercel 控制台核对项目团队、GitHub 仓库和 production branch，避免误连同名旧项目。
+
+## 3. 合并前验证
 
 至少执行：
 
-```powershell
+~~~bash
 npm run lint
+npx tsc --noEmit --types node,vitest/globals
 npm test
 npm run build
 npm run test:e2e:smoke
-```
+~~~
 
-发布前建议再补一轮：
+涉及后台编辑、上传、拖拽、筛选或 admin 到 public 数据流时，再执行：
 
-```powershell
+~~~bash
 npm run test:e2e
-```
+~~~
 
-如果本轮涉及真实环境接线，再确认：
+本地网络受限时，npm run build 可能因 Next.js 拉取 Google 字体失败。记录具体失败原因，并以同一提交在 GitHub Actions/Vercel 的构建结果补验；不要把网络错误直接当成应用回归，也不要因此跳过线上构建检查。
 
-- `DATABASE_URL`、R2 相关环境变量已在 Vercel 配齐
-- preview / production 使用的环境目标正确
-- 后台登录、公开页浏览、活动详情页可正常访问
+## 4. 数据库、环境变量与定时任务
 
-## 4. Preview 核验
+生产内容/存储模式应明确配置，不能依赖默认 mock：
 
-1. 推送功能分支到 GitHub，例如 `codex/tianti-v3.3`
-2. 确认远端分支存在：
+- TIANTI_CONTENT_MODE=database
+- DATABASE_URL
+- TIANTI_STORAGE_MODE=r2
+- R2_BUCKET、R2_ENDPOINT、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY、R2_PUBLIC_BASE_URL
+- CRON_SECRET
+- 可选的 ORPHAN_ASSET_GRACE_MINUTES、ORPHAN_ASSET_CLEANUP_LIMIT
 
-   ```powershell
-   git ls-remote --heads origin codex/tianti-v3.3
-   ```
+公开 canonical URL 由 src/lib/site.ts 按 SITE_URL、NEXT_PUBLIC_SITE_URL、VERCEL_PROJECT_PRODUCTION_URL 的顺序解析。最后的硬编码 fallback 是迁移前遗留兼容值，不是当前部署的真相来源；若平台提供的 production URL 不是目标公开域名，应显式设置 SITE_URL，并在 Preview/Production 检查 canonical、Open Graph 与 sitemap URL。
 
-3. 查询该分支对应的 preview deployment：
+.env.example 和 env schema 里仍保留可选的 SESSION_SECRET，但当前 src/lib/session.ts 使用随机 token 与 SHA-256 存储哈希，并不读取该变量；当前部署不应把它误列为必需项。
 
-   ```powershell
-   vercel list skill-deploy-mf0nplcd7f -m githubCommitRef=codex/tianti-v3.3 --format json
-   ```
+Preview 和 Production 的变量是不同环境范围，分别核对。不要在日志、PR 或发布记录中粘贴密钥值。
 
-4. 重点核对以下字段：
-   - `meta.githubCommitRef = codex/tianti-v3.3`
-   - `meta.githubCommitSha` 与分支 head 一致
-   - `state = READY`
-   - `target = null`，表示 preview
+当前 CI 和 Vercel 构建没有自动应用数据库迁移。若提交包含新的 drizzle/*.sql：
 
-5. 如需查看部署详情：
+1. 复核 SQL、外键、空值、索引和数据回填。
+2. 明确目标 DATABASE_URL。
+3. 使用团队受控的数据库执行方式应用新增迁移，再部署依赖新结构的代码；若变更需要兼容顺序，先拆成向前兼容阶段。
+4. 上线后验证真实数据库读写。
 
-   ```powershell
-   vercel inspect <preview-url>
-   ```
+npm run db:push 会直接修改所指数据库，只能在确认目标后有意执行。npm run db:seed 会先清空应用表，禁止对生产或任何需要保留内容的数据库运行。
 
-## 5. Production 核验
+vercel.json 每天调用 /api/cron/cleanup-orphan-assets。Production 必须配置 CRON_SECRET，并在涉及资源清理时确认定时调用鉴权和保留窗口正常。
 
-1. 合并到 `main`
-2. 先确认 Git 侧提交一致：
+## 5. Preview 核验
 
-   ```powershell
-   git rev-parse main origin/main
-   ```
+1. 推送功能分支并记录本地提交：
 
-3. 查询 production deployment：
+   ~~~bash
+   git branch --show-current
+   git rev-parse HEAD
+   git push -u origin <branch>
+   git ls-remote --heads origin <branch>
+   ~~~
 
-   ```powershell
-   vercel list skill-deploy-mf0nplcd7f --environment production --format json
-   vercel inspect https://skill-deploy-mf0nplcd7f.vercel.app
-   ```
+2. 确认 GitHub Actions 对该分支/PR 的适用检查通过。当前工作流自动覆盖 main 和 codex/**。
+3. 在 Vercel deployment 详情中核对：
+   - 来源仓库是当前账号下的 TIANTI 仓库；
+   - githubCommitRef 是目标分支；
+   - githubCommitSha 等于刚记录的远端提交；
+   - deployment 状态为 Ready；
+   - deployment 是 Preview 而非 Production。
+4. 如使用 CLI，可用 vercel ls 找到 URL，再用 vercel inspect <deployment-url> 查看详情；不要把项目名或 URL 硬编码回文档。
+5. 在 Preview 至少回归公开首页、达人/活动浏览、活动详情和后台登录。涉及真实数据库/R2 的变更还要确认 Preview 指向预期的隔离资源。
 
-4. 重点核对以下字段：
-   - `meta.githubCommitRef = main`
-   - `meta.githubCommitSha` 与 `main` head 一致
-   - `state = READY`
-   - 正式域名 `https://skill-deploy-mf0nplcd7f.vercel.app` 可正常回读
+## 6. Production 核验
 
-## 6. 记录要求
+1. 通过已审阅的 PR 合并到 main。
+2. 获取远端 production 基线：
 
-每个正式版本完成后，都应在对应完成报告里记录：
+   ~~~bash
+   git fetch origin
+   git rev-parse origin/main
+   ~~~
 
-- 本地分支与远端分支状态
-- 当前 `main` 对应 commit
-- 最新 production deployment URL、部署时间与 commit
-- 最新 preview deployment URL、对应分支与 commit
-- 若 preview 尚未形成，也必须明确写出原因，例如“功能分支尚未 push，因此 Vercel 尚未生成对应 preview”
+3. 确认 main 的 GitHub Actions 全部通过。
+4. 在 Vercel production deployment 详情中核对：
+   - githubCommitRef 为 main；
+   - githubCommitSha 与 origin/main 相同；
+   - 状态为 Ready；
+   - production 域名指向该 deployment。
+5. 对 production 做最小回读：
+   - 首页、达人列表/详情、活动列表/详情可访问；
+   - 后台登录与本次修改的保存流程正常；
+   - admin 保存后的结果能在 public 页面看到；
+   - 图片、数据库和定时清理相关变更在真实环境正常。
+
+若 Vercel 没有部署到预期 SHA，先检查 Git Repository 连接、Production Branch 和 deployment 忽略设置，不要用手工部署掩盖迁移后的错误连接。
+
+## 7. 回滚与记录
+
+代码回滚优先通过 Git revert 形成可审计提交，再让 Git 集成重新部署。只有确认数据库结构向后兼容时，才可单独把 production 切回旧 deployment；数据库迁移通常应使用新的向前修复迁移，不修改已应用迁移。
+
+在 PR、Trellis 任务或发布记录中保留：
+
+- 合并后的 main SHA；
+- Preview 与 Production deployment URL/时间/SHA；
+- GitHub Actions 与手工验证结果；
+- 数据库迁移和环境变量范围是否变更；
+- 已知限制及回滚条件。
+
+不要为每个版本再新增 completion-report 或 PLAN 文档。长期有效的工程约定更新到 .trellis/spec/**，具体发布证据留在 PR、任务和部署记录中。
