@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
-- **Last Active**: 2026-08-01
+- **Total Sessions**: 2
+- **Last Active**: 2026-08-02
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~27 | Active |
+| `journal-1.md` | ~48 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-08-02 | 修复网站交互与构建可靠性 | `46e9f6d` | `codex/audit-fix-site-bugs` |
 | 1 | 2026-08-01 | Bootstrap TIANTI Trellis guidelines | `8fb4e44` | `codex/bootstrap-trellis-specs` |
 <!-- @@@/auto:session-history -->
 
