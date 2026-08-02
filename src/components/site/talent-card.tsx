@@ -4,7 +4,12 @@ import { getAssetDisplayPreset } from "@/lib/asset-display";
 import { getTalentPath } from "@/lib/public-path";
 import type { TalentSummary } from "@/modules/domain/types";
 
-export function TalentCard({ talent }: { talent: TalentSummary }) {
+interface TalentCardProps {
+  eagerImage?: boolean;
+  talent: TalentSummary;
+}
+
+export function TalentCard({ eagerImage = false, talent }: TalentCardProps) {
   const coverDisplayPreset = getAssetDisplayPreset("talent_cover", talent.cover);
 
   return (
@@ -20,6 +25,7 @@ export function TalentCard({ talent }: { talent: TalentSummary }) {
               src={talent.cover.url}
               alt={talent.cover.alt}
               fill
+              loading={eagerImage ? "eager" : undefined}
               sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, 100vw"
               className="object-cover transition duration-700 group-hover:scale-[1.04]"
             />

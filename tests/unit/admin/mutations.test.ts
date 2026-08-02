@@ -83,6 +83,106 @@ describe("admin mutations", () => {
     ).rejects.toThrow("已存在同名达人，请修改昵称后再保存。");
   });
 
+  it("rejects whitespace-only required names", async () => {
+    await expect(
+      saveTalent({
+        nickname: "   ",
+        bio: "",
+        mcn: "",
+        aliases: [],
+        coverAssetId: null,
+        tags: [],
+        links: [],
+        representations: []
+      })
+    ).rejects.toThrow("达人昵称不能为空。");
+
+    await expect(
+      saveEvent({
+        name: "  ",
+        startsAt: null,
+        endsAt: null,
+        city: "",
+        venue: "",
+        note: "",
+        lineups: []
+      })
+    ).rejects.toThrow("活动名称不能为空。");
+
+    await expect(
+      saveLadder("editor-lin", {
+        id: "ladder-lin",
+        subtitle: "   ",
+        tiers: []
+      })
+    ).rejects.toThrow("天梯副标题不能为空。");
+
+    await expect(
+      saveLadder("editor-lin", {
+        id: "ladder-lin",
+        subtitle: "有效副标题",
+        tiers: [
+          {
+            id: "blank-tier",
+            name: "   ",
+            order: 0,
+            talentIds: []
+          }
+        ]
+      })
+    ).rejects.toThrow("梯度名称不能为空。");
+
+    await expect(
+      saveAsset({
+        kind: "talent_cover",
+        title: "   ",
+        alt: "有效替代文本",
+        url: "https://example.com/blank-title.jpg",
+        width: 300,
+        height: 400,
+        objectKey: null
+      })
+    ).rejects.toThrow("图片标题不能为空。");
+
+    await expect(
+      saveAsset({
+        kind: "talent_cover",
+        title: "有效标题",
+        alt: "   ",
+        url: "https://example.com/blank-alt.jpg",
+        width: 300,
+        height: 400,
+        objectKey: null
+      })
+    ).rejects.toThrow("图片替代文本不能为空。");
+  });
+
+  it("rejects impossible event dates and reversed ranges", async () => {
+    await expect(
+      saveEvent({
+        name: "Impossible Date Event",
+        startsAt: "2026-02-31",
+        endsAt: "2026-03-01",
+        city: "",
+        venue: "",
+        note: "",
+        lineups: []
+      })
+    ).rejects.toThrow("请输入有效的日期。");
+
+    await expect(
+      saveEvent({
+        name: "Reversed Date Event",
+        startsAt: "2026-06-02",
+        endsAt: "2026-06-01",
+        city: "",
+        venue: "",
+        note: "",
+        lineups: []
+      })
+    ).rejects.toThrow("活动结束日期不能早于开始日期。");
+  });
+
   it("allows saving an event with blank dates and optional fields", async () => {
     const saved = await saveEvent({
       name: "Blank Event",

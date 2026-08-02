@@ -933,7 +933,8 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
         .map((event) => event.id),
       ...archiveHits
     ],
-    (event) => (event.status === "future" ? "该达人即将参与" : "该达人曾出现在活动档案中")
+    (event) =>
+      getEventTemporalStatus(event) === "future" ? "该达人即将参与" : "该达人曾出现在活动档案中"
   );
 
   return {

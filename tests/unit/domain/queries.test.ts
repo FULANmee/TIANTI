@@ -462,6 +462,18 @@ describe("domain queries", () => {
     expect(eventDetail?.relatedEvents.length).toBeGreaterThan(0);
   });
 
+  it("derives related-event copy from dates when stored status is stale", () => {
+    const state = structuredClone(demoSeedState);
+    const event = state.events.find((item) => item.id === "event-spring-gala");
+    if (!event) throw new Error("Missing event-spring-gala fixture");
+    event.startsAt = "2026-05-15T12:00:00.000Z";
+    event.endsAt = "2026-05-16T12:00:00.000Z";
+    event.status = "past";
+
+    const detail = getTalentDetail(state, "talent-qingluan");
+    expect(detail?.relatedEvents.find((item) => item.event.event.id === event.id)?.reason).toBe("该达人即将参与");
+  });
+
   it("keeps public read models stable for empty cover, empty dates, and empty public profile fields", () => {
     const state = structuredClone(demoSeedState);
     state.talents[0] = {

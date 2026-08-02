@@ -32,7 +32,7 @@ Admin managers receive initial server props, then maintain:
 - message/error and pending state;
 - media cleanup candidates when a draft replaces/removes assets.
 
-Create/reset drafts through named helper functions rather than spreading persisted objects ad hoc. archive-manager-utils.ts is the reference for converting date strings and normalizing drafts before comparison/save.
+Create/reset drafts through named helper functions rather than spreading persisted objects ad hoc. The manager-specific `archive-manager-utils.ts`, `talent-manager-utils.ts`, and `ladder-manager-utils.ts` modules normalize semantic values before comparison/save.
 
 After a successful mutation:
 
@@ -46,9 +46,11 @@ On failure, preserve the draft and show an actionable error.
 
 ## Dirty-State Protection
 
-ArchiveManager compares normalized persisted values and normalized drafts, registers isDirty with useAdminUnsavedChanges, and protects browser unload plus GuardedLink navigation.
+ArchiveManager, TalentManager, and LadderManager compare normalized persisted values and drafts, register isDirty with useAdminUnsavedChanges, and protect browser unload plus GuardedLink/sign-out navigation. Talent dialog close and native Escape cancellation use the same dirty decision before discarding.
 
 Use normalized semantic fields for dirty comparison; do not flag whitespace-only differences or client-only row IDs. Register and clear the guard in an effect so another admin route does not inherit stale state.
+
+After a successful save, rebuild both the visible draft and its persisted baseline from the named response payload before clearing success-state dirtiness. A cancelled discard must leave the route, dialog, and draft untouched.
 
 Extend the shared guard if another protected workflow gains meaningful unsaved work. Do not add isolated beforeunload handlers throughout the admin UI.
 

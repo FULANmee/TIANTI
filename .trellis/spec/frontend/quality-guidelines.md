@@ -14,7 +14,61 @@ npm run test:e2e:smoke
 
 Run npm run test:e2e before release or after changes to admin editing, uploads, drag/drop, filters, responsive rails, or public projections.
 
-The build loads Google-hosted fonts through Next font handling. In a network-restricted environment, a font fetch failure is an environment limitation; verify the same commit in CI/Vercel rather than classifying it as an application regression without evidence.
+The build must not load remote fonts. Typography uses system CJK stacks or, if a future requirement justifies the payload, committed local font assets. A build-time font network request is an application regression.
+
+## Scenario: Network-Independent Typography Builds
+
+### 1. Scope / Trigger
+
+Apply this contract whenever changing the root layout, global typography tokens, font utilities, or build configuration. It prevents `next build` and releases from depending on Google Fonts reachability.
+
+### 2. Signatures
+
+~~~text
+npm run build
+--font-sans-stack
+--font-display-stack
+~~~
+
+`src/app/layout.tsx` imports `globals.css` but no remote font module. `font-sans` and `font-display` map to the two CSS stack variables.
+
+### 3. Contracts
+
+- Production builds perform zero font downloads.
+- Body copy uses `--font-sans-stack`; display headings use `--font-display-stack`.
+- Each stack prefers installed Noto CJK/SC faces, then platform Chinese faces, then a generic family.
+- Adding committed local fonts requires an explicit size/performance decision; remote build-time fonts remain disallowed.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Google Fonts is unavailable | `npm run build` still succeeds |
+| No preferred Noto face is installed | Browser selects a platform/generic fallback without a request or blank text |
+| A `fonts.google*` resource appears | Quality check fails; remove the remote dependency |
+| Body/display computed styles collapse to one token | Restore the separate sans/display stacks |
+
+### 5. Good / Base / Bad Cases
+
+- Good: a machine with Noto CJK installed uses it locally and the build stays offline-safe.
+- Base: macOS/Windows/Linux uses an available Chinese or generic system fallback with the same sans/display roles.
+- Bad: importing `Noto_Sans_SC` or `Noto_Serif_SC` from `next/font/google` makes the build download CJK shards.
+
+### 6. Tests Required
+
+- Node 24 `npm run build`: assert compilation, TypeScript, page generation, and route collection complete without font-fetch output.
+- Rendered desktop and 390 px checks: assert meaningful content, no framework overlay, no horizontal overflow, and no relevant console warnings/errors.
+- Browser computed-style/resource check: assert body/display stacks differ and no link resource targets `fonts.googleapis.com` or `fonts.gstatic.com`.
+
+### 7. Wrong vs Correct
+
+~~~tsx
+// Wrong: build output depends on a remote service.
+import { Noto_Sans_SC } from "next/font/google";
+
+// Correct: the layout imports global CSS; CSS tokens own a zero-request system stack.
+import "@/app/globals.css";
+~~~
 
 ## Test Placement
 
@@ -74,5 +128,4 @@ Do not copy these current leftovers as conventions:
 
 - full-page reloads in older client success flows;
 - the duplicate/unused crop-session helper retained in InlineAssetUpload;
-- stale EventBulkPayload set_status typing;
 - historical report assertions that no longer match rendered filters or empty-field behavior.

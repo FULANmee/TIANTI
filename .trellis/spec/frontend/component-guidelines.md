@@ -29,6 +29,7 @@ The project uses Tailwind CSS 4 plus global CSS custom properties and shared ui-
 - Merge conditional class names with src/lib/cn.ts.
 - Preserve the light, airy editorial surface language and current responsive max widths.
 - Use arbitrary Tailwind values when the design needs a specific radius/grid, but prefer an existing token for recurring decisions.
+- Use the global `--font-sans-stack` and `--font-display-stack` typography tokens. Do not import `next/font/google`; build-time remote font downloads make releases dependent on external reachability.
 
 Do not hardcode a new color family for a reusable component when an existing semantic token/variant covers it.
 
@@ -61,6 +62,8 @@ Avoid desktop-only fixed widths. Verify long Chinese names, empty labels, and na
 - Preserve visible focus behavior through the shared form/button styles.
 - Respect prefers-reduced-motion; globals.css already disables long animation/scroll behavior.
 - Do not make hover the only way to discover or perform an action.
+
+AdminDialog renders a native `<dialog>`, opens it with `showModal()`, exposes `aria-modal` plus an accessible title, and restores focus to the invoking control. Its native `cancel` event delegates to the caller instead of closing implicitly so a dirty-state guard can reject Escape without losing the draft.
 
 Use data-testid only for stable complex flows where role/label text is insufficient, such as drag/drop, crop, responsive rails, or key E2E page anchors.
 

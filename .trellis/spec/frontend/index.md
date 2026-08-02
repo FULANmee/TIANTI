@@ -54,3 +54,5 @@ npm run build
 ~~~
 
 Run npm run test:e2e:smoke for release-critical route/auth flows and npm run test:e2e after admin-to-public workflow changes. The explicit Vitest globals are currently required because tsconfig includes tests without declaring their globals.
+
+Typography is intentionally network-independent: production builds use CSS system CJK stacks and must not fetch Google Fonts. See the build contract in [Frontend Quality](./quality-guidelines.md).

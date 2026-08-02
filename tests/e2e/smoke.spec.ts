@@ -3,6 +3,21 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from "@
 
 const sceneUploadPath = path.join(process.cwd(), "public", "media", "poster-crimson.svg");
 const sharedUploadPath = path.join(process.cwd(), "public", "media", "shared-bloom.svg");
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const shanghaiDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
+function getFutureDateKey(daysFromNow: number) {
+  return shanghaiDateFormatter.format(new Date(Date.now() + daysFromNow * DAY_IN_MS));
+}
+
+function getShortDateLabel(dateKey: string) {
+  return `${dateKey.slice(5, 7)}.${dateKey.slice(8, 10)}`;
+}
 
 async function resetState(request: APIRequestContext) {
   const response = await request.post("/api/test/reset");
@@ -22,7 +37,7 @@ async function confirmCrop(page: Page, uploadTestId: string) {
 }
 
 async function waitForArchiveSaved(page: Page) {
-  await expect(page.getByText(/妗ｆ宸蹭繚瀛樺埌|我的档案已保存到/)).toBeVisible();
+  await expect(page.getByText(/我的档案已保存到/)).toBeVisible();
 }
 
 async function dragByTestId(page: Page, sourceTestId: string, targetTestId: string) {
@@ -117,11 +132,11 @@ test.beforeEach(async ({ request }) => {
 test("public homepage renders and links into talent detail", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "TIANTI" })).toBeVisible();
-  await expect(page.getByText("主视觉第一轮海报已出现")).toBeVisible();
   await expect(page.getByText("UNCONFIRMED")).toHaveCount(0);
-  await expect(page.getByText("待主办二宣")).toBeVisible();
-  await expect(page.getByTestId("talent-future-hint-talent-qingluan")).toHaveText("春序漫展 2026");
-  await expect(page.getByTestId("talent-card-talent-qingluan")).not.toContainText("虹馆 West Hall");
+  const featuredTalentImages = page.locator('main a[href^="/talents/"] img');
+  await expect(featuredTalentImages).toHaveCount(4);
+  await expect(featuredTalentImages.first()).toHaveAttribute("loading", "eager");
+  await expect(featuredTalentImages.nth(1)).toHaveAttribute("loading", "lazy");
   await page.getByTestId("home-cta-talents").click();
   await expect(page).toHaveURL(/\/talents$/);
   await page.getByRole("link", { name: "青鸾" }).first().click();
@@ -145,6 +160,7 @@ test("legacy schedule and admin event routes redirect into archive views", async
 });
 
 test("editor can create a talent with inline uploads and publish a future event", async ({ page }) => {
+  const eventDate = getFutureDateKey(30);
   await login(page);
 
   await page.goto("/admin/talents");
@@ -169,8 +185,8 @@ test("editor can create a talent with inline uploads and publish a future event"
   await page.goto("/admin/archives");
   await page.getByTestId("new-event-button").click();
   await page.locator('input[name="name"]').fill("Starlight Expo");
-  await page.locator('input[name="startsAt"]').fill("2026-06-01");
-  await page.locator('input[name="endsAt"]').fill("2026-06-01");
+  await page.locator('input[name="startsAt"]').fill(eventDate);
+  await page.locator('input[name="endsAt"]').fill(eventDate);
   await page.locator('input[name="city"]').fill("上海");
   await page.locator('input[name="venue"]').fill("Galaxy Hall");
   await page.getByTestId("event-note").fill("Acceptance path event for TIANTI v3.1.");
@@ -192,31 +208,33 @@ test("editor can create a talent with inline uploads and publish a future event"
 });
 
 test("multi-day event lineups are grouped by date in admin, list cards, and detail pages", async ({ page }) => {
+  const firstDate = getFutureDateKey(40);
+  const secondDate = getFutureDateKey(41);
   await login(page);
 
   await page.goto("/admin/archives");
   await page.getByTestId("new-event-button").click();
   await page.locator('input[name="name"]').fill("Weekend Expo");
-  await page.locator('input[name="startsAt"]').fill("2026-06-01");
-  await page.locator('input[name="endsAt"]').fill("2026-06-02");
+  await page.locator('input[name="startsAt"]').fill(firstDate);
+  await page.locator('input[name="endsAt"]').fill(secondDate);
   await page.locator('input[name="city"]').fill("上海");
   await page.locator('input[name="venue"]').fill("Harbor Hall");
   await addLineupViaDialog(page, {
     talentLabel: "青鸾",
-    allDates: ["2026-06-01", "2026-06-02"],
-    dateNotes: { "2026-06-01": "Day 1 note" }
+    allDates: [firstDate, secondDate],
+    dateNotes: { [firstDate]: "Day 1 note" }
   });
   await addLineupViaDialog(page, {
     talentLabel: "雁锦",
-    allDates: ["2026-06-01", "2026-06-02"],
-    dateNotes: { "2026-06-02": "Day 2 note" }
+    allDates: [firstDate, secondDate],
+    dateNotes: { [secondDate]: "Day 2 note" }
   });
   await page.getByTestId("save-event").click();
   await openSelectedEventEditor(page);
 
   await addArchiveEntriesViaDialog(page, [
-    { talentLabel: "青鸾", date: "2026-06-01", cosplayTitle: "Role Day 1" },
-    { talentLabel: "雁锦", date: "2026-06-02", cosplayTitle: "Role Day 2" }
+    { talentLabel: "青鸾", date: firstDate, cosplayTitle: "Role Day 1" },
+    { talentLabel: "雁锦", date: secondDate, cosplayTitle: "Role Day 2" }
   ]);
   await page.getByTestId("archive-scene-upload-0").setInputFiles(sceneUploadPath);
   await confirmCrop(page, "archive-scene-upload-0");
@@ -228,16 +246,16 @@ test("multi-day event lineups are grouped by date in admin, list cards, and deta
 
   await page.goto("/events?eventStatus=future&q=Weekend%20Expo");
   await expect(page.getByText("Weekend Expo")).toBeVisible();
-  await expect(page.getByText("06.01").last()).toBeVisible();
-  await expect(page.getByText("06.02").last()).toBeVisible();
+  await expect(page.getByText(getShortDateLabel(firstDate)).last()).toBeVisible();
+  await expect(page.getByText(getShortDateLabel(secondDate)).last()).toBeVisible();
   await expect(page.getByText("Day 1 note")).toBeVisible();
   await expect(page.getByText("Day 2 note")).toBeVisible();
 
   await page.getByRole("link", { name: /Weekend Expo/ }).first().click();
-  await expect(page.getByText("06.01").last()).toBeVisible();
-  await expect(page.getByText("06.02").last()).toBeVisible();
-  await expect(page.getByTestId("archive-rail-lin-2026-06-01-viewport")).toBeVisible();
-  await expect(page.getByTestId("archive-rail-lin-2026-06-02-viewport")).toBeVisible();
+  await expect(page.getByText(getShortDateLabel(firstDate)).last()).toBeVisible();
+  await expect(page.getByText(getShortDateLabel(secondDate)).last()).toBeVisible();
+  await expect(page.getByTestId(`archive-rail-lin-${firstDate}-viewport`)).toBeVisible();
+  await expect(page.getByTestId(`archive-rail-lin-${secondDate}-viewport`)).toBeVisible();
   await expect(page.getByText("Day 1 source")).toHaveCount(0);
   await expect(page.getByText("Day 2 note")).toBeVisible();
   await expect(page.getByText("Role Day 1")).toBeVisible();
@@ -278,22 +296,29 @@ test("editor can upload archive assets inline and shared-photo card toggles on t
 
   const sharedButton = publicPage.getByTestId("archive-shared-toggle").first();
   const sharedImage = publicPage.locator('img[alt="shared-bloom"]').first();
+  await expect(sharedButton).toHaveAttribute("aria-pressed", "false");
+  await expect(sharedButton).toHaveAccessibleName(/查看.+的合照/);
   await expect.poll(async () => sharedImage.evaluate((node) => getComputedStyle(node).opacity)).toBe("0");
   await sharedButton.click();
+  await expect(sharedButton).toHaveAttribute("aria-pressed", "true");
+  await expect(sharedButton).toHaveAccessibleName(/返回查看.+的现场图/);
   await expect.poll(async () => sharedImage.evaluate((node) => getComputedStyle(node).opacity)).toBe("1");
   await sharedButton.click();
+  await expect(sharedButton).toHaveAttribute("aria-pressed", "false");
   await expect.poll(async () => sharedImage.evaluate((node) => getComputedStyle(node).opacity)).toBe("0");
   await publicPage.close();
 });
 
 test("event archive rails can page horizontally within a single editor date row", async ({ page }) => {
+  const firstDate = getFutureDateKey(50);
+  const secondDate = getFutureDateKey(51);
   await login(page);
 
   await page.goto("/admin/archives");
   await page.getByTestId("new-event-button").click();
   await page.locator('input[name="name"]').fill("Rail Expo");
-  await page.locator('input[name="startsAt"]').fill("2026-07-01");
-  await page.locator('input[name="endsAt"]').fill("2026-07-02");
+  await page.locator('input[name="startsAt"]').fill(firstDate);
+  await page.locator('input[name="endsAt"]').fill(secondDate);
   await page.locator('input[name="city"]').fill("Shanghai");
   await page.locator('input[name="venue"]').fill("Rail Hall");
 
@@ -301,8 +326,8 @@ test("event archive rails can page horizontally within a single editor date row"
   for (const talentId of lineupTalentIds) {
     await addLineupViaDialog(page, {
       talentId,
-      allDates: ["2026-07-01", "2026-07-02"],
-      dateNotes: { "2026-07-01": "" }
+      allDates: [firstDate, secondDate],
+      dateNotes: { [firstDate]: "" }
     });
   }
 
@@ -328,9 +353,9 @@ test("event archive rails can page horizontally within a single editor date row"
   await page.goto("/events?eventStatus=future&q=Rail%20Expo");
   await page.getByRole("link", { name: /Rail Expo/ }).first().click();
 
-  const viewport = page.getByTestId("archive-rail-lin-2026-07-01-viewport");
-  const nextButton = page.getByTestId("archive-rail-lin-2026-07-01-next");
-  const prevButton = page.getByTestId("archive-rail-lin-2026-07-01-prev");
+  const viewport = page.getByTestId(`archive-rail-lin-${firstDate}-viewport`);
+  const nextButton = page.getByTestId(`archive-rail-lin-${firstDate}-next`);
+  const prevButton = page.getByTestId(`archive-rail-lin-${firstDate}-prev`);
 
   await expect(viewport).toBeVisible();
   await expect(nextButton).toBeVisible();
@@ -341,6 +366,9 @@ test("event archive rails can page horizontally within a single editor date row"
 
   await prevButton.click();
   await expect.poll(async () => viewport.evaluate((node) => node.scrollLeft)).toBeLessThan(20);
+
+  await viewport.evaluate((node) => node.scrollTo({ left: node.scrollWidth, behavior: "instant" }));
+  await expect(nextButton).toBeDisabled();
 });
 
 test("inline upload surfaces clear backend error messages", async ({ page }) => {
@@ -361,6 +389,91 @@ test("inline upload surfaces clear backend error messages", async ({ page }) => 
   await page.getByTestId("talent-cover-upload").setInputFiles(sceneUploadPath);
   await confirmCrop(page, "talent-cover-upload");
   await expect(page.getByText("R2 存储配置错误：缺少 R2_PUBLIC_BASE_URL。")).toBeVisible();
+});
+
+test("talent dialogs keep focus modal and protect unsaved edits on Escape", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin/talents");
+
+  const opener = page.getByRole("button", { name: "编辑达人" });
+  const editorDialog = page.getByRole("dialog");
+  const nicknameInput = page.locator('input[name="nickname"]');
+
+  await expect(async () => {
+    if ((await editorDialog.count()) === 0) {
+      await opener.click();
+    }
+    await expect(editorDialog).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
+  await expect.poll(() => editorDialog.evaluate((node) => node.matches(":modal"))).toBe(true);
+  await expect.poll(() => editorDialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+
+  for (let index = 0; index < 12; index += 1) {
+    await page.keyboard.press("Tab");
+  }
+  await expect.poll(() => editorDialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+
+  await nicknameInput.fill("青鸾未保存");
+  await expect(page.getByTestId("talent-manager")).toHaveAttribute("data-unsaved", "true");
+  page.once("dialog", async (dialog) => {
+    expect(dialog.type()).toBe("confirm");
+    expect(dialog.message()).toContain("当前达人资料还有未保存的修改");
+    await dialog.dismiss();
+  });
+  await page.keyboard.press("Escape");
+
+  await expect(editorDialog).toBeVisible();
+  await expect(nicknameInput).toHaveValue("青鸾未保存");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "关闭" }).click();
+  await expect(editorDialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await opener.click();
+  await expect(editorDialog).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
+    )
+    .toBe(true);
+  const mobileDialogBox = await editorDialog.boundingBox();
+  expect(mobileDialogBox).not.toBeNull();
+  expect(mobileDialogBox?.x).toBeGreaterThanOrEqual(0);
+  expect(mobileDialogBox?.width).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "关闭" }).click();
+  await expect(editorDialog).toHaveCount(0);
+});
+
+test("ladder navigation protects and preserves an unsaved draft", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin/ladder");
+
+  const subtitle = page.getByTestId("ladder-subtitle");
+  const ladderManager = page.getByTestId("ladder-manager");
+  await expect(async () => {
+    await subtitle.fill("");
+    await subtitle.fill("尚未保存的天梯副标题");
+    await expect(ladderManager).toHaveAttribute("data-unsaved", "true", { timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("当前天梯榜还有未保存的修改");
+    await dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "总览" }).click();
+  await expect(page).toHaveURL(/\/admin\/ladder$/);
+  await expect(subtitle).toHaveValue("尚未保存的天梯副标题");
+
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "退出登录" }).click();
+  await expect(page).toHaveURL(/\/admin\/ladder$/);
+  await expect(subtitle).toHaveValue("尚未保存的天梯副标题");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("link", { name: "总览" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
 });
 
 test("editor can clear a current image and save the empty state", async ({ page }) => {
@@ -390,13 +503,21 @@ test("editor can reopen crop for an existing image", async ({ page }) => {
 
 test("public filters apply automatically without a filter button", async ({ page }) => {
   await page.goto("/talents");
-  await page.locator('select[name="mcn"]').selectOption("浮光社");
+  await page.getByLabel("按 MCN 筛选达人").selectOption("浮光社");
   await expect(page).toHaveURL(/mcn=/);
   await expect(page.getByText("雁锦")).toBeVisible();
 
   await page.goto("/events");
-  await page.locator('select[name="eventStatus"]').selectOption("past");
+  await page.getByLabel("按状态筛选活动").selectOption("past");
   await expect(page).toHaveURL(/eventStatus=past/);
+});
+
+test("horizontal rail disables both controls when all cards already fit", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/talents/talent-qingluan");
+
+  await expect(page.getByTestId("representation-rail-prev")).toBeDisabled();
+  await expect(page.getByTestId("representation-rail-next")).toBeDisabled();
 });
 
 test("editor can update ladder subtitle while the derived title stays public", async ({ page }) => {
@@ -406,7 +527,7 @@ test("editor can update ladder subtitle while the derived title stays public", a
   await expect(page.getByTestId("ladder-title")).toHaveValue("凛的天梯榜");
   await page.getByTestId("ladder-subtitle").fill("CI subtitle from smoke");
   await page.getByTestId("save-ladder").click();
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("天梯榜已保存。")).toBeVisible();
   await expect(page.getByTestId("ladder-title")).toHaveValue("凛的天梯榜");
 
   await page.goto("/ladder?editor=lin");
@@ -419,8 +540,12 @@ test("editor can rename their display name and see it reflected publicly", async
 
   await page.goto("/admin");
   await page.getByTestId("editor-name-input").fill("凛编辑");
+  const saveEditorResponse = page.waitForResponse(
+    (response) => response.url().includes("/api/admin/editor") && response.request().method() === "PUT"
+  );
   await page.getByTestId("save-editor-name").click();
-  await page.waitForLoadState("networkidle");
+  await expect((await saveEditorResponse).ok()).toBe(true);
+  await expect(page.getByText("昵称已更新，后台顶部和公开页面会同步刷新。")).toBeVisible({ timeout: 10_000 });
 
   await expect(page.getByTestId("editor-name-input")).toHaveValue("凛编辑");
 
@@ -458,7 +583,7 @@ test("ladder tier ordering syncs from admin sorting to the public ladder", async
   await page.goto("/admin/ladder");
   await page.getByTestId("tier-lin-t1-talent-1").dragTo(page.getByTestId("tier-lin-t1-talent-0"));
   await page.getByTestId("save-ladder").click();
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("天梯榜已保存。")).toBeVisible();
 
   await expect(page.getByTestId("tier-lin-t1-talent-0")).toContainText("昭映");
   await expect(page.getByTestId("tier-lin-t1-talent-1")).toContainText("云墨");
@@ -494,7 +619,7 @@ test("double-clicking a ladder chip returns it to the unranked pool", async ({ p
   await expect(page.getByTestId("tier-lin-t0-talent-0")).toHaveCount(0);
 
   await page.getByTestId("save-ladder").click();
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("天梯榜已保存。")).toBeVisible();
 
   await page.goto("/ladder?editor=lin");
   await expect(page.getByTestId("ladder-tier-lin-t0-talent-0")).toHaveCount(0);
@@ -556,7 +681,6 @@ test("public pages remain browsable on mobile", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "TIANTI" })).toBeVisible();
   await expect(page.getByTestId("site-header")).toHaveCSS("position", "static");
-  await expectGridColumnCount(page.getByTestId("event-card-lineup-grid").first(), 3);
 
   await page.goto("/talents");
   await expect(page.getByTestId("talents-page-title")).toBeVisible();

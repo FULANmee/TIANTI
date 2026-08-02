@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
+import { normalizeLadderDraft } from "@/components/admin/ladder-manager-utils";
 import { StatusNotice } from "@/components/ui/status-notice";
 import type { EditorLadder, Talent } from "@/modules/domain/types";
 
@@ -15,6 +17,8 @@ const talentNameCollator = new Intl.Collator("zh-Hans-CN-u-co-pinyin", {
   sensitivity: "base"
 });
 
+const UNSAVED_MESSAGE = "当前天梯榜还有未保存的修改，离开后会丢失。确定继续吗？";
+
 function getDerivedLadderTitle(editorName: string) {
   return `${editorName}的天梯榜`;
 }
@@ -24,11 +28,20 @@ function compareTalentsByNickname(first: Talent, second: Talent) {
 }
 
 export function LadderManager({ ladder, talents, editorName }: LadderManagerProps) {
+  const { setGuard } = useAdminUnsavedChanges();
   const derivedTitle = getDerivedLadderTitle(editorName);
+  const [persistedLadder, setPersistedLadder] = useState<EditorLadder>(ladder);
   const [draft, setDraft] = useState<EditorLadder>({ ...ladder, title: derivedTitle });
   const [dragging, setDragging] = useState<{ talentId: string; fromTierId: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; variant: "error" | "success" } | null>(null);
+  const hasUnsavedChanges =
+    JSON.stringify(normalizeLadderDraft(draft)) !== JSON.stringify(normalizeLadderDraft(persistedLadder));
+
+  useEffect(() => {
+    setGuard(hasUnsavedChanges ? { isDirty: true, message: UNSAVED_MESSAGE } : null);
+    return () => setGuard(null);
+  }, [hasUnsavedChanges, setGuard]);
 
   const talentMap = useMemo(() => new Map(talents.map((talent) => [talent.id, talent])), [talents]);
   const assignedTalentIds = useMemo(() => new Set(draft.tiers.flatMap((tier) => tier.talentIds)), [draft.tiers]);
@@ -117,7 +130,7 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
   }
 
   async function handleSave() {
-    setMessage(null);
+    setNotice(null);
 
     startTransition(async () => {
       const response = await fetch("/api/admin/ladder", {
@@ -130,17 +143,27 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
           title: derivedTitle
         })
       });
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) {
-        setMessage(data?.error ?? "保存失败。");
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; ladder?: EditorLadder }
+        | null;
+      if (!response.ok || !data?.ladder) {
+        setNotice({ text: data?.error ?? "保存失败。", variant: "error" });
         return;
       }
-      window.location.reload();
+
+      const nextLadder = { ...data.ladder, title: derivedTitle };
+      setPersistedLadder(nextLadder);
+      setDraft(nextLadder);
+      setNotice({ text: "天梯榜已保存。", variant: "success" });
     });
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      data-testid="ladder-manager"
+      data-unsaved={hasUnsavedChanges ? "true" : "false"}
+      className="space-y-6"
+    >
       <section className="surface rounded-[1.8rem] p-6">
         <div className="grid gap-4 md:grid-cols-[1fr_1.2fr]">
           <div className="space-y-2">
@@ -326,7 +349,7 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
         </button>
       </div>
 
-      {message ? <StatusNotice variant="error">{message}</StatusNotice> : null}
+      {notice ? <StatusNotice variant={notice.variant}>{notice.text}</StatusNotice> : null}
 
       <div className="flex justify-end">
         <button

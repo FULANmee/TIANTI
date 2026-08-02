@@ -67,4 +67,4 @@ Use optional chaining, null coalescing, conditional JSX, public-path fallbacks, 
 
 Give reusable admin responses a named type in src/modules/admin/types.ts and keep it aligned with the actual route envelope. Still guard failed/non-JSON responses at runtime.
 
-The existing EventBulkPayload includes a stale set_status branch while the executable server schema accepts only delete. Do not copy or extend the stale branch; reconcile the contract if that area is changed.
+EventBulkPayload accepts only `{ action: "delete", ids: string[] }`, matching the executable schema and handler. Adding another action requires updating the runtime schema, handler, client, and regression tests together.

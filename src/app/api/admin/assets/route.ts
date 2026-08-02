@@ -8,8 +8,8 @@ import { uploadObjectToR2 } from "@/storage/r2";
 
 const assetSchema = z.object({
   kind: z.enum(["talent_cover", "talent_representation", "event_scene", "shared_photo"]),
-  title: z.string().min(1),
-  alt: z.string().min(1),
+  title: z.string().trim().min(1),
+  alt: z.string().trim().min(1),
   width: z.coerce.number().int().positive(),
   height: z.coerce.number().int().positive()
 });
@@ -21,7 +21,7 @@ const assetFetchSchema = z.object({
 export async function GET(request: Request) {
   const editor = await getAuthenticatedEditor();
   if (!editor) {
-    return NextResponse.json({ error: "鏈櫥褰曘€?" }, { status: 401 });
+    return NextResponse.json({ error: "未登录。" }, { status: 401 });
   }
 
   try {

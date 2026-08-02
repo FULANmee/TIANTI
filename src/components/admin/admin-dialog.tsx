@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode, type SyntheticEvent } from "react";
 import { cn } from "@/lib/cn";
 
 interface AdminDialogProps {
@@ -20,26 +20,73 @@ const sizeClassNames = {
 
 export function AdminDialog({ title, description, children, footer, onClose, size = "md" }: AdminDialogProps) {
   const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.documentElement.style.overflow;
+
+    if (!dialog) {
+      return undefined;
+    }
+
+    document.documentElement.style.overflow = "hidden";
+    if (!dialog.open) {
+      dialog.showModal();
+    }
+    closeButtonRef.current?.focus();
+
+    return () => {
+      if (dialog.open) {
+        dialog.close();
+      }
+      document.documentElement.style.overflow = previousOverflow;
+      if (invoker?.isConnected) {
+        invoker.focus();
+      }
+    };
+  }, []);
+
+  function handleCancel(event: SyntheticEvent<HTMLDialogElement>) {
+    event.preventDefault();
+    onClose();
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(238,243,248,0.76)] px-4 py-6 backdrop-blur-md">
+    <dialog
+      ref={dialogRef}
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
+      onCancel={handleCancel}
+      className={cn(
+        "m-auto max-h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] overflow-visible border-0 bg-transparent p-0 text-[var(--foreground)] outline-none backdrop:bg-[rgba(238,243,248,0.76)] backdrop:backdrop-blur-md",
+        sizeClassNames[size]
+      )}
+    >
       <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={cn(
-          "surface max-h-[calc(100vh-3rem)] w-full overflow-y-auto rounded-[1.8rem] p-6 shadow-[0_24px_80px_rgba(91,109,133,0.16)]",
-          sizeClassNames[size]
-        )}
+        className="surface max-h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-[1.8rem] p-6 shadow-[0_24px_80px_rgba(91,109,133,0.16)]"
       >
         <div className="flex items-start justify-between gap-4 border-b border-[var(--line-soft)] pb-4">
           <div>
             <h2 id={titleId} className="text-2xl text-[var(--foreground)]">
               {title}
             </h2>
-            {description ? <p className="mt-2 text-sm leading-6 ui-subtle">{description}</p> : null}
+            {description ? (
+              <p id={descriptionId} className="mt-2 text-sm leading-6 ui-subtle">
+                {description}
+              </p>
+            ) : null}
           </div>
-          <button type="button" onClick={onClose} className="ui-button-secondary px-3 py-2 text-sm">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="ui-button-secondary shrink-0 px-3 py-2 text-sm"
+          >
             关闭
           </button>
         </div>
@@ -48,6 +95,6 @@ export function AdminDialog({ title, description, children, footer, onClose, siz
           {footer}
         </div>
       </section>
-    </div>
+    </dialog>
   );
 }

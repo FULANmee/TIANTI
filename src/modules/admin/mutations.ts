@@ -6,6 +6,7 @@ import {
   deriveEventTemporalStatus,
   getDateOnlyKey,
   getDateRangeDays,
+  isValidDateOnlyValue,
   isMultiDayRange,
   toDateOnlyIso
 } from "@/lib/date";
@@ -23,7 +24,7 @@ import { getContentRepository } from "@/modules/repository";
 
 const talentSchema = z.object({
   id: z.string().optional(),
-  nickname: z.string().min(1),
+  nickname: z.string().trim().min(1, "达人昵称不能为空。"),
   slug: z.string().nullable().optional(),
   bio: z.string().optional().default(""),
   mcn: z.string().optional().default(""),
@@ -52,40 +53,62 @@ const talentSchema = z.object({
   cleanupCandidateAssetIds: z.array(z.string()).optional().default([])
 });
 
-const eventSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(1),
-  slug: z.string().nullable().optional(),
-  aliases: z.array(z.string()).optional(),
-  searchKeywords: z.array(z.string()).optional(),
-  startsAt: z.string().nullable().optional(),
-  endsAt: z.string().nullable().optional(),
-  city: z.string().optional().default(""),
-  venue: z.string().optional().default(""),
-  status: z.enum(["future", "past"]).optional(),
-  note: z.string().optional().default(""),
-  lineups: z
-    .array(
-      z.object({
-        id: z.string().optional(),
-        talentId: z.string().nullable().optional(),
-        lineupDate: z.string().nullable().optional(),
-        status: z.enum(["confirmed", "pending"]).optional().default("confirmed"),
-        source: z.string().optional().default(""),
-        note: z.string().optional().default("")
-      })
-    )
-    .default([])
-});
+const optionalDateOnlySchema = z
+  .string()
+  .nullable()
+  .optional()
+  .refine(
+    (value) => value == null || value.trim() === "" || isValidDateOnlyValue(value.trim()),
+    "请输入有效的日期。"
+  );
+
+const eventSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().trim().min(1, "活动名称不能为空。"),
+    slug: z.string().nullable().optional(),
+    aliases: z.array(z.string()).optional(),
+    searchKeywords: z.array(z.string()).optional(),
+    startsAt: optionalDateOnlySchema,
+    endsAt: optionalDateOnlySchema,
+    city: z.string().optional().default(""),
+    venue: z.string().optional().default(""),
+    status: z.enum(["future", "past"]).optional(),
+    note: z.string().optional().default(""),
+    lineups: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          talentId: z.string().nullable().optional(),
+          lineupDate: optionalDateOnlySchema,
+          status: z.enum(["confirmed", "pending"]).optional().default("confirmed"),
+          source: z.string().optional().default(""),
+          note: z.string().optional().default("")
+        })
+      )
+      .default([])
+  })
+  .superRefine((input, context) => {
+    const startsAt = input.startsAt?.trim() ?? "";
+    const endsAt = input.endsAt?.trim() ?? "";
+
+    if (startsAt && endsAt && endsAt < startsAt) {
+      context.addIssue({
+        code: "custom",
+        path: ["endsAt"],
+        message: "活动结束日期不能早于开始日期。"
+      });
+    }
+  });
 
 const ladderSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
-  subtitle: z.string().min(1),
+  subtitle: z.string().trim().min(1, "天梯副标题不能为空。"),
   tiers: z.array(
     z.object({
       id: z.string(),
-      name: z.string().min(1),
+      name: z.string().trim().min(1, "梯度名称不能为空。"),
       order: z.number(),
       talentIds: z.array(z.string())
     })
@@ -101,7 +124,7 @@ const archiveSchema = z.object({
     z.object({
       id: z.string().optional(),
       talentId: z.string(),
-      entryDate: z.string().nullable().optional(),
+      entryDate: optionalDateOnlySchema,
       sceneAssetId: z.string().nullable().optional(),
       sharedPhotoAssetId: z.string().nullable().optional(),
       cosplayTitle: z.string().optional().default(""),
@@ -112,8 +135,8 @@ const archiveSchema = z.object({
 
 const assetSchema = z.object({
   kind: z.enum(["talent_cover", "talent_representation", "event_scene", "shared_photo"]),
-  title: z.string().min(1),
-  alt: z.string().min(1),
+  title: z.string().trim().min(1, "图片标题不能为空。"),
+  alt: z.string().trim().min(1, "图片替代文本不能为空。"),
   url: z.string().url(),
   objectKey: z.string().nullable().optional(),
   width: z.number().int().positive(),

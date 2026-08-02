@@ -1,4 +1,4 @@
-import type { EventStatus, Talent, TalentTag } from "@/modules/domain/types";
+import type { Talent, TalentTag } from "@/modules/domain/types";
 
 export interface BlockedBulkAction {
   id: string;
@@ -17,9 +17,8 @@ export interface TalentBulkPayload {
 }
 
 export interface EventBulkPayload {
-  action: "set_status" | "delete";
+  action: "delete";
   ids: string[];
-  status?: EventStatus;
 }
 
 export interface TalentBulkResponse extends BulkActionResult {

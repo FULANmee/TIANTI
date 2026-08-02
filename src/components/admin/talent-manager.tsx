@@ -1,8 +1,10 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import { AdminDialog } from "@/components/admin/admin-dialog";
+import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
 import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
+import { normalizeTalentDraft, splitCommaValues } from "@/components/admin/talent-manager-utils";
 import { compareByPinyin } from "@/lib/pinyin";
 import type { TalentBulkResponse } from "@/modules/admin/types";
 import type { Asset, Talent } from "@/modules/domain/types";
@@ -36,12 +38,10 @@ interface TalentDraft {
   representations: RepresentationDraft[];
 }
 
+const UNSAVED_MESSAGE = "当前达人资料还有未保存的修改，关闭或离开后会丢失。确定继续吗？";
+
 function toCommaText(value?: string[]) {
   return value?.join(", ") ?? "";
-}
-
-function splitCommaValues(value: string) {
-  return [...new Set(value.split(/[，,]/).map((item) => item.trim()).filter(Boolean))];
 }
 
 function sortTalents(value: Talent[]) {
@@ -109,6 +109,7 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
 }
 
 export function TalentManager({ talents, assets }: TalentManagerProps) {
+  const { setGuard } = useAdminUnsavedChanges();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [liveTalents, setLiveTalents] = useState(() => sortTalents(talents));
@@ -123,6 +124,15 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
 
   const selectedTalent = liveTalents.find((talent) => talent.id === selectedId) ?? null;
   const [draft, setDraft] = useState<TalentDraft>(() => createTalentDraft(selectedTalent));
+  const persistedDraft = useMemo(() => createTalentDraft(selectedTalent), [selectedTalent]);
+  const hasUnsavedChanges =
+    isEditorOpen &&
+    JSON.stringify(normalizeTalentDraft(draft)) !== JSON.stringify(normalizeTalentDraft(persistedDraft));
+
+  useEffect(() => {
+    setGuard(hasUnsavedChanges ? { isDirty: true, message: UNSAVED_MESSAGE } : null);
+    return () => setGuard(null);
+  }, [hasUnsavedChanges, setGuard]);
 
   const assetMap = useMemo(() => new Map(liveAssets.map((asset) => [asset.id, asset])), [liveAssets]);
 
@@ -164,6 +174,7 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
   }
 
   function closeTalentEditor() {
+    if (hasUnsavedChanges && !window.confirm(UNSAVED_MESSAGE)) return;
     const nextTalent = liveTalents.find((talent) => talent.id === selectedId) ?? null;
     setDraft(createTalentDraft(nextTalent));
     setCleanupCandidateAssetIds([]);
@@ -484,7 +495,11 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
+    <div
+      data-testid="talent-manager"
+      data-unsaved={hasUnsavedChanges ? "true" : "false"}
+      className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]"
+    >
       <aside className="surface rounded-[1.8rem] p-5">
         <input
           value={query}

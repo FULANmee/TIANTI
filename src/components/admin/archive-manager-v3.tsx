@@ -151,6 +151,9 @@ function buildBulkSummary(result: BulkActionResult, label: string) {
 
 function validateEventDraft(eventDraft: EditableEvent, editableLineups: EditableLineup[]) {
   if (!eventDraft.name.trim()) return "请先填写活动名称。";
+  if (eventDraft.startsAt && eventDraft.endsAt && eventDraft.endsAt < eventDraft.startsAt) {
+    return "活动结束日期不能早于开始日期。";
+  }
 
   const validDateKeys = new Set(getDateRangeDays(eventDraft.startsAt, eventDraft.endsAt));
   if (isMultiDayRange(eventDraft.startsAt, eventDraft.endsAt)) {
@@ -1728,5 +1731,4 @@ export function ArchiveManager({
     </>
   );
 }
-
 

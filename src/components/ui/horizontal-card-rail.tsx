@@ -160,7 +160,7 @@ export function HorizontalCardRail({
                 aria-controls={railId}
                 aria-label={`向右翻页查看${controlsLabel}`}
                 data-testid={testIdPrefix ? `${testIdPrefix}-next` : undefined}
-                disabled={!scrollState.canScrollNext && scrollState.canScrollPrev}
+                disabled={!scrollState.canScrollNext}
                 onClick={() => scrollByPage(1)}
                 className="ui-button-secondary h-10 w-10 p-0 disabled:pointer-events-none disabled:opacity-40"
               >

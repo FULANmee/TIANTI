@@ -1,14 +1,18 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Noto Serif SC", "Songti SC", serif;
+  --font-sans: var(--font-sans-stack);
+  --font-display: var(--font-display-stack);
   --color-accent: var(--color-accent);
   --color-black: #f4f7fb;
   --color-white: #18212f;
 }
 
 :root {
+  --font-sans-stack: "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    ui-sans-serif, system-ui, sans-serif;
+  --font-display-stack: "Noto Serif CJK SC", "Noto Serif SC", "Songti SC", STSong, SimSun, ui-serif, Georgia,
+    serif;
   --background: #eef3f8;
   --background-strong: #f8fbff;
   --foreground: #18212f;
@@ -52,7 +56,7 @@ body {
   min-height: 100vh;
   background: transparent;
   color: var(--foreground);
-  font-family: var(--font-sans), sans-serif;
+  font-family: var(--font-sans-stack);
   text-rendering: optimizeLegibility;
 }
 

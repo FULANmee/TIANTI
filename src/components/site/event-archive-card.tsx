@@ -69,10 +69,12 @@ export function EventArchiveCard({
               <button
                 type="button"
                 data-testid="archive-shared-toggle"
+                aria-pressed={showSharedPhoto}
+                aria-label={showSharedPhoto ? `返回查看${talentName}的现场图` : `查看${talentName}的合照`}
                 onClick={() => setIsSharedPhotoVisible((current) => !current)}
                 className="rounded-full border border-[var(--line-soft)] px-3 py-1 text-[11px] tracking-[0.15em] transition hover:border-[rgba(43,109,246,0.22)] hover:text-[var(--foreground)]"
               >
-                已集邮
+                {showSharedPhoto ? "返回现场" : "查看合照"}
               </button>
             ) : (
               <span>已集邮</span>

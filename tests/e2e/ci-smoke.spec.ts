@@ -49,7 +49,7 @@ test("editor can update ladder subtitle while the derived title stays public", a
   await expect(page.getByTestId("ladder-title")).toHaveValue("凛的天梯榜");
   await page.getByTestId("ladder-subtitle").fill("CI subtitle");
   await page.getByTestId("save-ladder").click();
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("天梯榜已保存。")).toBeVisible();
   await expect(page.getByTestId("ladder-title")).toHaveValue("凛的天梯榜");
 
   await page.goto("/ladder?editor=lin");

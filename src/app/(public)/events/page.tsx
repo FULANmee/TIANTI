@@ -67,14 +67,22 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
       <div className="mt-10 space-y-8">
         <FilterBar>
           <AutoFilterForm className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_0.85fr_0.85fr_0.95fr_1fr_0.95fr_0.85fr]">
+            <label className="sr-only" htmlFor="event-filter-search">
+              搜索活动
+            </label>
             <input
+              id="event-filter-search"
               name="q"
               defaultValue={q}
               placeholder="搜索活动名、城市、场馆或阵容达人"
               className="ui-input rounded-full"
               data-testid="event-filter-search"
             />
+            <label className="sr-only" htmlFor="event-filter-status">
+              按状态筛选活动
+            </label>
             <select
+              id="event-filter-status"
               name="eventStatus"
               defaultValue={eventStatus ?? ""}
               data-auto-submit="true"
@@ -84,7 +92,16 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
               <option value="future">未来活动</option>
               <option value="past">已结束活动</option>
             </select>
-            <select name="city" defaultValue={city ?? ""} data-auto-submit="true" className="ui-select rounded-full">
+            <label className="sr-only" htmlFor="event-filter-city">
+              按城市筛选活动
+            </label>
+            <select
+              id="event-filter-city"
+              name="city"
+              defaultValue={city ?? ""}
+              data-auto-submit="true"
+              className="ui-select rounded-full"
+            >
               <option value="">全部城市</option>
               {cities.map((item) => (
                 <option key={item} value={item}>
@@ -92,7 +109,11 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
                 </option>
               ))}
             </select>
+            <label className="sr-only" htmlFor="event-filter-editor">
+              按编辑者筛选活动
+            </label>
             <select
+              id="event-filter-editor"
               name="editor"
               defaultValue={selectedEditor?.slug ?? ""}
               data-auto-submit="true"
@@ -105,7 +126,11 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
                 </option>
               ))}
             </select>
+            <label className="sr-only" htmlFor="event-filter-talent">
+              按相关达人筛选活动
+            </label>
             <select
+              id="event-filter-talent"
               name="talent"
               defaultValue={talentId ?? ""}
               data-auto-submit="true"
@@ -118,14 +143,22 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
                 </option>
               ))}
             </select>
+            <label className="sr-only" htmlFor="event-filter-date">
+              按日期筛选活动
+            </label>
             <input
+              id="event-filter-date"
               type="date"
               name="date"
               defaultValue={date ?? ""}
               data-auto-submit="true"
               className="ui-input rounded-full"
             />
+            <label className="sr-only" htmlFor="event-filter-sort">
+              活动排序方式
+            </label>
             <select
+              id="event-filter-sort"
               name="sort"
               defaultValue={activeSort}
               data-auto-submit="true"

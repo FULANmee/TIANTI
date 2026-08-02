@@ -50,6 +50,10 @@ export function toDateInputValue(value?: string | null) {
 }
 
 export function getDateOnlyKey(value?: string | Date | null) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return isValidDateOnlyValue(value) ? value : null;
+  }
+
   const date = toDate(value);
   return date ? format(date, "yyyy-MM-dd") : null;
 }
@@ -57,18 +61,12 @@ export function getDateOnlyKey(value?: string | Date | null) {
 export function toDateOnlyIso(value?: string | null) {
   if (!value) return null;
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
+  const date = createUtcDateFromKey(value);
+  return date?.toISOString() ?? null;
+}
 
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-
-  if ([year, month, day].some((part) => Number.isNaN(part))) {
-    return null;
-  }
-
-  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).toISOString();
+export function isValidDateOnlyValue(value: string) {
+  return parseDateKey(value) !== null;
 }
 
 export function getDateSortTime(value?: string | Date | null) {
@@ -115,6 +113,15 @@ function parseDateKey(value: string) {
   const day = Number(match[3]);
 
   if ([year, month, day].some((part) => Number.isNaN(part))) {
+    return null;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
     return null;
   }
 

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { deriveEventTemporalStatus } from "@/lib/date";
 import { getEventPath, getTalentPath } from "@/lib/public-path";
 import { buildAbsoluteUrl } from "@/lib/site";
 import { getContentState } from "@/modules/content/service";
@@ -24,7 +25,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...state.events.map((event) => ({
       url: buildAbsoluteUrl(getEventPath(event)),
       lastModified: new Date(event.updatedAt),
-      changeFrequency: event.status === "future" ? ("daily" as const) : ("monthly" as const),
+      changeFrequency:
+        deriveEventTemporalStatus(event.startsAt, event.endsAt) === "future"
+          ? ("daily" as const)
+          : ("monthly" as const),
       priority: 0.8
     }))
   ];

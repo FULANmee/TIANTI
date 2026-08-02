@@ -65,9 +65,9 @@ Missing one mapping often produces a successful save followed by data disappeari
 
 ### Dates and event state
 
-- Treat date-only UI values through src/lib/date.ts; they are stored at noon UTC.
+- Treat date-only UI values through src/lib/date.ts; nonblank values must be real yyyy-MM-dd calendar dates and are stored at noon UTC.
 - Derive future/past/undated using Asia/Shanghai date semantics.
-- The stored Event.status is compatibility data, not the public temporal-state rule. getTalentDetail() has one known related-reason leftover that still reads it; do not extend that behavior.
+- The stored Event.status is compatibility data, not the public temporal-state rule; public queries, copy, and sitemap behavior derive from dates.
 - For multi-day events, lineup and archive entry dates must remain within the event range and archive entry date must match that talent's lineup date.
 
 ### Identity and access

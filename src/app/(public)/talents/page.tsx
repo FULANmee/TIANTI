@@ -61,14 +61,27 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
         <FilterBar>
           <AutoFilterForm className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_1fr_1fr_1fr_1fr]">
+              <label className="sr-only" htmlFor="talent-filter-search">
+                搜索达人
+              </label>
               <input
+                id="talent-filter-search"
                 name="q"
                 defaultValue={q}
                 placeholder="搜索昵称、别名、标签、MCN 或关键词"
                 className="ui-input rounded-full"
                 data-testid="talent-filter-search"
               />
-              <select name="tag" defaultValue={tag ?? ""} data-auto-submit="true" className="ui-select rounded-full">
+              <label className="sr-only" htmlFor="talent-filter-tag">
+                按标签筛选达人
+              </label>
+              <select
+                id="talent-filter-tag"
+                name="tag"
+                defaultValue={tag ?? ""}
+                data-auto-submit="true"
+                className="ui-select rounded-full"
+              >
                 <option value="">全部标签</option>
                 {tags.map((item) => (
                   <option key={item} value={item}>
@@ -76,7 +89,16 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
                   </option>
                 ))}
               </select>
-              <select name="mcn" defaultValue={mcn ?? ""} data-auto-submit="true" className="ui-select rounded-full">
+              <label className="sr-only" htmlFor="talent-filter-mcn">
+                按 MCN 筛选达人
+              </label>
+              <select
+                id="talent-filter-mcn"
+                name="mcn"
+                defaultValue={mcn ?? ""}
+                data-auto-submit="true"
+                className="ui-select rounded-full"
+              >
                 <option value="">全部 MCN</option>
                 {mcns.map((item) => (
                   <option key={item} value={item}>
@@ -84,7 +106,11 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
                   </option>
                 ))}
               </select>
+              <label className="sr-only" htmlFor="talent-filter-editor">
+                按编辑视角筛选达人
+              </label>
               <select
+                id="talent-filter-editor"
                 name="editor"
                 defaultValue={selectedEditor?.slug ?? ""}
                 data-auto-submit="true"
@@ -98,7 +124,11 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
                   </option>
                 ))}
               </select>
+              <label className="sr-only" htmlFor="talent-filter-tier">
+                按天梯梯度筛选达人
+              </label>
               <select
+                id="talent-filter-tier"
                 name="tier"
                 defaultValue={tierId ?? ""}
                 disabled={!selectedLadder}
@@ -149,8 +179,8 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
 
         {talents.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            {talents.map((talent) => (
-              <TalentCard key={talent.id} talent={talent} />
+            {talents.map((talent, index) => (
+              <TalentCard key={talent.id} talent={talent} eagerImage={index === 0} />
             ))}
           </div>
         ) : (

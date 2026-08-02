@@ -108,8 +108,8 @@ export default async function HomePage() {
             }
           >
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-              {homepage.featuredTalents.map((talent) => (
-                <TalentCard key={talent.id} talent={talent} />
+              {homepage.featuredTalents.map((talent, index) => (
+                <TalentCard key={talent.id} talent={talent} eagerImage={index === 0} />
               ))}
             </div>
           </SectionFrame>
