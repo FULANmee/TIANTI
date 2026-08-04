@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/apply-preview-v5-migrations.ts && next build",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
