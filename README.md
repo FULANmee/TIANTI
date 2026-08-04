@@ -164,10 +164,10 @@ Cron 路由要求 `Authorization: Bearer ${CRON_SECRET}`，仅用于生产自动
 
 现有 Git-connected Vercel 项目的一次性设置与 Preview 顺序：
 
-1. 在现有项目的 Settings → Build & Deployment 中把 Framework Preset 改为 `Services`；不要新建第二个 Vercel 项目，也不要在子目录添加 `vercel.json`。
+1. 保留现有 Git-connected Vercel 项目及其当前 Framework Preset；不要新建第二个项目，也不要在子目录添加 `vercel.json`。`5.0` Preview 已实际证明：即使项目设置仍显示 `Next.js`，根目录 `experimentalServices` 也会构建并挂载两个服务。
 2. 为 Preview 配置 `SCRAPER_SHARED_SECRET`、数据库/R2 变量和下列抓取选项，先保持 `DOUYIN_SYNC_ENABLED=false`。
 3. 在 Preview 所指向的隔离数据库应用新增 Drizzle migration；不要对保留内容的数据库执行 `db:seed`。
-4. 确认现有项目仍连接当前 Git 仓库、Framework Preset 已是 `Services`，且该分支未被 deployment ignore 后再推送功能分支；满足这些前提时，同一次 Preview 会从同一提交构建两个服务，并向 Next.js 服务注入由服务名生成的服务端 `DOUYIN_SCRAPER_URL`。推送本身不会配置 Preview 环境变量或应用数据库 migration，这两步必须单独完成。
+4. 确认现有项目仍连接当前 Git 仓库，且该分支未被 deployment ignore 后再推送功能分支；满足这些前提时，同一次 Preview 会从同一提交构建两个服务，并向 Next.js 服务注入由服务名生成的服务端 `DOUYIN_SCRAPER_URL`。推送本身不会配置 Preview 环境变量或应用数据库 migration，这两步必须单独完成。
 5. 访问 `/_internal/douyin-scraper/healthz`，再用 Bearer 鉴权完成只读 profile 探针。确认结果后才短时启用同步并用后台单达人操作验证写入。
 
 ```env

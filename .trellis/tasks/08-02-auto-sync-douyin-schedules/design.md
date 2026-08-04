@@ -42,7 +42,7 @@ Out of 5.0:
 ### Runtime and packaging
 
 - Add a separately built service under `services/douyin-scraper/` in the existing Vercel project.
-- Root `vercel.json` is the only Vercel manifest. It uses `experimentalServices` with Next.js at `/` and the Python file entrypoint `services/douyin-scraper/main.py` at `/_internal/douyin-scraper`; the dashboard Framework Preset must be `Services`.
+- Root `vercel.json` is the only Vercel manifest. It uses `experimentalServices` with Next.js at `/` and the Python file entrypoint `services/douyin-scraper/main.py` at `/_internal/douyin-scraper`. The real `5.0` Preview proved this works while the existing project setting still reports the `Next.js` Preset, so no dashboard Preset change is required.
 - Keep dependencies in the scraper directory's `pyproject.toml`; the root `main.py` exports the FastAPI `app` and imports the existing `app` package. The service requires Python `>=3.12,<3.13`, matching the current Vercel Python runtime helper.
 - Pin the audited f2 commit `7dab3e2ffffaa2535834d28fca99dbc2e89fa9d3`; record Apache-2.0 attribution and notices.
 - Do not import scraper code into Next.js or deploy it in the Node runtime.
@@ -379,7 +379,7 @@ Do not add follower counts to homepage, talent cards or public list/search cards
 
 ## 10. Rollout and rollback
 
-1. Set the existing Vercel project's Framework Preset to `Services`; do not create a second project.
+1. Keep the existing Vercel project and its current Framework Preset; do not create a second project. The branch Preview must prove both services are built from the root manifest.
 2. Configure Preview-scoped secrets/resources, keep sync disabled, and apply the migration to the isolated Preview database.
 3. Push the Git branch so the same Preview SHA builds both Next.js and Python services.
 4. Validate the Python health/internal auth path and run a read-only probe against selected public profiles; verify fields, rate limits and parser output.

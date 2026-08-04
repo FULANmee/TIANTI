@@ -104,7 +104,7 @@
 
 ## 11. Deployment and rollback
 
-- [ ] Set the existing Vercel project's Framework Preset to Services; do not create a second project.
+- [x] Verify the existing Vercel project and current Next.js Preset honor root `experimentalServices`; do not create a second project.
 - [ ] Configure Preview secrets/resources and apply the reviewed migration to the isolated Preview database before enabling sync writes.
 - [ ] Push a Git branch Preview that deploys the Next.js and Python services together with sync/write flags disabled.
 - [ ] Run a read-only production probe and inspect safe sync results.

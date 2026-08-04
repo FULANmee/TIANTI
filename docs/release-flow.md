@@ -80,14 +80,14 @@ Preview 和 Production 的变量是不同环境范围，分别核对。不要在
 
 npm run db:push 会直接修改所指数据库，只能在确认目标后有意执行。npm run db:seed 会先清空应用表，禁止对生产或任何需要保留内容的数据库运行。
 
-仓库根目录 `vercel.json` 通过 `experimentalServices` 在现有 Git-connected Vercel 项目内同时构建 Next.js 与 FastAPI；项目的 Framework Preset 必须一次性设置为 `Services`。不要创建第二个 Vercel 项目，也不要在 `services/douyin-scraper/` 下增加另一份 `vercel.json`。服务名 `douyin_scraper` 自动生成仅服务端可见的 `DOUYIN_SCRAPER_URL`，正常 Preview/Production 无需手工设置它；只有本地 Uvicorn 或经过批准的外部 HTTPS 适配器才使用优先级更高的 `DOUYIN_SCRAPER_URL_OVERRIDE`。
+仓库根目录 `vercel.json` 通过 `experimentalServices` 在现有 Git-connected Vercel 项目内同时构建 Next.js 与 FastAPI。`5.0` 的真实 Preview 已证明根配置在项目设置仍报告 `Next.js` Preset 时也会构建两个服务，因此不要仅为本功能修改 Preset，也不要创建第二个项目或在 `services/douyin-scraper/` 下增加另一份 `vercel.json`。服务名 `douyin_scraper` 自动生成仅服务端可见的 `DOUYIN_SCRAPER_URL`，正常 Preview/Production 无需手工设置它；只有本地 Uvicorn 或经过批准的外部 HTTPS 适配器才使用优先级更高的 `DOUYIN_SCRAPER_URL_OVERRIDE`。
 
 `vercel.json` 每天调用 `/api/cron/cleanup-orphan-assets` 和 `/api/cron/sync-douyin-profiles`。Vercel Cron 只在 Production deployment 激活，因此 Preview 不要求定时触发；Production 必须配置 CRON_SECRET。抖音同步应先在 Preview 隔离数据库单独应用 migration、单独配置 Preview 环境变量，并保持 `DOUYIN_SYNC_ENABLED=false` 完成同一 deployment 内抓取服务的健康检查和只读探针；随后短时启用开关完成后台单达人写入验证，再在 Production 保留开关以启用每日任务。真实 `@账号` 链接还必须先证明 Vercel Python runtime 可启动兼容 Chromium，再用简介内含可点击 mention 的公开主页完成渲染目标验收；Python Playwright 包本身不包含浏览器。无法恢复真实 Douyin URL 时只能返回 unavailable，不能按昵称猜测。回滚优先关闭该开关，不删除已同步的历史数据。
 
 ## 5. Preview 核验
 
-1. 首次迁移到 Services 时，在现有 Vercel 项目的 Settings → Build & Deployment 把 Framework Preset 设为 `Services`。核对 Preview 范围已配置 `SCRAPER_SHARED_SECRET`、数据库/R2 变量和禁用状态的 `DOUYIN_SYNC_ENABLED=false`；如需真实写入，先对 Preview 的隔离数据库应用新增 migration。不要新建第二个项目。
-2. 确认现有项目的 Git Repository 连接仍指向当前仓库、Framework Preset 为 `Services`，且该分支未被 deployment ignore 后，推送功能分支并记录本地提交。Git push 只触发符合这些条件的 Preview；它不会替代 Preview 环境变量配置或数据库 migration：
+1. 保留现有 Vercel 项目和当前 Framework Preset。核对 Preview 范围已配置 `SCRAPER_SHARED_SECRET`、数据库/R2 变量和禁用状态的 `DOUYIN_SYNC_ENABLED=false`；如需真实写入，先对 Preview 的隔离数据库应用新增 migration。不要新建第二个项目。
+2. 确认现有项目的 Git Repository 连接仍指向当前仓库，且该分支未被 deployment ignore 后，推送功能分支并记录本地提交。Git push 只触发符合这些条件的 Preview；它不会替代 Preview 环境变量配置或数据库 migration：
 
    ~~~bash
    git branch --show-current
