@@ -96,20 +96,77 @@ def _candidate_account(value: Any) -> RelatedAccount | None:
     return RelatedAccount(nickname=nickname, sec_user_id=sec_user_id, url=canonical_user_url(sec_user_id))
 
 
-def extract_structured_related_accounts(raw_user: dict[str, Any], primary_sec_user_id: str) -> list[RelatedAccount]:
+def _candidate_account_from_signature_slice(
+    value: Any,
+    signature_raw: str,
+) -> RelatedAccount | None:
+    if not isinstance(value, dict):
+        return None
+
+    sec_user_id = value.get("sec_uid") or value.get("sec_user_id")
+    start = value.get("start")
+    end = value.get("end")
+    if (
+        not isinstance(sec_user_id, str)
+        or not SEC_USER_ID_PATTERN.fullmatch(sec_user_id)
+        or not isinstance(start, int)
+        or isinstance(start, bool)
+        or not isinstance(end, int)
+        or isinstance(end, bool)
+        or start < 0
+        or end <= start
+    ):
+        return None
+
+    candidate_slices: set[str] = set()
+    if end <= len(signature_raw):
+        candidate_slices.add(signature_raw[start:end])
+
+    utf16_bytes = signature_raw.encode("utf-16-le")
+    if end <= len(utf16_bytes) // 2:
+        try:
+            candidate_slices.add(utf16_bytes[start * 2 : end * 2].decode("utf-16-le"))
+        except UnicodeDecodeError:
+            pass
+
+    nicknames = {
+        match.group(1).strip()
+        for candidate in candidate_slices
+        if (match := MENTION_PATTERN.fullmatch(candidate)) and match.group(1).strip()
+    }
+    if len(nicknames) != 1:
+        return None
+    nickname = next(iter(nicknames))
+    return RelatedAccount(
+        nickname=nickname,
+        sec_user_id=sec_user_id,
+        url=canonical_user_url(sec_user_id),
+    )
+
+
+def extract_structured_related_accounts(
+    raw_user: dict[str, Any],
+    primary_sec_user_id: str,
+    signature_raw: str,
+) -> list[RelatedAccount]:
     found: dict[str, RelatedAccount] = {}
 
-    def visit(value: Any, context_key: str = "") -> None:
+    def visit(value: Any, context_key: str = "", within_signature_extra: bool = False) -> None:
         if isinstance(value, dict):
-            if any(token in context_key.lower() for token in ("signature", "mention")):
+            account = None
+            if within_signature_extra:
+                account = _candidate_account_from_signature_slice(value, signature_raw)
+            elif any(token in context_key.lower() for token in ("signature", "mention")):
                 account = _candidate_account(value)
-                if account and account.sec_user_id != primary_sec_user_id:
-                    found[account.sec_user_id] = account
+            if account and account.sec_user_id != primary_sec_user_id:
+                found.setdefault(account.sec_user_id, account)
             for key, child in value.items():
-                visit(child, str(key))
+                child_within_signature_extra = within_signature_extra or key.lower() == "signature_extra"
+                visit(child, str(key), child_within_signature_extra)
         elif isinstance(value, list):
+            list_within_signature_extra = within_signature_extra or context_key.lower() == "signature_extra"
             for child in value:
-                visit(child, context_key)
+                visit(child, context_key, list_within_signature_extra)
 
     visit(raw_user)
     return list(found.values())
@@ -252,7 +309,11 @@ class F2ProfileProvider:
         if not isinstance(follower_count, int) or follower_count < 0:
             raise ScraperProviderError("INVALID_UPSTREAM_RESPONSE", "Follower count is invalid.", True)
 
-        structured_accounts = extract_structured_related_accounts(raw_user, sec_user_id)
+        structured_accounts = extract_structured_related_accounts(
+            raw_user,
+            sec_user_id,
+            signature_raw,
+        )
         extraction = RelatedAccountExtraction(structured_accounts, "structured")
         if not structured_accounts and "@" in signature_raw and self.settings.enable_browser_links:
             rendered_accounts = await extract_rendered_related_accounts(

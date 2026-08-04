@@ -18,7 +18,7 @@
 - 生产形态为 Next.js/Vercel + Postgres/Drizzle；mock 和 Postgres repository 必须保持契约一致。
 - 用户不能要求达人逐个 OAuth 授权。5.0 在现有 Git-connected Vercel 项目中采用独立 Python Service，参考并固定 `Johnserf-Seed/f2` 的已验证实现；抓取代码不进入 Next.js runtime，也不再使用外部 Docker 部署。
 - f2 被测 commit 为 `7dab3e2ffffaa2535834d28fca99dbc2e89fa9d3`，Apache-2.0，Python >= 3.10。真实探针确认：空 Cookie 返回空响应并失败；使用 f2 生成的访客 `ttwid` 可取得 `status_code=0`、原始简介和整数粉丝量。
-- f2 用户详情响应未提供已验证的简介 `@账号` 目标。真实小号链接必须来自权威响应或渲染后的真实 Douyin URL，不得按昵称猜测；最终提取方式是实施前验收门槛。
+- f2 第一轮用户详情样本未提供可用 mention 目标；用户随后提供的 `腥味猫罐` 主主页真实响应包含 `signature_extra[].sec_uid/start/end`，可从简介严格切出 `@望月水母.zip` 并恢复真实小号 URL。真实小号链接仍必须来自这类权威响应或渲染后的真实 Douyin URL，不得按昵称猜测。
 - 五条真实简介样本显示：行程可能有或没有“行程”标签，使用空格、`/`、`➡️`、换行等分隔，日期可能是 `8.7`、`815`、`4.23-26`，并混合城市、活动简称、括号备注、历史日期和无关联系方式。
 
 ## Requirements
@@ -113,7 +113,7 @@
 ## Technical Risks and Deferred Validation
 
 - 抖音是非官方、易变化的数据源，存在 Cookie、频控、验证码、页面结构和服务条款风险；抓取服务必须可禁用、可替换并有安全错误分类。
-- 实施前必须用至少一个“主简介包含可点击 `@账号`”的公开主页完成链接提取验收；可能需要仅在含 `@` 时启用 Playwright/Chromium。此验证不改变网站数据契约：链接只在真实目标可验证时展示。
+- 已用“主简介包含 `@账号`”的公开主页完成本地结构化提取验收；仍需在 Vercel Preview 对同一主页完成只读探针。Playwright/Chromium 只作为缺少 `signature_extra` 时的后备路径，未证明 Vercel runtime 可启动前保持关闭。此验证不改变网站数据契约：链接只在真实目标可验证时展示。
 - 当前手工活动名称必填、公共页面普遍假设名称非空；5.0 必须完整覆盖空名称自动活动的类型、写入、搜索、元数据和 UI 回退，不能只绕过校验。
 - 当前 Postgres 关系替换缺少显式事务；活动聚合、来源记录和阵容增量写入必须作为一次原子 reconciliation 设计并验证。
 

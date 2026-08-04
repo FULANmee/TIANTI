@@ -55,11 +55,11 @@
 
 ### @账号链接元数据
 
-- 返回的 `user` 对象约 133 个顶层字段。
-- 与简介/链接相关的已见字段只有 `signature`、`signature_display_lines`、`signature_language`、封面 URL；`signature_display_lines` 为整数，不是 mention 列表。
-- 未发现 `signature_extra`、mention 目标或简介链接映射。
-- 静态主页 HTML 未发现指向 `/user/` 的简介锚点。
-- 对所测主页进行浏览器渲染可以正常打开，但该主页本身不是包含 `@小号` 的主账号样本，因此无法完成“渲染后简介 mention 是否成为可点击锚点”的最终验证。
+- 第一轮所测主页未返回可用 mention 目标；用户随后提供了简介包含 `@望月水母.zip` 的主账号 `腥味猫罐` 主页 URL。
+- 该主账号的 `user.signature_extra[]` 返回权威 `sec_uid`、`start`、`end`，但不返回可直接信任的昵称。用偏移对 `user.signature` 做严格切片可得到完整 `@望月水母.zip`，并恢复其真实 `/user/<sec_uid>` 链接。
+- 同一真实探针返回非负整数粉丝量 `2310243`，简介包含 `8.8深圳金铲铲`；本地服务投影为 `linkSource=structured`，不需要 Chromium。
+- 上游偏移可能使用 Unicode code point 或 UTF-16 code unit；实现同时尝试两种解释，只在它们归一为唯一完整 `@昵称` 时接受。畸形、越界、拆分 surrogate 或产生两个不同有效昵称时 fail closed。
+- 静态主页 HTML 仍未发现可直接依赖的简介锚点。Playwright 仅作为没有 `signature_extra` 时的后备路径，Vercel Python runtime 未证明具备 Chromium，因此继续关闭。
 
 ## 设计结论
 
@@ -69,10 +69,10 @@
 - 网站侧负责行程解析、深圳过滤、5 天聚合、活动/阵容幂等写入、历史保护与公开展示。
 - `@账号` 主页目标必须来自真实响应或渲染 DOM，不得按昵称猜测 URL。
 
-## 实施前/验收期必须继续验证
+## 验收状态与后续验证
 
-- 需要至少一个“主账号简介中包含可点击 @小号”的公开主页 URL，验证浏览器渲染后的 DOM 或网络响应能否恢复目标 `sec_user_id`。
-- 如果必须使用浏览器渲染，需先在 Vercel Python Preview 中证明兼容 Chromium 与系统库可用；Python Playwright 包本身不安装浏览器。此路径仍只用于含 `@` 的简介，避免所有达人都承担浏览器成本。
+- “主账号简介包含 `@小号`”的真实 URL 已提供，结构化 `signature_extra` 路径已恢复目标 `sec_user_id`；仍需把修复部署到 Vercel Preview 后重复同一只读探针。
+- 如果未来遇到没有 `signature_extra` 的 `@账号` 简介且必须使用浏览器渲染，需先在 Vercel Python Preview 中证明兼容 Chromium 与系统库可用；Python Playwright 包本身不安装浏览器。此路径仍只用于含 `@` 且结构化提取失败的简介。
 - 对同一主页做多次低频请求，验证访客 `ttwid` 有效期、频控错误形态和 Cookie 轮换策略。
 - 验证公开主页被注销、私密、风控、验证码或地区限制时的错误分类；这些失败不得推进“未来行程连续消失”计数。
 
