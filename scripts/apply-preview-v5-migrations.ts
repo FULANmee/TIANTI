@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 import postgres from "postgres";
 
-const PRODUCTION_NEON_BRANCH_ID = "br-patient-dust-anwfalxy";
+export const PRODUCTION_NEON_BRANCH_ID = "br-patient-dust-anwfalxy";
 const MIGRATION_LOCK_KEY = "tianti-preview-v5-migrations";
 
-const targetTables = [
+export const targetTables = [
   "douyin_sync_results",
   "douyin_sync_runs",
   "talent_douyin_profiles",
@@ -12,7 +13,7 @@ const targetTables = [
   "talent_douyin_schedule_entries"
 ] as const;
 
-const targetIndexes = [
+export const targetIndexes = [
   "douyin_sync_results_run_idx",
   "douyin_sync_results_talent_idx",
   "douyin_sync_results_created_at_idx",
@@ -30,16 +31,21 @@ const targetIndexes = [
   "events_origin_idx"
 ] as const;
 
-const targetConstraints = [
+export const targetConstraints = [
+  "douyin_sync_results_pkey",
   "douyin_sync_results_run_id_douyin_sync_runs_id_fk",
   "douyin_sync_results_talent_id_talents_id_fk",
+  "douyin_sync_runs_pkey",
+  "talent_douyin_profiles_pkey",
   "talent_douyin_profiles_talent_id_talents_id_fk",
+  "talent_douyin_related_accounts_pkey",
   "talent_douyin_related_accounts_talent_id_talents_id_fk",
+  "talent_douyin_schedule_entries_pkey",
   "talent_douyin_schedule_entries_talent_id_talents_id_fk",
   "talent_douyin_schedule_entries_event_id_events_id_fk"
 ] as const;
 
-const targetColumns = {
+export const targetColumns = {
   douyin_sync_results: ["id", "run_id", "talent_id", "status", "code", "message", "created_at"],
   douyin_sync_runs: [
     "id",
@@ -86,8 +92,9 @@ const targetColumns = {
 } as const;
 
 type Sql = postgres.TransactionSql;
+type MigrationEnvironment = Readonly<Record<string, string | undefined>>;
 
-interface SchemaSnapshot {
+export interface SchemaSnapshot {
   baseTablesPresent: boolean;
   targetTableNames: Set<string>;
   targetColumnNames: Set<string>;
@@ -96,33 +103,40 @@ interface SchemaSnapshot {
   targetConstraintNames: Set<string>;
 }
 
-function isEnabledForThisBuild() {
-  if (process.env.TIANTI_PREVIEW_V5_MIGRATIONS !== "1") {
+export function isEnabledForThisBuild(environment: MigrationEnvironment = process.env) {
+  if (environment.TIANTI_PREVIEW_V5_MIGRATIONS !== "1") {
     return false;
   }
 
   if (
-    process.env.VERCEL_ENV !== "preview" ||
-    process.env.VERCEL_TARGET_ENV !== "preview" ||
-    process.env.VERCEL_GIT_COMMIT_REF !== "5.0"
+    environment.VERCEL_ENV !== "preview" ||
+    environment.VERCEL_TARGET_ENV !== "preview" ||
+    environment.VERCEL_GIT_COMMIT_REF !== "5.0"
   ) {
     throw new Error("Preview migration guard rejected this deployment context.");
   }
 
-  if (!process.env.VERCEL_DEPLOYMENT_ID?.startsWith("dpl_")) {
+  if (!environment.VERCEL_DEPLOYMENT_ID?.startsWith("dpl_")) {
     throw new Error("Preview migration guard requires a Vercel deployment ID.");
   }
 
   return true;
 }
 
-function getValidatedDatabaseUrl() {
-  const raw = process.env.DATABASE_URL;
+export function getValidatedDatabaseUrl(environment: MigrationEnvironment = process.env) {
+  const raw = environment.DATABASE_URL;
   if (!raw) {
     throw new Error("Preview migration requires DATABASE_URL.");
   }
 
-  const parsed = new URL(raw);
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    // Node's ERR_INVALID_URL includes the original input, which can contain the
+    // database password. Replace it with a deliberately secret-free error.
+    throw new Error("Preview migration requires a valid database URL.");
+  }
   if (
     !["postgres:", "postgresql:"].includes(parsed.protocol) ||
     !parsed.hostname.endsWith(".neon.tech") ||
@@ -196,7 +210,7 @@ function hasEveryExpectedColumn(snapshot: SchemaSnapshot) {
   );
 }
 
-function getSchemaState(snapshot: SchemaSnapshot) {
+export function getSchemaState(snapshot: SchemaSnapshot) {
   if (!snapshot.baseTablesPresent) {
     return "invalid_base" as const;
   }
@@ -220,17 +234,21 @@ function getSchemaState(snapshot: SchemaSnapshot) {
   return isComplete ? ("complete" as const) : ("partial" as const);
 }
 
-async function main() {
-  if (!isEnabledForThisBuild()) {
+export async function main(environment: MigrationEnvironment = process.env) {
+  if (!isEnabledForThisBuild(environment)) {
     console.log("TIANTI 5.0 Preview migration skipped.");
     return;
   }
 
-  const database = getValidatedDatabaseUrl();
+  const database = getValidatedDatabaseUrl(environment);
   const sql = postgres(database.raw, { max: 1, prepare: false });
+  let migrationResult: {
+    beforeState: "fresh" | "complete";
+    branchId: string;
+  };
 
   try {
-    await sql.begin(async (transaction) => {
+    migrationResult = await sql.begin(async (transaction) => {
       await transaction`select pg_advisory_xact_lock(hashtext(${MIGRATION_LOCK_KEY}))`;
       const branchRows = await transaction<{ branch_id: string | null }[]>`
         select current_setting('neon.branch_id', true) as branch_id
@@ -263,13 +281,18 @@ async function main() {
         throw new Error("Preview database failed the complete TIANTI 5.0 schema check.");
       }
 
-      console.log(
-        `TIANTI 5.0 Preview schema ${beforeState === "fresh" ? "applied" : "already complete"}; endpoint=${database.endpointId}; branch=${branchId}.`
-      );
+      return { beforeState, branchId };
     });
   } finally {
     await sql.end({ timeout: 5 });
   }
+
+  console.log(
+    `TIANTI 5.0 Preview schema ${migrationResult.beforeState === "fresh" ? "applied" : "already complete"}; endpoint=${database.endpointId}; branch=${migrationResult.branchId}.`
+  );
 }
 
-await main();
+const entrypoint = process.argv[1];
+if (entrypoint && import.meta.url === pathToFileURL(entrypoint).href) {
+  await main();
+}
