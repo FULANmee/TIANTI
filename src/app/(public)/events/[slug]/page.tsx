@@ -8,6 +8,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { PublicReveal } from "@/components/ui/public-reveal";
 import { SectionFrame } from "@/components/ui/section-frame";
 import { deriveEventTemporalStatus, formatDateRange } from "@/lib/date";
+import { getEventDisplayName } from "@/lib/event-display";
 import { getEventPath, getTalentPath } from "@/lib/public-path";
 import { getAuthenticatedEditor } from "@/lib/session";
 import { buildAbsoluteUrl, buildMetadata } from "@/lib/site";
@@ -27,9 +28,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     });
   }
 
+  const displayName = getEventDisplayName(detail.event);
   return buildMetadata({
-    title: `TIANTI | ${detail.event.name}`,
-    description: `${detail.event.name} 的公开活动信息、阵容与现场档案。`,
+    title: `TIANTI | ${displayName}`,
+    description: `${displayName} 的公开活动信息、阵容与现场档案。`,
     path: getEventPath(detail.event)
   });
 }
@@ -42,13 +44,14 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   }
 
   const temporalStatus = deriveEventTemporalStatus(detail.event.startsAt, detail.event.endsAt);
+  const displayName = getEventDisplayName(detail.event);
   const statusLabel =
     temporalStatus === "future" ? "未来活动" : temporalStatus === "past" ? "已结束活动" : "待定活动";
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
-    name: detail.event.name,
+    name: displayName,
     ...(detail.event.startsAt ? { startDate: detail.event.startsAt } : {}),
     ...(detail.event.endsAt ? { endDate: detail.event.endsAt } : {}),
     ...(temporalStatus === "future"
@@ -79,7 +82,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 <span>{statusLabel}</span>
               </div>
               <h1 className="text-5xl tracking-[-0.05em] text-[var(--foreground)] md:text-6xl">
-                {detail.event.name}
+                {displayName}
               </h1>
               <div className="space-y-2 text-sm ui-subtle md:text-base">
                 <p>{formatDateRange(detail.event.startsAt, detail.event.endsAt)}</p>

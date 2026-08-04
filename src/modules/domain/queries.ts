@@ -12,6 +12,8 @@ import {
 } from "@/lib/date";
 import { compareByPinyin } from "@/lib/pinyin";
 import { matchesPublicIdentifier } from "@/lib/public-path";
+import { getEventDisplayName } from "@/lib/event-display";
+import { isSafeDouyinRelatedAccountUrl } from "@/modules/douyin/profile-link";
 import type {
   Asset,
   ArchiveEntry,
@@ -263,8 +265,12 @@ function buildTalentSummary(state: ContentState, talent: Talent, relevanceScore?
   );
   const latestEvent = sortEventsByRecent(relatedEvents)[0] ?? null;
   const preferredFutureEvent = getPreferredFutureEventForTalent(state, talent.id);
-  const futureLocationHint = preferredFutureEvent?.name ?? null;
-  const recentHint = latestEvent ? [latestEvent.city, latestEvent.name].filter(Boolean).join(" · ") : null;
+  const futureLocationHint = preferredFutureEvent ? getEventDisplayName(preferredFutureEvent) : null;
+  const recentHint = latestEvent
+    ? latestEvent.name.trim()
+      ? [latestEvent.city, latestEvent.name].filter(Boolean).join(" · ")
+      : getEventDisplayName(latestEvent)
+    : null;
 
   return {
     id: talent.id,
@@ -901,6 +907,9 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
 
   const futureEvents = buildTalentFutureTimelineItems(state, talent.id);
   const pastEvents = buildTalentPastTimelineItems(state, talent.id);
+  const douyinProfile = state.douyinProfiles.find(
+    (profile) => profile.talentId === talent.id && profile.lastSuccessAt
+  );
 
   const archiveHits = state.archives.flatMap((archive) =>
     archive.entries.filter((entry) => entry.talentId === talent.id).map(() => archive.eventId)
@@ -950,6 +959,23 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
     pastEvents,
     relatedTalents,
     relatedEvents: relatedEventsForTalent,
+    douyinProfile: douyinProfile
+      ? {
+          followerCount: douyinProfile.followerCount ?? null,
+          itineraryBlocks: douyinProfile.itineraryText
+            .split("\n")
+            .map((block) => block.trim())
+            .filter(Boolean),
+          relatedAccounts: state.douyinRelatedAccounts
+            .filter(
+              (account) =>
+                account.talentId === talent.id &&
+                account.secUserId !== douyinProfile.secUserId &&
+                isSafeDouyinRelatedAccountUrl(account.url)
+            )
+            .sort((left, right) => left.sortOrder - right.sortOrder)
+        }
+      : null,
     editorSummaries: state.editors.map((editor) => {
       const ladder = state.ladders.find((item) => item.editorId === editor.id);
       const tierName = ladder?.tiers.find((tier) => tier.talentIds.includes(talent.id))?.name ?? null;

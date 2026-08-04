@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
+      - "5.0"
       - "codex/**"
   pull_request:
     branches:
       - main
+      - "5.0"
       - "codex/**"
 
 jobs:

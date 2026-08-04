@@ -50,6 +50,20 @@
       "when": 1776661085722,
       "tag": "0006_opposite_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785778418463,
+      "tag": "0007_adorable_brood",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785778890613,
+      "tag": "0008_big_tigra",
+      "breakpoints": true
     }
   ]
 }

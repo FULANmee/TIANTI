@@ -89,4 +89,67 @@ describe("env helpers", () => {
       }
     ]);
   });
+
+  it("requires HTTPS for the deployed Douyin scraper", async () => {
+    const { getDouyinSyncConfig } = await loadEnvModule({
+      NODE_ENV: "production",
+      DOUYIN_SCRAPER_URL: "http://scraper.internal",
+      DOUYIN_SCRAPER_URL_OVERRIDE: undefined,
+      SCRAPER_SHARED_SECRET: "test-secret"
+    });
+
+    expect(() => getDouyinSyncConfig()).toThrow("must use HTTPS in production");
+  });
+
+  it("allows plain HTTP only for a local development scraper", async () => {
+    const { getDouyinSyncConfig } = await loadEnvModule({
+      NODE_ENV: "development",
+      DOUYIN_SCRAPER_URL: undefined,
+      DOUYIN_SCRAPER_URL_OVERRIDE: "http://scraper.example.test",
+      SCRAPER_SHARED_SECRET: "test-secret"
+    });
+
+    expect(() => getDouyinSyncConfig()).toThrow("must use HTTPS unless it is a local loopback URL");
+  });
+
+  it("rejects scraper base URLs with credentials, queries, or fragments", async () => {
+    const { getDouyinSyncConfig } = await loadEnvModule({
+      NODE_ENV: "development",
+      DOUYIN_SCRAPER_URL: undefined,
+      DOUYIN_SCRAPER_URL_OVERRIDE: "https://user:password@scraper.example.test/base?token=secret#fragment",
+      SCRAPER_SHARED_SECRET: "test-secret"
+    });
+
+    expect(() => getDouyinSyncConfig()).toThrow("cannot include credentials, a query, or a fragment");
+  });
+
+  it("uses the Vercel-generated Douyin service URL by default", async () => {
+    const { getDouyinSyncConfig } = await loadEnvModule({
+      NODE_ENV: "production",
+      DOUYIN_SCRAPER_URL: "https://preview.example.test/_internal/douyin-scraper/",
+      DOUYIN_SCRAPER_URL_OVERRIDE: undefined,
+      SCRAPER_SHARED_SECRET: "test-secret"
+    });
+
+    expect(getDouyinSyncConfig().scraperUrl).toBe(
+      "https://preview.example.test/_internal/douyin-scraper"
+    );
+  });
+
+  it("allows a local or external scraper URL to override the generated service URL", async () => {
+    const { getDouyinSyncConfig } = await loadEnvModule({
+      NODE_ENV: "development",
+      DOUYIN_SCRAPER_URL: "https://preview.example.test/_internal/douyin-scraper",
+      DOUYIN_SCRAPER_URL_OVERRIDE: "http://127.0.0.1:8000///",
+      SCRAPER_SHARED_SECRET: "test-secret"
+    });
+
+    expect(getDouyinSyncConfig().scraperUrl).toBe("http://127.0.0.1:8000");
+  });
+
+  it("bounds Douyin request concurrency", async () => {
+    await expect(
+      loadEnvModule({ DOUYIN_SYNC_CONCURRENCY: "11" })
+    ).rejects.toThrow("DOUYIN_SYNC_CONCURRENCY must be at most 10");
+  });
 });

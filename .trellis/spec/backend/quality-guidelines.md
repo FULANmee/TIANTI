@@ -12,7 +12,7 @@ npm run build
 npm run test:e2e:smoke
 ~~~
 
-Run npm run test:e2e before release or after admin-to-public workflow changes. CI runs lint, unit tests, build, and the small Playwright smoke suite on main and codex/**.
+Run npm run test:e2e before release or after admin-to-public workflow changes. CI runs lint, unit tests, build, and the small Playwright smoke suite on main, 5.0, and codex/**.
 
 Use Node 24. A green run under another Node version does not prove parity with CI/Vercel.
 

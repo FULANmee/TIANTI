@@ -1,4 +1,10 @@
-import type { Talent, TalentTag } from "@/modules/domain/types";
+import type {
+  DouyinSyncResult,
+  DouyinSyncRun,
+  Talent,
+  TalentDouyinAdminStatus,
+  TalentTag
+} from "@/modules/domain/types";
 
 export interface BlockedBulkAction {
   id: string;
@@ -23,4 +29,13 @@ export interface EventBulkPayload {
 
 export interface TalentBulkResponse extends BulkActionResult {
   talents?: Talent[];
+}
+
+export interface DouyinSyncResponse {
+  ok?: boolean;
+  error?: string;
+  code?: string;
+  run?: DouyinSyncRun;
+  results?: DouyinSyncResult[];
+  statuses?: TalentDouyinAdminStatus[];
 }

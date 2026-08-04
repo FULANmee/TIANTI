@@ -15,7 +15,8 @@
 ## 2. 分支与运行时
 
 - main 只承接准备上线的版本，并对应 Vercel production。
-- codex/<task-slug> 用于功能开发、PR 和 Vercel preview。
+- 5.0 是当前 TIANTI 5.0 集成、PR 与 Vercel preview 分支。
+- codex/<task-slug> 用于其他功能开发、PR 和 Vercel preview。
 - 其他分支是否触发 preview 取决于当前 Vercel Git 集成设置；不要从旧报告推断。
 
 统一使用 Node 24，以 package.json、.nvmrc、environment.yml 和 GitHub Actions 为准。
@@ -61,6 +62,8 @@ npm run test:e2e
 - R2_BUCKET、R2_ENDPOINT、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY、R2_PUBLIC_BASE_URL
 - CRON_SECRET
 - 可选的 ORPHAN_ASSET_GRACE_MINUTES、ORPHAN_ASSET_CLEANUP_LIMIT
+- 抖音同步启用时：Vercel Services 自动生成的 DOUYIN_SCRAPER_URL，以及项目环境中的 SCRAPER_SHARED_SECRET、DOUYIN_SYNC_ENABLED
+- 可选的 DOUYIN_COOKIE、DOUYIN_ENABLE_BROWSER_LINKS、DOUYIN_REQUEST_TIMEOUT_SECONDS、DOUYIN_BROWSER_TIMEOUT_SECONDS、DOUYIN_SYNC_CONCURRENCY、DOUYIN_SYNC_COOLDOWN_MINUTES、DOUYIN_SYNC_TIMEOUT_SECONDS
 
 公开 canonical URL 由 src/lib/site.ts 按 SITE_URL、NEXT_PUBLIC_SITE_URL、VERCEL_PROJECT_PRODUCTION_URL 的顺序解析。最后的硬编码 fallback 是迁移前遗留兼容值，不是当前部署的真相来源；若平台提供的 production URL 不是目标公开域名，应显式设置 SITE_URL，并在 Preview/Production 检查 canonical、Open Graph 与 sitemap URL。
 
@@ -77,11 +80,14 @@ Preview 和 Production 的变量是不同环境范围，分别核对。不要在
 
 npm run db:push 会直接修改所指数据库，只能在确认目标后有意执行。npm run db:seed 会先清空应用表，禁止对生产或任何需要保留内容的数据库运行。
 
-vercel.json 每天调用 /api/cron/cleanup-orphan-assets。Production 必须配置 CRON_SECRET，并在涉及资源清理时确认定时调用鉴权和保留窗口正常。
+仓库根目录 `vercel.json` 通过 `experimentalServices` 在现有 Git-connected Vercel 项目内同时构建 Next.js 与 FastAPI；项目的 Framework Preset 必须一次性设置为 `Services`。不要创建第二个 Vercel 项目，也不要在 `services/douyin-scraper/` 下增加另一份 `vercel.json`。服务名 `douyin_scraper` 自动生成仅服务端可见的 `DOUYIN_SCRAPER_URL`，正常 Preview/Production 无需手工设置它；只有本地 Uvicorn 或经过批准的外部 HTTPS 适配器才使用优先级更高的 `DOUYIN_SCRAPER_URL_OVERRIDE`。
+
+`vercel.json` 每天调用 `/api/cron/cleanup-orphan-assets` 和 `/api/cron/sync-douyin-profiles`。Vercel Cron 只在 Production deployment 激活，因此 Preview 不要求定时触发；Production 必须配置 CRON_SECRET。抖音同步应先在 Preview 隔离数据库单独应用 migration、单独配置 Preview 环境变量，并保持 `DOUYIN_SYNC_ENABLED=false` 完成同一 deployment 内抓取服务的健康检查和只读探针；随后短时启用开关完成后台单达人写入验证，再在 Production 保留开关以启用每日任务。真实 `@账号` 链接还必须先证明 Vercel Python runtime 可启动兼容 Chromium，再用简介内含可点击 mention 的公开主页完成渲染目标验收；Python Playwright 包本身不包含浏览器。无法恢复真实 Douyin URL 时只能返回 unavailable，不能按昵称猜测。回滚优先关闭该开关，不删除已同步的历史数据。
 
 ## 5. Preview 核验
 
-1. 推送功能分支并记录本地提交：
+1. 首次迁移到 Services 时，在现有 Vercel 项目的 Settings → Build & Deployment 把 Framework Preset 设为 `Services`。核对 Preview 范围已配置 `SCRAPER_SHARED_SECRET`、数据库/R2 变量和禁用状态的 `DOUYIN_SYNC_ENABLED=false`；如需真实写入，先对 Preview 的隔离数据库应用新增 migration。不要新建第二个项目。
+2. 确认现有项目的 Git Repository 连接仍指向当前仓库、Framework Preset 为 `Services`，且该分支未被 deployment ignore 后，推送功能分支并记录本地提交。Git push 只触发符合这些条件的 Preview；它不会替代 Preview 环境变量配置或数据库 migration：
 
    ~~~bash
    git branch --show-current
@@ -90,15 +96,16 @@ vercel.json 每天调用 /api/cron/cleanup-orphan-assets。Production 必须配�
    git ls-remote --heads origin <branch>
    ~~~
 
-2. 确认 GitHub Actions 对该分支/PR 的适用检查通过。当前工作流自动覆盖 main 和 codex/**。
-3. 在 Vercel deployment 详情中核对：
+3. 确认 GitHub Actions 对该分支/PR 的适用检查通过。当前工作流自动覆盖 main、5.0 和 codex/**。
+4. 在 Vercel deployment 详情中核对：
    - 来源仓库是当前账号下的 TIANTI 仓库；
    - githubCommitRef 是目标分支；
    - githubCommitSha 等于刚记录的远端提交；
    - deployment 状态为 Ready；
    - deployment 是 Preview 而非 Production。
-4. 如使用 CLI，可用 vercel ls 找到 URL，再用 vercel inspect <deployment-url> 查看详情；不要把项目名或 URL 硬编码回文档。
-5. 在 Preview 至少回归公开首页、达人/活动浏览、活动详情和后台登录。涉及真实数据库/R2 的变更还要确认 Preview 指向预期的隔离资源。
+5. 确认同一 Git SHA 的 `web` 与 `douyin_scraper` 都已构建，`/_internal/douyin-scraper/healthz` 返回健康结果，带错误/缺失 Bearer 的 profile 请求被拒绝。`DOUYIN_SCRAPER_URL` 应由 Vercel 自动注入且已包含服务 route prefix。
+6. 如使用 CLI，可用 vercel ls 找到 URL，再用 vercel inspect <deployment-url> 查看详情；不要把项目名或 URL 硬编码回文档。
+7. 在 Preview 至少回归公开首页、达人/活动浏览、活动详情和后台登录。涉及真实数据库/R2 的变更还要确认 Preview 指向预期的隔离资源。
 
 ## 6. Production 核验
 

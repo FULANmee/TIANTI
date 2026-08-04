@@ -4,6 +4,7 @@ import { FilterBar } from "@/components/ui/filter-bar";
 import { PageShell } from "@/components/ui/page-shell";
 import { SectionFrame } from "@/components/ui/section-frame";
 import { getEventPath, getTalentPath } from "@/lib/public-path";
+import { getEventDisplayName } from "@/lib/event-display";
 import { buildMetadata } from "@/lib/site";
 import { getScopedSearchPage } from "@/modules/content/service";
 
@@ -124,7 +125,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
                     className="block border-b pb-4 last:border-none last:pb-0 ui-divider"
                   >
                     <div className="flex items-center justify-between gap-4">
-                      <p className="text-lg text-[var(--foreground)]">{event.event.name}</p>
+                      <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(event.event)}</p>
                       <p className="text-xs uppercase tracking-[0.18em] ui-muted">阵容 {event.lineupSize}</p>
                     </div>
                     <p className="mt-2 text-sm ui-subtle">
@@ -185,7 +186,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
                       className="block border-b pb-4 last:border-none last:pb-0 ui-divider"
                     >
                       <div className="flex items-center justify-between gap-4">
-                        <p className="text-lg text-[var(--foreground)]">{event.event.name}</p>
+                        <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(event.event)}</p>
                         <p className="text-xs uppercase tracking-[0.18em] ui-muted">阵容 {event.lineupSize}</p>
                       </div>
                       <p className="mt-2 text-sm ui-subtle">

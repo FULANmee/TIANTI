@@ -279,6 +279,76 @@ describe("admin mutations", () => {
     expect(savedLineups.every((lineup) => lineup.status === "confirmed")).toBe(true);
   });
 
+  it("converts an edited automatic lineup to manual and suppresses its source", async () => {
+    const state = getMockState();
+    state.events.push({
+      id: "event-douyin-edit",
+      slug: null,
+      name: "金铲铲",
+      aliases: [],
+      searchKeywords: ["金铲铲", "深圳"],
+      startsAt: "2026-06-01T12:00:00.000Z",
+      endsAt: "2026-06-01T12:00:00.000Z",
+      city: "深圳",
+      venue: "",
+      status: "future",
+      note: "",
+      updatedAt: "2026-04-01T00:00:00.000Z",
+      origin: "douyin_sync"
+    });
+    state.lineups.push({
+      id: "lineup-douyin-edit",
+      eventId: "event-douyin-edit",
+      talentId: "talent-qingluan",
+      lineupDate: "2026-06-01T12:00:00.000Z",
+      status: "confirmed",
+      source: "douyin:schedule-douyin-edit",
+      note: ""
+    });
+    state.douyinScheduleEntries.push({
+      id: "schedule-douyin-edit",
+      talentId: "talent-qingluan",
+      fingerprint: "fingerprint-douyin-edit",
+      rawText: "6.1深圳金铲铲",
+      startsAt: "2026-06-01T12:00:00.000Z",
+      endsAt: "2026-06-01T12:00:00.000Z",
+      city: "深圳",
+      eventName: "金铲铲",
+      eventId: "event-douyin-edit",
+      firstSeenAt: "2026-04-01T00:00:00.000Z",
+      lastSeenAt: "2026-04-01T00:00:00.000Z",
+      consecutiveMissingCount: 0,
+      state: "active",
+      parserVersion: "1"
+    });
+    setMockState(state);
+
+    await saveEvent({
+      id: "event-douyin-edit",
+      name: "金铲铲",
+      startsAt: "2026-06-01",
+      endsAt: "2026-06-01",
+      city: "深圳",
+      venue: "",
+      note: "",
+      lineups: [
+        {
+          id: "lineup-douyin-edit",
+          talentId: "talent-yunmo",
+          lineupDate: "2026-06-01",
+          status: "confirmed",
+          source: "",
+          note: "人工调整"
+        }
+      ]
+    });
+
+    const savedState = getMockState();
+    expect(savedState.events.find((event) => event.id === "event-douyin-edit")?.origin).toBe("manual");
+    expect(savedState.lineups.find((lineup) => lineup.id === "lineup-douyin-edit")?.source).toBe("");
+    expect(savedState.douyinScheduleEntries.find((entry) => entry.id === "schedule-douyin-edit")?.state).toBe("suppressed");
+  });
+
   it("requires archive entry dates for multi-day events", async () => {
     await expect(
       saveArchive("editor-lin", {

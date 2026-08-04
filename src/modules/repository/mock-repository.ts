@@ -24,6 +24,15 @@ function isAssetReferenced(state: RepositoryState, assetId: string) {
     );
 }
 
+function pruneDouyinAudit(state: RepositoryState) {
+  const retainedRuns = [...state.douyinSyncRuns]
+    .sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))
+    .slice(0, 100);
+  const retainedRunIds = new Set(retainedRuns.map((run) => run.id));
+  state.douyinSyncRuns = retainedRuns;
+  state.douyinSyncResults = state.douyinSyncResults.filter((result) => retainedRunIds.has(result.runId));
+}
+
 export const mockRepository: ContentRepository = {
   async getState() {
     return toContentState(structuredClone(getMockState()));
@@ -127,6 +136,12 @@ export const mockRepository: ContentRepository = {
         ...archive,
         entries: archive.entries.filter((entry) => entry.talentId !== id)
       }));
+      state.douyinProfiles = state.douyinProfiles.filter((profile) => profile.talentId !== id);
+      state.douyinRelatedAccounts = state.douyinRelatedAccounts.filter((account) => account.talentId !== id);
+      state.douyinScheduleEntries = state.douyinScheduleEntries.filter((entry) => entry.talentId !== id);
+      state.douyinSyncResults = state.douyinSyncResults.map((result) =>
+        result.talentId === id ? { ...result, talentId: null } : result
+      );
       return state;
     });
   },
@@ -149,11 +164,131 @@ export const mockRepository: ContentRepository = {
       return state;
     });
   },
+  async saveDouyinSyncState(input) {
+    replaceState((state) => {
+      const suppressedEntryById = new Map(
+        state.douyinScheduleEntries
+          .filter((entry) => entry.state === "suppressed")
+          .map((entry) => [entry.id, entry])
+      );
+      const scheduleEntries = input.scheduleEntries.map(
+        (entry) => suppressedEntryById.get(entry.id) ?? structuredClone(entry)
+      );
+      const suppressedEntryIds = new Set(suppressedEntryById.keys());
+      const sourceLineups = input.sourceLineups.filter((lineup) => {
+        const entryId = lineup.source.startsWith("douyin:")
+          ? lineup.source.slice("douyin:".length)
+          : null;
+        return !entryId || !suppressedEntryIds.has(entryId);
+      });
+
+      state.douyinProfiles = structuredClone(input.profiles);
+      state.douyinRelatedAccounts = structuredClone(input.relatedAccounts);
+      state.douyinScheduleEntries = scheduleEntries;
+
+      for (const event of input.upsertEvents) {
+        const eventIndex = state.events.findIndex((item) => item.id === event.id);
+        if (eventIndex >= 0) {
+          if (state.events[eventIndex].origin === "douyin_sync") {
+            state.events[eventIndex] = structuredClone(event);
+          }
+        } else {
+          state.events.push(structuredClone(event));
+        }
+      }
+
+      state.lineups = [
+        ...state.lineups.filter((lineup) => !lineup.source.startsWith("douyin:")),
+        ...structuredClone(sourceLineups)
+      ];
+      const cleanupCandidateEventIds = new Set([
+        ...input.deleteSyncEventIds,
+        ...input.upsertEvents.map((event) => event.id)
+      ]);
+      const deleteEventIds = new Set(
+        state.events
+          .filter(
+            (event) =>
+              cleanupCandidateEventIds.has(event.id) &&
+              event.origin === "douyin_sync" &&
+              !state.lineups.some((lineup) => lineup.eventId === event.id) &&
+              !state.archives.some((archive) => archive.eventId === event.id)
+          )
+          .map((event) => event.id)
+      );
+      state.events = state.events.filter((event) => !deleteEventIds.has(event.id));
+      state.douyinScheduleEntries = state.douyinScheduleEntries.map((entry) =>
+        entry.eventId && deleteEventIds.has(entry.eventId) ? { ...entry, eventId: null } : entry
+      );
+
+      const runIndex = state.douyinSyncRuns.findIndex((run) => run.id === input.syncRun.id);
+      if (runIndex >= 0) {
+        state.douyinSyncRuns[runIndex] = structuredClone(input.syncRun);
+      } else {
+        state.douyinSyncRuns.push(structuredClone(input.syncRun));
+      }
+      state.douyinSyncResults = [
+        ...state.douyinSyncResults.filter((result) => result.runId !== input.syncRun.id),
+        ...structuredClone(input.syncResults)
+      ];
+      pruneDouyinAudit(state);
+      return state;
+    });
+  },
+  async tryStartDouyinSyncRun(run, staleBefore) {
+    let acquired = false;
+    replaceState((state) => {
+      state.douyinSyncRuns = state.douyinSyncRuns.map((item) =>
+        item.status === "running" && item.startedAt < staleBefore
+          ? { ...item, status: "failed", finishedAt: run.startedAt }
+          : item
+      );
+      if (state.douyinSyncRuns.some((item) => item.status === "running")) {
+        return state;
+      }
+      state.douyinSyncRuns.push(structuredClone(run));
+      acquired = true;
+      return state;
+    });
+    return acquired;
+  },
+  async finishDouyinSyncRun(run, results) {
+    replaceState((state) => {
+      const runIndex = state.douyinSyncRuns.findIndex((item) => item.id === run.id);
+      if (runIndex >= 0) {
+        state.douyinSyncRuns[runIndex] = structuredClone(run);
+      } else {
+        state.douyinSyncRuns.push(structuredClone(run));
+      }
+      state.douyinSyncResults = [
+        ...state.douyinSyncResults.filter((result) => result.runId !== run.id),
+        ...structuredClone(results)
+      ];
+      pruneDouyinAudit(state);
+      return state;
+    });
+  },
+  async suppressDouyinScheduleEntries(entryIds) {
+    const entryIdSet = new Set(entryIds);
+    replaceState((state) => {
+      state.douyinScheduleEntries = state.douyinScheduleEntries.map((entry) =>
+        entryIdSet.has(entry.id) ? { ...entry, state: "suppressed" } : entry
+      );
+      state.lineups = state.lineups.filter((lineup) => {
+        const entryId = lineup.source.startsWith("douyin:") ? lineup.source.slice("douyin:".length) : null;
+        return !entryId || !entryIdSet.has(entryId);
+      });
+      return state;
+    });
+  },
   async deleteEvent(id) {
     replaceState((state) => {
       state.events = state.events.filter((item) => item.id !== id);
       state.lineups = state.lineups.filter((item) => item.eventId !== id);
       state.archives = state.archives.filter((item) => item.eventId !== id);
+      state.douyinScheduleEntries = state.douyinScheduleEntries.map((entry) =>
+        entry.eventId === id ? { ...entry, eventId: null } : entry
+      );
       return state;
     });
   },

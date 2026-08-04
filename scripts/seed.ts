@@ -6,6 +6,8 @@ import { getDb } from "@/db/client";
 import {
   archiveEntries,
   assets,
+  douyinSyncResults,
+  douyinSyncRuns,
   editorArchives,
   editors,
   eventLineup,
@@ -15,6 +17,9 @@ import {
   ladderTiers,
   sessions,
   talentAssets,
+  talentDouyinProfiles,
+  talentDouyinRelatedAccounts,
+  talentDouyinScheduleEntries,
   talentLinks,
   talentTags,
   talents
@@ -131,6 +136,11 @@ async function main() {
   const state = await buildSeedState();
 
   await db.delete(sessions);
+  await db.delete(douyinSyncResults);
+  await db.delete(douyinSyncRuns);
+  await db.delete(talentDouyinScheduleEntries);
+  await db.delete(talentDouyinRelatedAccounts);
+  await db.delete(talentDouyinProfiles);
   await db.delete(archiveEntries);
   await db.delete(editorArchives);
   await db.delete(ladderEntries);
@@ -159,6 +169,8 @@ async function main() {
       nickname: talent.nickname,
       bio: talent.bio,
       mcn: talent.mcn,
+      aliases: talent.aliases,
+      searchKeywords: talent.searchKeywords,
       coverAssetId: talent.coverAssetId,
       updatedAt: new Date(talent.updatedAt)
     }))
@@ -200,12 +212,15 @@ async function main() {
       id: event.id,
       slug: event.slug,
       name: event.name,
+      aliases: event.aliases,
+      searchKeywords: event.searchKeywords,
       startsAt: event.startsAt ? new Date(event.startsAt) : null,
       endsAt: event.endsAt ? new Date(event.endsAt) : null,
       city: event.city,
       venue: event.venue,
       status: event.status,
       note: event.note,
+      origin: event.origin ?? "manual",
       updatedAt: new Date(event.updatedAt)
     }))
   );
@@ -260,6 +275,7 @@ async function main() {
         id: entry.id,
         archiveId: archive.id,
         talentId: entry.talentId,
+        entryDate: entry.entryDate ? new Date(entry.entryDate) : null,
         sceneAssetId: entry.sceneAssetId,
         sharedPhotoAssetId: entry.sharedPhotoAssetId ?? null,
         cosplayTitle: entry.cosplayTitle,

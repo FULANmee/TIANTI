@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "douyin_sync_runs_running_idx" ON "douyin_sync_runs" USING btree ("status") WHERE "douyin_sync_runs"."status" = 'running';

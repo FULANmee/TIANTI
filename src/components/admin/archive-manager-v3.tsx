@@ -24,6 +24,7 @@ import {
   isMultiDayRange,
   toDateOnlyIso
 } from "@/lib/date";
+import { getEventDisplayName } from "@/lib/event-display";
 import { compareByPinyin } from "@/lib/pinyin";
 import type { BulkActionResult } from "@/modules/admin/types";
 import type { Asset, EditorArchive, Event, EventLineup, Talent } from "@/modules/domain/types";
@@ -778,13 +779,13 @@ export function ArchiveManager({
 
       setLiveArchives(nextArchives);
       resetDrafts(eventId, liveEvents, liveLineups, nextArchives);
-      setMessage(`我的档案已保存到「${eventDraft.name}」。`);
+      setMessage(`我的档案已保存到「${selectedEvent ? getEventDisplayName(selectedEvent) : eventDraft.name}」。`);
     });
   }
 
   async function handleDeleteEvent() {
     if (!selectedEvent?.id) return;
-    if (!window.confirm(`确定删除 ${selectedEvent.name} 吗？这会同时删除该活动的阵容和关联档案。`)) return;
+    if (!window.confirm(`确定删除 ${getEventDisplayName(selectedEvent)} 吗？这会同时删除该活动的阵容和关联档案。`)) return;
 
     setMessage(null);
 
@@ -808,7 +809,7 @@ export function ArchiveManager({
       setSelectedEventIds((current) => current.filter((id) => id !== selectedEvent.id));
       resetDrafts(nextEvents[0]?.id ?? null, nextEvents, nextLineups, nextArchives);
       setIsEventEditorOpen(false);
-      setMessage(`活动「${selectedEvent.name}」已删除。`);
+      setMessage(`活动「${getEventDisplayName(selectedEvent)}」已删除。`);
     });
   }
 
@@ -1056,13 +1057,13 @@ export function ArchiveManager({
               >
                 <input
                   type="checkbox"
-                  aria-label={`选择 ${event.name}`}
+                  aria-label={`选择 ${getEventDisplayName(event)}`}
                   checked={isChecked}
                   onChange={(nextEvent) => toggleSelectedEvent(event.id, nextEvent.target.checked)}
                   className="mt-1 size-4 rounded border-white/20 bg-black/30"
                 />
                 <button type="button" onClick={() => selectEvent(event.id)} className="flex-1 text-left">
-                  <p className="text-lg text-white">{event.name}</p>
+                  <p className="text-lg text-white">{getEventDisplayName(event)}</p>
                   <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/40">
                     {[event.city || "城市待定", eventDateLabel].filter(Boolean).join(" · ")}
                   </p>
@@ -1077,7 +1078,7 @@ export function ArchiveManager({
         {message ? <StatusNotice variant="warning">{message}</StatusNotice> : null}
         {isEventEditorOpen ? (
           <AdminDialog
-            title={selectedEvent ? `编辑 ${selectedEvent.name}` : "新建活动档案"}
+            title={selectedEvent ? `编辑 ${getEventDisplayName(selectedEvent)}` : "新建活动档案"}
             description="活动基础信息和公开阵容在这里编辑；保存成功后弹窗会自动关闭。"
             onClose={closeEventEditor}
             size="xl"
@@ -1095,7 +1096,7 @@ export function ArchiveManager({
                 ) : null}
               </div>
               <h2 className="mt-3 text-3xl text-white">
-                {selectedEvent ? `编辑 ${selectedEvent.name}` : "新建活动档案"}
+                {selectedEvent ? `编辑 ${getEventDisplayName(selectedEvent)}` : "新建活动档案"}
               </h2>
               <p className="mt-3 text-sm leading-7 text-white/60">
                 活动名称必填，其他信息都可以留空；现场档案也在这个弹窗里维护。
@@ -1506,7 +1507,7 @@ export function ArchiveManager({
                   ) : null}
                 </div>
                 <h2 className="mt-3 text-3xl text-white">
-                  {selectedEvent ? selectedEvent.name : "新建活动档案"}
+                  {selectedEvent ? getEventDisplayName(selectedEvent) : "新建活动档案"}
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-white/60">
                   新增和编辑活动、阵容与现场档案会在同一个弹窗中完成。
@@ -1731,4 +1732,3 @@ export function ArchiveManager({
     </>
   );
 }
-

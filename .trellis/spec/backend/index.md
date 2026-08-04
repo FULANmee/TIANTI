@@ -29,6 +29,7 @@ The production-shaped stack is Next.js 16 + React 19, Postgres through Drizzle, 
 | [Database and Repository](./database-guidelines.md) | Schema, migrations, repository parity, and destructive seeding |
 | [Domain and Mutation Contracts](./domain-guidelines.md) | Current business invariants and public read models |
 | [API, Authentication, and Errors](./error-handling.md) | Route Handler contracts, sessions, status codes, and client-safe errors |
+| [Douyin Profile Sync](./douyin-sync-guidelines.md) | Scraper boundary, parsing, source ownership, reconciliation, and release gates |
 | [Logging](./logging-guidelines.md) | The deliberately sparse operational logging contract |
 | [Assets and Object Storage](./storage-guidelines.md) | Image upload, display ratios, R2, and orphan cleanup |
 | [Backend Quality](./quality-guidelines.md) | Tests, checks, and review expectations |

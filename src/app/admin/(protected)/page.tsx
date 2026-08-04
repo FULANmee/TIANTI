@@ -1,6 +1,7 @@
 import { EditorNameForm } from "@/components/admin/editor-name-form";
 import { AdminPanel } from "@/components/ui/admin-panel";
 import { formatDate } from "@/lib/date";
+import { getEventDisplayName } from "@/lib/event-display";
 import { requireAuthenticatedEditor } from "@/lib/session";
 import { getAdminDashboard, getContentState } from "@/modules/content/service";
 
@@ -56,7 +57,7 @@ export default async function AdminDashboardPage() {
           <div className="space-y-4">
             {data.recentEvents.map((event) => (
               <div key={event.id} className="border-b pb-4 last:border-none last:pb-0 ui-divider">
-                <p className="text-lg text-[var(--foreground)]">{event.name}</p>
+                <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(event)}</p>
                 <p className="mt-1 text-sm ui-subtle">{event.city || "城市待定"}</p>
               </div>
             ))}
@@ -67,7 +68,7 @@ export default async function AdminDashboardPage() {
           <div className="space-y-4">
             {data.upcomingEvents.map((event) => (
               <div key={event.id} className="border-b pb-4 last:border-none last:pb-0 ui-divider">
-                <p className="text-lg text-[var(--foreground)]">{event.name}</p>
+                <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(event)}</p>
                 <p className="mt-1 text-sm ui-subtle">{event.city || "城市待定"}</p>
               </div>
             ))}
@@ -80,7 +81,9 @@ export default async function AdminDashboardPage() {
               const event = eventMap.get(archive.eventId);
               return (
                 <div key={archive.id} className="border-b pb-4 last:border-none last:pb-0 ui-divider">
-                  <p className="text-lg text-[var(--foreground)]">{event?.name ?? "未命名活动"}</p>
+                  <p className="text-lg text-[var(--foreground)]">
+                    {event ? getEventDisplayName(event) : "活动已删除"}
+                  </p>
                   <p className="mt-1 text-sm ui-subtle">{formatDate(archive.updatedAt)}</p>
                 </div>
               );

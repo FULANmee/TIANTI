@@ -6,9 +6,26 @@ import type {
   EditorArchive,
   EditorLadder,
   Event,
+  EventLineup,
+  DouyinSyncResult,
+  DouyinSyncRun,
   SessionRecord,
-  Talent
+  Talent,
+  TalentDouyinProfile,
+  TalentDouyinRelatedAccount,
+  TalentDouyinScheduleEntry
 } from "@/modules/domain/types";
+
+export interface DouyinSyncPersistenceInput {
+  profiles: TalentDouyinProfile[];
+  relatedAccounts: TalentDouyinRelatedAccount[];
+  scheduleEntries: TalentDouyinScheduleEntry[];
+  upsertEvents: Event[];
+  sourceLineups: EventLineup[];
+  deleteSyncEventIds: string[];
+  syncRun: DouyinSyncRun;
+  syncResults: DouyinSyncResult[];
+}
 
 export interface ContentRepository {
   getState(): Promise<ContentState>;
@@ -23,6 +40,10 @@ export interface ContentRepository {
   deleteTalent(id: string): Promise<void>;
   upsertEvent(event: Event): Promise<Event>;
   replaceEventLineup(eventId: string, state: ContentState["lineups"]): Promise<void>;
+  saveDouyinSyncState(input: DouyinSyncPersistenceInput): Promise<void>;
+  tryStartDouyinSyncRun(run: DouyinSyncRun, staleBefore: string): Promise<boolean>;
+  finishDouyinSyncRun(run: DouyinSyncRun, results: DouyinSyncResult[]): Promise<void>;
+  suppressDouyinScheduleEntries(entryIds: string[]): Promise<void>;
   deleteEvent(id: string): Promise<void>;
   saveLadder(ladder: EditorLadder): Promise<EditorLadder>;
   saveArchive(archive: EditorArchive): Promise<EditorArchive>;

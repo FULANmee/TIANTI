@@ -396,6 +396,9 @@ export async function saveEvent(payload: unknown) {
   const endsAt = toDateOnlyIso(input.endsAt?.trim() ?? "") ?? null;
   const isMultiDayEvent = isMultiDayRange(startsAt, endsAt);
   const validLineupDateKeys = new Set(getValidLineupDateKeys(startsAt, endsAt));
+  const existingLineupById = new Map(
+    state.lineups.filter((lineup) => lineup.eventId === id).map((lineup) => [lineup.id, lineup])
+  );
   const derivedStatus =
     startsAt || endsAt
       ? deriveEventTemporalStatus(startsAt, endsAt) === "past"
@@ -428,13 +431,24 @@ export async function saveEvent(payload: unknown) {
         throw new Error("达人阵容的所属日期必须落在活动开始和结束日期之间。");
       }
 
+      const lineupId = lineup.id ?? randomUUID();
+      const existingLineup = existingLineupById.get(lineupId);
+      const preservesAutomaticIdentity = Boolean(
+        existingLineup?.source.startsWith("douyin:") &&
+          existingLineup.talentId === lineup.talentId!.trim() &&
+          getDateOnlyKey(existingLineup.lineupDate) === getDateOnlyKey(lineupDate)
+      );
       return {
-        id: lineup.id ?? randomUUID(),
+        id: lineupId,
         eventId: id,
         talentId: lineup.talentId!.trim(),
         lineupDate,
         status: "confirmed" as const,
-        source: "",
+        source: existingLineup?.source.startsWith("douyin:")
+          ? preservesAutomaticIdentity
+            ? existingLineup.source
+            : ""
+          : "",
         note: lineup.note.trim()
       };
     });
@@ -451,10 +465,19 @@ export async function saveEvent(payload: unknown) {
     venue: input.venue.trim(),
     status: derivedStatus,
     note: input.note.trim(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    origin: "manual"
   });
 
   await repository.replaceEventLineup(id, lineups);
+  const removedDouyinEntryIds = [...existingLineupById.values()]
+    .filter((lineup) => {
+      if (!lineup.source.startsWith("douyin:")) return false;
+      const savedLineup = lineups.find((item) => item.id === lineup.id);
+      return !savedLineup || savedLineup.source !== lineup.source;
+    })
+    .map((lineup) => lineup.source.slice("douyin:".length));
+  await repository.suppressDouyinScheduleEntries(removedDouyinEntryIds);
 
   return event;
 }
@@ -462,6 +485,9 @@ export async function saveEvent(payload: unknown) {
 export async function removeEvent(id: string) {
   const repository = getContentRepository();
   const state = await repository.getState();
+  const douyinEntryIds = state.lineups
+    .filter((lineup) => lineup.eventId === id && lineup.source.startsWith("douyin:"))
+    .map((lineup) => lineup.source.slice("douyin:".length));
   const cleanupCandidateAssetIds = state.archives
     .filter((archive) => archive.eventId === id)
     .flatMap((archive) =>
@@ -469,6 +495,7 @@ export async function removeEvent(id: string) {
     )
     .filter(Boolean) as string[];
 
+  await repository.suppressDouyinScheduleEntries(douyinEntryIds);
   await repository.deleteEvent(id);
   await cleanupUnusedAssets(cleanupCandidateAssetIds);
 }

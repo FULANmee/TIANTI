@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tianti-douyin-scraper"
+version = "5.0.0"
+description = "TIANTI internal Douyin public-profile adapter"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "f2 @ git+https://github.com/Johnserf-Seed/f2.git@7dab3e2ffffaa2535834d28fca99dbc2e89fa9d3",
+  "fastapi==0.115.6",
+  "playwright==1.55.0",
+  "uvicorn==0.34.0"
+]
+
+[dependency-groups]
+dev = [
+  "pytest==8.3.4"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"

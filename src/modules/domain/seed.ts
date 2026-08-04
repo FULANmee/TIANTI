@@ -352,5 +352,10 @@ export const demoSeedState: RepositoryState = {
       ]
     }
   ],
-  sessions: []
+  sessions: [],
+  douyinProfiles: [],
+  douyinRelatedAccounts: [],
+  douyinScheduleEntries: [],
+  douyinSyncRuns: [],
+  douyinSyncResults: []
 };

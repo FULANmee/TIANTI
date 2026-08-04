@@ -365,9 +365,16 @@ test("event archive rails can page horizontally within a single editor date row"
   await expect.poll(async () => viewport.evaluate((node) => node.scrollLeft)).toBeGreaterThan(initialScrollLeft);
 
   await prevButton.click();
-  await expect.poll(async () => viewport.evaluate((node) => node.scrollLeft)).toBeLessThan(20);
+  await expect.poll(async () => viewport.evaluate((node) => node.scrollLeft)).toBe(0);
 
   await viewport.evaluate((node) => node.scrollTo({ left: node.scrollWidth, behavior: "instant" }));
+  await expect
+    .poll(async () =>
+      viewport.evaluate((node) =>
+        Math.abs(node.scrollWidth - node.clientWidth - node.scrollLeft)
+      )
+    )
+    .toBeLessThanOrEqual(2);
   await expect(nextButton).toBeDisabled();
 });
 

@@ -9,9 +9,11 @@ import { PublicReveal } from "@/components/ui/public-reveal";
 import { SectionFrame } from "@/components/ui/section-frame";
 import { getAssetDisplayPreset } from "@/lib/asset-display";
 import { formatDate, formatDateRange } from "@/lib/date";
+import { getEventDisplayName } from "@/lib/event-display";
 import { getEventPath, getPublicIdentifier, getTalentPath } from "@/lib/public-path";
 import { buildMetadata } from "@/lib/site";
 import { getTalentPage } from "@/modules/content/service";
+import { formatDouyinFollowerCount } from "@/modules/douyin/format";
 
 type Params = Promise<{ slug: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -98,7 +100,10 @@ export default async function TalentDetailPage({
 
   const publicInfoRows = [
     detail.talent.aliases.length > 0 ? { label: "别名", value: detail.talent.aliases.join(" / ") } : null,
-    detail.talent.mcn ? { label: "所属机构", value: detail.talent.mcn } : null
+    detail.talent.mcn ? { label: "所属机构", value: detail.talent.mcn } : null,
+    detail.douyinProfile?.followerCount != null
+      ? { label: "抖音粉丝", value: formatDouyinFollowerCount(detail.douyinProfile.followerCount) }
+      : null
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
@@ -188,6 +193,60 @@ export default async function TalentDetailPage({
       </PublicReveal>
 
       <div className="mt-14 space-y-14">
+        {detail.douyinProfile &&
+        (detail.douyinProfile.itineraryBlocks.length > 0 ||
+          detail.douyinProfile.relatedAccounts.length > 0) ? (
+          <PublicReveal>
+            <SectionFrame
+              eyebrow="Douyin Schedule"
+              title="主页行程"
+              description="保留达人抖音主页中的当前行程原文；其他城市行程仅在这里展示，不会自动写入活动。"
+            >
+              <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+                <section className="surface rounded-[1.9rem] p-6">
+                  <p className="ui-kicker">Itinerary</p>
+                  {detail.douyinProfile.itineraryBlocks.length > 0 ? (
+                    <div className="mt-5 space-y-3">
+                      {detail.douyinProfile.itineraryBlocks.map((block, index) => (
+                        <p
+                          key={`${index}-${block}`}
+                          className="surface-strong whitespace-pre-wrap break-words rounded-[1.3rem] px-4 py-4 text-sm leading-7 text-[var(--foreground)] md:text-base"
+                        >
+                          {block}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-5 text-sm ui-subtle">当前简介中没有识别到行程。</p>
+                  )}
+                </section>
+
+                <section className="surface rounded-[1.9rem] p-6">
+                  <p className="ui-kicker">Related Accounts</p>
+                  <h2 className="mt-3 text-2xl tracking-[-0.03em] text-[var(--foreground)]">关联小号</h2>
+                  {detail.douyinProfile.relatedAccounts.length > 0 ? (
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      {detail.douyinProfile.relatedAccounts.map((account) => (
+                        <a
+                          key={account.id}
+                          href={account.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ui-button-secondary px-4 py-2 text-sm"
+                        >
+                          @{account.nickname}
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-5 text-sm ui-subtle">当前没有可验证的关联账号链接。</p>
+                  )}
+                </section>
+              </div>
+            </SectionFrame>
+          </PublicReveal>
+        ) : null}
+
         <PublicReveal>
           <SectionFrame
             eyebrow="Activity Path"
@@ -208,7 +267,7 @@ export default async function TalentDetailPage({
                         href={getEventPath(item.event)}
                         className="block border-b pb-4 last:border-none last:pb-0 ui-divider"
                       >
-                        <p className="text-lg text-[var(--foreground)]">{item.event.name}</p>
+                        <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(item.event)}</p>
                         <p className="mt-2 text-sm ui-subtle">
                           {[item.event.city, formatDateRange(item.event.startsAt, item.event.endsAt)].filter(Boolean).join(" · ")}
                         </p>
@@ -253,7 +312,7 @@ export default async function TalentDetailPage({
                         href={getEventPath(item.event)}
                         className="block border-b pb-4 last:border-none last:pb-0 ui-divider"
                       >
-                        <p className="text-lg text-[var(--foreground)]">{item.event.name}</p>
+                        <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(item.event)}</p>
                         <p className="mt-2 text-sm ui-subtle">
                           {[item.event.city, formatDateRange(item.event.startsAt, item.event.endsAt)].filter(Boolean).join(" · ")}
                         </p>

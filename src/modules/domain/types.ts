@@ -2,6 +2,11 @@ export type EditorSlug = "lin" | "yu";
 export type EventStatus = "future" | "past";
 export type DerivedEventStatus = "future" | "past" | "undated";
 export type ParticipationStatus = "confirmed" | "pending";
+export type EventOrigin = "manual" | "douyin_sync";
+export type DouyinLinkExtractionStatus = "structured" | "rendered" | "unavailable";
+export type DouyinScheduleEntryState = "active" | "removed_future" | "retained_past" | "suppressed";
+export type DouyinSyncTrigger = "cron" | "manual_all" | "manual_talent";
+export type DouyinSyncStatus = "running" | "completed" | "completed_with_errors" | "failed";
 export type AssetKind =
   | "talent_cover"
   | "talent_representation"
@@ -85,6 +90,7 @@ export interface Event {
   status: EventStatus;
   note: string;
   updatedAt: string;
+  origin?: EventOrigin;
 }
 
 export interface EventLineup {
@@ -139,6 +145,76 @@ export interface SessionRecord {
   createdAt: string;
 }
 
+export interface TalentDouyinProfile {
+  talentId: string;
+  profileUrl: string;
+  secUserId?: string | null;
+  signatureRaw: string;
+  itineraryText: string;
+  followerCount?: number | null;
+  fetchedAt?: string | null;
+  lastSuccessAt?: string | null;
+  lastErrorCode?: string | null;
+  linkExtractionStatus: DouyinLinkExtractionStatus;
+  manualSyncAvailableAt?: string | null;
+  parserVersion: string;
+}
+
+export interface TalentDouyinRelatedAccount {
+  id: string;
+  talentId: string;
+  nickname: string;
+  secUserId: string;
+  url: string;
+  sortOrder: number;
+}
+
+export interface TalentDouyinScheduleEntry {
+  id: string;
+  talentId: string;
+  fingerprint: string;
+  rawText: string;
+  startsAt: string;
+  endsAt: string;
+  city: string;
+  eventName: string;
+  eventId?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  consecutiveMissingCount: number;
+  state: DouyinScheduleEntryState;
+  parserVersion: string;
+}
+
+export interface DouyinSyncRun {
+  id: string;
+  trigger: DouyinSyncTrigger;
+  status: DouyinSyncStatus;
+  requestedCount: number;
+  succeededCount: number;
+  skippedCount: number;
+  failedCount: number;
+  startedAt: string;
+  finishedAt?: string | null;
+}
+
+export interface DouyinSyncResult {
+  id: string;
+  runId: string;
+  talentId?: string | null;
+  status: "succeeded" | "skipped" | "failed";
+  code: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface TalentDouyinAdminStatus {
+  talentId: string;
+  lastSuccessAt: string | null;
+  lastErrorCode: string | null;
+  manualSyncAvailableAt: string | null;
+}
+
 export interface ContentState {
   editors: EditorProfile[];
   assets: Asset[];
@@ -148,6 +224,11 @@ export interface ContentState {
   ladders: EditorLadder[];
   archives: EditorArchive[];
   sessions: SessionRecord[];
+  douyinProfiles: TalentDouyinProfile[];
+  douyinRelatedAccounts: TalentDouyinRelatedAccount[];
+  douyinScheduleEntries: TalentDouyinScheduleEntry[];
+  douyinSyncRuns: DouyinSyncRun[];
+  douyinSyncResults: DouyinSyncResult[];
 }
 
 export interface RepositoryState extends Omit<ContentState, "editors"> {
@@ -238,6 +319,11 @@ export interface TalentDetail {
   pastEvents: TalentEventTimelineItem[];
   relatedTalents: RelatedTalentSummary[];
   relatedEvents: RelatedEventSummary[];
+  douyinProfile: {
+    followerCount: number | null;
+    itineraryBlocks: string[];
+    relatedAccounts: TalentDouyinRelatedAccount[];
+  } | null;
   editorSummaries: Array<{
     editor: EditorProfile;
     tierName: string | null;

@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgTable,
   text,
@@ -125,10 +126,12 @@ export const events = pgTable(
     venue: text("venue").notNull(),
     status: text("status").notNull(),
     note: text("note").notNull(),
+    origin: text("origin").notNull().default("manual"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
   },
   (table) => ({
-    slugIdx: uniqueIndex("events_slug_idx").on(table.slug)
+    slugIdx: uniqueIndex("events_slug_idx").on(table.slug),
+    originIdx: index("events_origin_idx").on(table.origin)
   })
 );
 
@@ -145,6 +148,127 @@ export const eventLineup = pgTable("event_lineup", {
   source: text("source").notNull(),
   note: text("note").notNull()
 });
+
+export const talentDouyinProfiles = pgTable(
+  "talent_douyin_profiles",
+  {
+    talentId: uuid("talent_id")
+      .primaryKey()
+      .references(() => talents.id, { onDelete: "cascade" }),
+    profileUrl: text("profile_url").notNull(),
+    secUserId: text("sec_user_id"),
+    signatureRaw: text("signature_raw").notNull().default(""),
+    itineraryText: text("itinerary_text").notNull().default(""),
+    followerCount: integer("follower_count"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    linkExtractionStatus: text("link_extraction_status").notNull().default("unavailable"),
+    manualSyncAvailableAt: timestamp("manual_sync_available_at", { withTimezone: true }),
+    parserVersion: text("parser_version").notNull().default("1")
+  },
+  (table) => ({
+    secUserIdIdx: uniqueIndex("talent_douyin_profiles_sec_user_id_idx").on(table.secUserId),
+    lastSuccessIdx: index("talent_douyin_profiles_last_success_idx").on(table.lastSuccessAt)
+  })
+);
+
+export const talentDouyinRelatedAccounts = pgTable(
+  "talent_douyin_related_accounts",
+  {
+    id: uuid("id").primaryKey(),
+    talentId: uuid("talent_id")
+      .notNull()
+      .references(() => talents.id, { onDelete: "cascade" }),
+    nickname: text("nickname").notNull(),
+    secUserId: text("sec_user_id").notNull(),
+    url: text("url").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0)
+  },
+  (table) => ({
+    talentIdx: index("talent_douyin_related_accounts_talent_idx").on(table.talentId),
+    talentAccountIdx: uniqueIndex("talent_douyin_related_accounts_unique_idx").on(
+      table.talentId,
+      table.secUserId
+    )
+  })
+);
+
+export const talentDouyinScheduleEntries = pgTable(
+  "talent_douyin_schedule_entries",
+  {
+    id: uuid("id").primaryKey(),
+    talentId: uuid("talent_id")
+      .notNull()
+      .references(() => talents.id, { onDelete: "cascade" }),
+    fingerprint: text("fingerprint").notNull(),
+    rawText: text("raw_text").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    city: text("city").notNull(),
+    eventName: text("event_name").notNull().default(""),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    consecutiveMissingCount: integer("consecutive_missing_count").notNull().default(0),
+    state: text("state").notNull().default("active"),
+    parserVersion: text("parser_version").notNull().default("1")
+  },
+  (table) => ({
+    talentIdx: index("talent_douyin_schedule_entries_talent_idx").on(table.talentId),
+    eventIdx: index("talent_douyin_schedule_entries_event_idx").on(table.eventId),
+    stateDateIdx: index("talent_douyin_schedule_entries_state_date_idx").on(
+      table.state,
+      table.endsAt
+    ),
+    talentFingerprintIdx: uniqueIndex("talent_douyin_schedule_entries_fingerprint_idx").on(
+      table.talentId,
+      table.fingerprint
+    )
+  })
+);
+
+export const douyinSyncRuns = pgTable(
+  "douyin_sync_runs",
+  {
+    id: uuid("id").primaryKey(),
+    trigger: text("trigger").notNull(),
+    status: text("status").notNull(),
+    requestedCount: integer("requested_count").notNull().default(0),
+    succeededCount: integer("succeeded_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true })
+  },
+  (table) => ({
+    startedAtIdx: index("douyin_sync_runs_started_at_idx").on(table.startedAt),
+    statusIdx: index("douyin_sync_runs_status_idx").on(table.status),
+    runningIdx: uniqueIndex("douyin_sync_runs_running_idx")
+      .on(table.status)
+      .where(sql`${table.status} = 'running'`)
+  })
+);
+
+export const douyinSyncResults = pgTable(
+  "douyin_sync_results",
+  {
+    id: uuid("id").primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => douyinSyncRuns.id, { onDelete: "cascade" }),
+    talentId: uuid("talent_id").references(() => talents.id, { onDelete: "set null" }),
+    status: text("status").notNull(),
+    code: text("code").notNull(),
+    message: text("message").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    runIdx: index("douyin_sync_results_run_idx").on(table.runId),
+    talentIdx: index("douyin_sync_results_talent_idx").on(table.talentId),
+    createdAtIdx: index("douyin_sync_results_created_at_idx").on(table.createdAt)
+  })
+);
 
 export const ladders = pgTable("ladders", {
   id: uuid("id").primaryKey(),

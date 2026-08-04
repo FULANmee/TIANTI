@@ -6,12 +6,21 @@ import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes
 import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
 import { normalizeTalentDraft, splitCommaValues } from "@/components/admin/talent-manager-utils";
 import { compareByPinyin } from "@/lib/pinyin";
-import type { TalentBulkResponse } from "@/modules/admin/types";
-import type { Asset, Talent } from "@/modules/domain/types";
+import type { DouyinSyncResponse, TalentBulkResponse } from "@/modules/admin/types";
+import type {
+  Asset,
+  DouyinSyncResult,
+  DouyinSyncRun,
+  Talent,
+  TalentDouyinAdminStatus
+} from "@/modules/domain/types";
 
 interface TalentManagerProps {
   talents: Talent[];
   assets: Asset[];
+  douyinStatuses: TalentDouyinAdminStatus[];
+  initialLastSyncRun: DouyinSyncRun | null;
+  initialLastSyncResults: DouyinSyncResult[];
 }
 
 interface RepresentationDraft {
@@ -55,6 +64,14 @@ function sortTalents(value: Talent[]) {
 
 function normalizeNickname(value: string) {
   return value.trim().toLocaleLowerCase("zh-CN");
+}
+
+function formatAdminSyncTime(value?: string | null) {
+  if (!value) return "暂无成功记录";
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
 
 function createRepresentationDraft(title = "", assetId = ""): RepresentationDraft {
@@ -108,7 +125,13 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
   };
 }
 
-export function TalentManager({ talents, assets }: TalentManagerProps) {
+export function TalentManager({
+  talents,
+  assets,
+  douyinStatuses,
+  initialLastSyncRun,
+  initialLastSyncResults
+}: TalentManagerProps) {
   const { setGuard } = useAdminUnsavedChanges();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -118,11 +141,21 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
   const [liveAssets, setLiveAssets] = useState(assets);
   const [cleanupCandidateAssetIds, setCleanupCandidateAssetIds] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
+  const [syncPending, startSyncTransition] = useTransition();
+  const [syncClock, setSyncClock] = useState(() => Date.now());
   const [message, setMessage] = useState<string | null>(null);
+  const [liveDouyinStatuses, setLiveDouyinStatuses] = useState(douyinStatuses);
+  const [lastSyncRun, setLastSyncRun] = useState(initialLastSyncRun);
+  const [lastSyncResults, setLastSyncResults] = useState(initialLastSyncResults);
   const [draggingRepresentationId, setDraggingRepresentationId] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const selectedTalent = liveTalents.find((talent) => talent.id === selectedId) ?? null;
+  const selectedDouyinStatus = liveDouyinStatuses.find((status) => status.talentId === selectedId) ?? null;
+  const selectedSyncCoolingDown = Boolean(
+    selectedDouyinStatus?.manualSyncAvailableAt &&
+      Date.parse(selectedDouyinStatus.manualSyncAvailableAt) > syncClock
+  );
   const [draft, setDraft] = useState<TalentDraft>(() => createTalentDraft(selectedTalent));
   const persistedDraft = useMemo(() => createTalentDraft(selectedTalent), [selectedTalent]);
   const hasUnsavedChanges =
@@ -133,6 +166,11 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
     setGuard(hasUnsavedChanges ? { isDirty: true, message: UNSAVED_MESSAGE } : null);
     return () => setGuard(null);
   }, [hasUnsavedChanges, setGuard]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setSyncClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const assetMap = useMemo(() => new Map(liveAssets.map((asset) => [asset.id, asset])), [liveAssets]);
 
@@ -347,6 +385,39 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
       })
     }));
     setMessage("已清空当前代表图，保存后生效。");
+  }
+
+  function handleDouyinSync(talentId?: string) {
+    if (talentId && hasUnsavedChanges) {
+      setMessage("请先保存当前达人资料，再按已保存的抖音主页立即同步。");
+      return;
+    }
+
+    setMessage(null);
+    startSyncTransition(async () => {
+      try {
+        const response = await fetch(
+          talentId ? `/api/admin/talents/${talentId}/douyin-sync` : "/api/admin/douyin-sync",
+          { method: "POST" }
+        );
+        const data = (await response.json().catch(() => null)) as DouyinSyncResponse | null;
+        if (!response.ok || !data?.run || !data.results) {
+          setMessage(data?.error ?? "抖音同步失败，请稍后重试。");
+          return;
+        }
+
+        setLastSyncRun(data.run);
+        setLastSyncResults(data.results);
+        if (data.statuses) {
+          setLiveDouyinStatuses(data.statuses);
+        }
+        setMessage(
+          `抖音同步完成：成功 ${data.run.succeededCount}，跳过 ${data.run.skippedCount}，失败 ${data.run.failedCount}。`
+        );
+      } catch {
+        setMessage("无法连接抖音同步服务，请稍后重试。");
+      }
+    });
   }
 
   async function handleSave() {
@@ -579,11 +650,45 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
           <div className="surface rounded-[1.4rem] px-5 py-4 text-sm text-[#5f3d00]">{message}</div>
         ) : null}
         <div className="surface rounded-[1.8rem] p-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">Talent Workspace</p>
-          <h2 className="mt-3 text-3xl text-white">达人资料</h2>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">Talent Workspace</p>
+              <h2 className="mt-3 text-3xl text-white">达人资料</h2>
+            </div>
+            <button
+              type="button"
+              data-testid="sync-all-douyin"
+              onClick={() => handleDouyinSync()}
+              disabled={syncPending}
+              className="ui-button-secondary px-5 py-2.5 text-sm disabled:opacity-50"
+            >
+              {syncPending ? "同步中..." : "立即同步全部抖音"}
+            </button>
+          </div>
           <p className="mt-3 text-sm leading-7 text-white/60">
             新增和编辑会在独立弹窗中完成；列表保持用于搜索、勾选和批量管理。
           </p>
+          <div className="mt-5 rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/55">
+            {lastSyncRun ? (
+              <div className="space-y-2">
+                <p>
+                  最近同步：成功 {lastSyncRun.succeededCount} · 跳过 {lastSyncRun.skippedCount} · 失败 {lastSyncRun.failedCount}
+                </p>
+                <p className="text-xs text-white/40">{formatAdminSyncTime(lastSyncRun.finishedAt ?? lastSyncRun.startedAt)}</p>
+                {lastSyncResults.some((result) => result.status !== "succeeded") ? (
+                  <p className="text-xs text-white/45">
+                    {lastSyncResults
+                      .filter((result) => result.status !== "succeeded")
+                      .slice(0, 3)
+                      .map((result) => result.message)
+                      .join(" / ")}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              "还没有抖音同步记录。"
+            )}
+          </div>
           <div className="mt-6 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
             {selectedTalent ? (
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -592,14 +697,31 @@ export function TalentManager({ talents, assets }: TalentManagerProps) {
                   <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/40">
                     {selectedTalent.tags.join(" · ") || "未设置标签"}
                   </p>
+                  <p className="mt-2 text-xs text-white/45">
+                    抖音上次成功：{formatAdminSyncTime(selectedDouyinStatus?.lastSuccessAt)}
+                    {selectedDouyinStatus?.lastErrorCode
+                      ? ` · 最近错误 ${selectedDouyinStatus.lastErrorCode}`
+                      : ""}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openTalentEditor(selectedTalent.id)}
-                  className="ui-button-secondary px-5 py-2.5 text-sm"
-                >
-                  编辑达人
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    data-testid="sync-selected-douyin"
+                    onClick={() => handleDouyinSync(selectedTalent.id)}
+                    disabled={syncPending || selectedSyncCoolingDown}
+                    className="ui-button-secondary px-5 py-2.5 text-sm disabled:opacity-50"
+                  >
+                    {syncPending ? "同步中..." : selectedSyncCoolingDown ? "同步冷却中" : "立即同步抖音"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openTalentEditor(selectedTalent.id)}
+                    className="ui-button-secondary px-5 py-2.5 text-sm"
+                  >
+                    编辑达人
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-4">

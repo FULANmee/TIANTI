@@ -1,9 +1,23 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "experimentalServices": {
+    "web": {
+      "entrypoint": ".",
+      "routePrefix": "/"
+    },
+    "douyin_scraper": {
+      "entrypoint": "services/douyin-scraper/main.py",
+      "routePrefix": "/_internal/douyin-scraper"
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/cleanup-orphan-assets",
       "schedule": "17 3 * * *"
+    },
+    {
+      "path": "/api/cron/sync-douyin-profiles",
+      "schedule": "23 4 * * *"
     }
   ]
 }

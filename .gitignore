@@ -1,5 +1,9 @@
 # dependencies
 /node_modules
+**/.venv
+**/__pycache__/
+**/.pytest_cache/
+*.py[cod]
 
 # next
 /.next
@@ -25,6 +29,7 @@ Thumbs.db
 # local data
 /.data
 
-.vercel
+# Vercel CLI artifacts can be generated at the project or service root.
+**/.vercel/
 .wrangler
 .env*.local

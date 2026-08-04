@@ -21,6 +21,16 @@ export async function getContentState() {
   return getContentRepository().getState();
 }
 
+export async function getDouyinAdminStatuses() {
+  const state = await getContentState();
+  return state.douyinProfiles.map((profile) => ({
+    talentId: profile.talentId,
+    lastSuccessAt: profile.lastSuccessAt ?? null,
+    lastErrorCode: profile.lastErrorCode ?? null,
+    manualSyncAvailableAt: profile.manualSyncAvailableAt ?? null
+  }));
+}
+
 export async function getSiteEditors() {
   return getEditors(await getContentState());
 }

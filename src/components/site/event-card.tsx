@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatDateRange } from "@/lib/date";
+import { getEventDisplayName } from "@/lib/event-display";
 import { getEventPath } from "@/lib/public-path";
 import type { EventSummary } from "@/modules/domain/types";
 
@@ -18,7 +19,9 @@ export function EventCard({ item }: { item: EventSummary }) {
           <span>{statusLabel}</span>
         </div>
         <div className="space-y-3">
-          <h3 className="text-3xl tracking-[-0.04em] text-[var(--foreground)]">{item.event.name}</h3>
+          <h3 className="text-3xl tracking-[-0.04em] text-[var(--foreground)]">
+            {getEventDisplayName(item.event)}
+          </h3>
           <div className="space-y-1 text-sm ui-subtle">
             <p>{formatDateRange(item.event.startsAt, item.event.endsAt)}</p>
             {item.event.venue ? <p>{item.event.venue}</p> : null}
