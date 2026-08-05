@@ -46,3 +46,30 @@ Cloned the migrated TIANTI repository, consolidated source-backed backend/fronte
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: TIANTI 5.0 抖音行程自动同步
+
+**Date**: 2026-08-05
+**Task**: TIANTI 5.0 抖音行程自动同步
+**Branch**: `5.0`
+
+### Summary
+
+完成抖音主页简介、粉丝量、关联小号与深圳未来活动自动同步，落地 Vercel Services、隔离 Preview 数据库与安全迁移门，并通过本地、CI 和真实 Preview 全链路验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b96b0f0` | (see git log) |
+| `93e1c31` | (see git log) |
+| `aa91a26` | (see git log) |
+| `d17ff12` | (see git log) |
+| `55e83b3` | (see git log) |
+| `57e35c0` | (see git log) |
+| `2eafc1a` | (see git log) |
+
+### Status
+
+[OK] **Completed**
