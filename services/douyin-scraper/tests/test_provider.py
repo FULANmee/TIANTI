@@ -102,6 +102,48 @@ def test_signature_extra_nickname_cannot_bypass_invalid_offsets():
     assert accounts == []
 
 
+def test_structured_signature_slice_accepts_a_nickname_with_internal_spaces():
+    signature = "理想型：@我是 闪电侠"
+    start, end = _span(signature, "@我是 闪电侠")
+
+    accounts = extract_structured_related_accounts(
+        {
+            "signature_extra": [
+                {
+                    "sec_uid": "MS4wLjABAAAA-related",
+                    "start": start,
+                    "end": end,
+                }
+            ]
+        },
+        "MS4wLjABAAAA-primary",
+        signature,
+    )
+
+    assert [(account.nickname, account.sec_user_id) for account in accounts] == [
+        ("我是 闪电侠", "MS4wLjABAAAA-related")
+    ]
+
+
+def test_ignores_an_oversized_structured_sec_user_id():
+    signature = "小号：@安全昵称"
+    start, end = _span(signature, "@安全昵称")
+
+    assert extract_structured_related_accounts(
+        {
+            "signature_extra": [
+                {
+                    "sec_uid": "a" * 513,
+                    "start": start,
+                    "end": end,
+                }
+            ]
+        },
+        "MS4wLjABAAAA-primary",
+        signature,
+    ) == []
+
+
 def test_ignores_malformed_or_out_of_range_signature_extra_entries():
     signature = "另一个我：@腥味猫罐"
     valid_start, valid_end = _span(signature, "@腥味猫罐")

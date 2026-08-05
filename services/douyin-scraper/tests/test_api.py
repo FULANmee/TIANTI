@@ -135,12 +135,20 @@ def test_vercel_local_development_allows_http(monkeypatch):
 def test_profile_url_validation_rejects_non_profile_paths_and_ports():
     assert validate_profile_url("https://www.douyin.com/user/MS4wLjABAAAA-test")
     assert validate_profile_url("https://v.douyin.com/short-code/")
+    assert (
+        validate_profile_url(
+            "https://www.douyin.com/user/MS4wLjABAAAA-test?from_tab_name=main#profile"
+        )
+        == "https://www.douyin.com/user/MS4wLjABAAAA-test"
+    )
 
     for value in (
         "https://www.douyin.com/user/account/extra",
         "https://www.douyin.com:8443/user/account",
         "https://v.douyin.com/",
         "https://v.douyin.com/short-code/extra",
+        f"https://www.douyin.com/user/{'a' * 513}",
+        f"https://v.douyin.com/{'a' * 513}",
     ):
         try:
             validate_profile_url(value)

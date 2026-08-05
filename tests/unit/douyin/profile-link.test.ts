@@ -28,12 +28,21 @@ describe("Douyin profile URL selection", () => {
     expect(
       getPrimaryDouyinProfileLink(talentWithUrl("https://v.douyin.com/short-code/")).link
     ).not.toBeNull();
+    expect(
+      getPrimaryDouyinProfileLink(
+        talentWithUrl(
+          "https://www.douyin.com/user/MS4wLjABAAAA-test?from_tab_name=main#profile"
+        )
+      ).link?.url
+    ).toBe("https://www.douyin.com/user/MS4wLjABAAAA-test");
 
     for (const url of [
       "https://www.douyin.com/user/account/extra",
       "https://www.douyin.com:8443/user/account",
       "https://v.douyin.com/",
-      "https://example.com/user/account"
+      "https://example.com/user/account",
+      `https://www.douyin.com/user/${"a".repeat(513)}`,
+      `https://v.douyin.com/${"a".repeat(513)}`
     ]) {
       expect(getPrimaryDouyinProfileLink(talentWithUrl(url)).link).toBeNull();
     }
@@ -43,5 +52,6 @@ describe("Douyin profile URL selection", () => {
     expect(isSafeDouyinRelatedAccountUrl("https://www.douyin.com/user/verified-account")).toBe(true);
     expect(isSafeDouyinRelatedAccountUrl("https://v.douyin.com/short-code/")).toBe(false);
     expect(isSafeDouyinRelatedAccountUrl("https://www.douyin.com/user/account/extra")).toBe(false);
+    expect(isSafeDouyinRelatedAccountUrl("https://www.douyin.com/user/account?from_tab_name=main")).toBe(false);
   });
 });

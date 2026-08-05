@@ -5,18 +5,30 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 import re
+import unicodedata
 from typing import Any, Literal
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urlunparse
 
 from app.config import Settings
 from app.models import Account, Diagnostics, Profile, ProfileFetchResponse, RelatedAccount
 
 
 SEC_USER_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
-DIRECT_USER_PATTERN = re.compile(r"/user/([A-Za-z0-9_-]+)/?")
-SHORT_PROFILE_PATTERN = re.compile(r"/[A-Za-z0-9_-]+/?")
+DIRECT_USER_PATTERN = re.compile(r"/user/([A-Za-z0-9_-]{1,512})/?")
+SHORT_PROFILE_PATTERN = re.compile(r"/[A-Za-z0-9_-]{1,512}/?")
 MENTION_PATTERN = re.compile(r"@([^\s@，。,;；:：/➡️()（）]+)")
 ALLOWED_HOSTS = {"www.douyin.com", "douyin.com", "v.douyin.com"}
+MAX_SEC_USER_ID_LENGTH = 512
+MAX_NICKNAME_LENGTH = 256
+MAX_RELATED_ACCOUNTS = 100
+
+
+def _is_safe_sec_user_id(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= MAX_SEC_USER_ID_LENGTH
+        and SEC_USER_ID_PATTERN.fullmatch(value) is not None
+    )
 
 
 def _silence_f2_logging() -> None:
@@ -72,11 +84,13 @@ def validate_profile_url(value: str) -> str:
     )
     if not valid_path:
         raise ScraperProviderError("INVALID_PROFILE_URL", "The URL is not a Douyin user profile.", False, 400)
-    return value
+    if parsed.hostname != "v.douyin.com" and not _is_safe_sec_user_id(valid_path.group(1)):
+        raise ScraperProviderError("INVALID_PROFILE_URL", "The profile account identifier is invalid.", False, 400)
+    return urlunparse(parsed._replace(query="", fragment=""))
 
 
 def canonical_user_url(sec_user_id: str) -> str:
-    if not SEC_USER_ID_PATTERN.fullmatch(sec_user_id):
+    if not _is_safe_sec_user_id(sec_user_id):
         raise ScraperProviderError("INVALID_UPSTREAM_RESPONSE", "The profile account identifier is invalid.", True)
     return f"https://www.douyin.com/user/{sec_user_id}"
 
@@ -88,9 +102,10 @@ def _candidate_account(value: Any) -> RelatedAccount | None:
     nickname = value.get("nickname") or value.get("name")
     if (
         not isinstance(sec_user_id, str)
-        or not SEC_USER_ID_PATTERN.fullmatch(sec_user_id)
+        or not _is_safe_sec_user_id(sec_user_id)
         or not isinstance(nickname, str)
         or not nickname
+        or len(nickname) > MAX_NICKNAME_LENGTH
     ):
         return None
     return RelatedAccount(nickname=nickname, sec_user_id=sec_user_id, url=canonical_user_url(sec_user_id))
@@ -107,8 +122,7 @@ def _candidate_account_from_signature_slice(
     start = value.get("start")
     end = value.get("end")
     if (
-        not isinstance(sec_user_id, str)
-        or not SEC_USER_ID_PATTERN.fullmatch(sec_user_id)
+        not _is_safe_sec_user_id(sec_user_id)
         or not isinstance(start, int)
         or isinstance(start, bool)
         or not isinstance(end, int)
@@ -130,9 +144,9 @@ def _candidate_account_from_signature_slice(
             pass
 
     nicknames = {
-        match.group(1).strip()
+        nickname
         for candidate in candidate_slices
-        if (match := MENTION_PATTERN.fullmatch(candidate)) and match.group(1).strip()
+        if (nickname := _nickname_from_structured_mention(candidate)) is not None
     }
     if len(nicknames) != 1:
         return None
@@ -142,6 +156,21 @@ def _candidate_account_from_signature_slice(
         sec_user_id=sec_user_id,
         url=canonical_user_url(sec_user_id),
     )
+
+
+def _nickname_from_structured_mention(value: str) -> str | None:
+    if not value.startswith("@"):
+        return None
+    nickname = value[1:]
+    if (
+        not nickname
+        or len(nickname) > MAX_NICKNAME_LENGTH
+        or nickname != nickname.strip()
+        or "@" in nickname
+        or any(unicodedata.category(character) in {"Cc", "Zl", "Zp"} for character in nickname)
+    ):
+        return None
+    return nickname
 
 
 def extract_structured_related_accounts(
@@ -169,7 +198,7 @@ def extract_structured_related_accounts(
                 visit(child, context_key, list_within_signature_extra)
 
     visit(raw_user)
-    return list(found.values())
+    return list(found.values())[:MAX_RELATED_ACCOUNTS]
 
 
 async def extract_rendered_related_accounts(
@@ -207,6 +236,8 @@ async def extract_rendered_related_accounts(
                     if target.scheme != "https" or target.hostname not in {"douyin.com", "www.douyin.com"}:
                         continue
                     sec_user_id = match.group(1)
+                    if not _is_safe_sec_user_id(sec_user_id):
+                        continue
                     found[sec_user_id] = RelatedAccount(
                         nickname=text,
                         sec_user_id=sec_user_id,
@@ -214,7 +245,7 @@ async def extract_rendered_related_accounts(
                     )
                 if len({account.nickname for account in found.values()}) != len(expected_names):
                     return []
-                return list(found.values())
+                return list(found.values())[:MAX_RELATED_ACCOUNTS]
             finally:
                 await browser.close()
     except Exception:
@@ -230,14 +261,17 @@ class F2ProfileProvider:
     async def _resolve_sec_user_id(self, profile_url: str) -> str:
         direct_match = DIRECT_USER_PATTERN.fullmatch(urlparse(profile_url).path)
         if direct_match:
-            return direct_match.group(1)
+            sec_user_id = direct_match.group(1)
+            if _is_safe_sec_user_id(sec_user_id):
+                return sec_user_id
+            raise ScraperProviderError("INVALID_PROFILE_URL", "Unable to resolve the Douyin profile.", False, 400)
 
         try:
             from f2.apps.douyin.utils import SecUserIdFetcher
 
             _silence_f2_logging()
             sec_user_id = await SecUserIdFetcher.get_sec_user_id(profile_url)
-            if not isinstance(sec_user_id, str) or not SEC_USER_ID_PATTERN.fullmatch(sec_user_id):
+            if not _is_safe_sec_user_id(sec_user_id):
                 raise ValueError("invalid sec_user_id")
             return sec_user_id
         except Exception as error:
@@ -301,12 +335,18 @@ class F2ProfileProvider:
 
         raw = user._to_raw()
         raw_user = raw.get("user") if isinstance(raw, dict) else None
-        if not isinstance(raw_user, dict) or not isinstance(user.nickname_raw, str):
+        if (
+            not isinstance(raw_user, dict)
+            or not isinstance(user.nickname_raw, str)
+            or len(user.nickname_raw) > MAX_NICKNAME_LENGTH
+        ):
             raise ScraperProviderError("PROFILE_NOT_FOUND_OR_PRIVATE", "The profile is unavailable.", False, 404)
 
         signature_raw = user.signature_raw if isinstance(user.signature_raw, str) else ""
+        if len(signature_raw) > 5_000:
+            raise ScraperProviderError("INVALID_UPSTREAM_RESPONSE", "Profile signature is too long.", True)
         follower_count = user.follower_count
-        if not isinstance(follower_count, int) or follower_count < 0:
+        if not isinstance(follower_count, int) or isinstance(follower_count, bool) or follower_count < 0:
             raise ScraperProviderError("INVALID_UPSTREAM_RESPONSE", "Follower count is invalid.", True)
 
         structured_accounts = extract_structured_related_accounts(
