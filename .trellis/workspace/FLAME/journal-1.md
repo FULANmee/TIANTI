@@ -73,3 +73,24 @@ Cloned the migrated TIANTI repository, consolidated source-backed backend/fronte
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: 移动达人详情页抖音行程与关联小号
+
+**Date**: 2026-08-05
+**Task**: 移动达人详情页抖音行程与关联小号
+**Branch**: `5.0`
+
+### Summary
+
+将抖音行程和关联小号移动到达人详情首屏资料区域，移除原独立信息栏，并完成响应式与 E2E 验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6fff8af` | (see git log) |
+
+### Status
+
+[OK] **Completed**

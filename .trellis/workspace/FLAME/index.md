@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 4
 - **Last Active**: 2026-08-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~75 | Active |
+| `journal-1.md` | ~96 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-08-05 | 移动达人详情页抖音行程与关联小号 | `6fff8af` | `5.0` |
 | 3 | 2026-08-05 | TIANTI 5.0 抖音行程自动同步 | `b96b0f0`, `93e1c31`, `aa91a26`, `d17ff12`, `55e83b3`, `57e35c0`, `2eafc1a` | `5.0` |
 | 2 | 2026-08-02 | 修复网站交互与构建可靠性 | `46e9f6d` | `codex/audit-fix-site-bugs` |
 | 1 | 2026-08-01 | Bootstrap TIANTI Trellis guidelines | `8fb4e44` | `codex/bootstrap-trellis-specs` |
