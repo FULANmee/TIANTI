@@ -50,7 +50,7 @@ npm run test:e2e:smoke
 npm run test:e2e
 ~~~
 
-本地网络受限时，npm run build 可能因 Next.js 拉取 Google 字体失败。记录具体失败原因，并以同一提交在 GitHub Actions/Vercel 的构建结果补验；不要把网络错误直接当成应用回归，也不要因此跳过线上构建检查。
+当前字体使用仓库 CSS 中的系统 CJK 字体栈，`npm run build` 不应下载 Google Fonts。出现远程字体请求应视为构建回归并修复。
 
 ## 4. 数据库、环境变量与定时任务
 
@@ -71,7 +71,7 @@ npm run test:e2e
 
 Preview 和 Production 的变量是不同环境范围，分别核对。不要在日志、PR 或发布记录中粘贴密钥值。
 
-当前 CI 和 Vercel 构建没有自动应用数据库迁移。若提交包含新的 drizzle/*.sql：
+常规 CI、Production 与其他分支构建不自动应用数据库迁移。`5.0` Preview 是唯一例外：只有 `TIANTI_PREVIEW_V5_MIGRATIONS=1` 且全部 Vercel/Neon guard 通过时，`npm run build` 才会在 `next build` 前通过单一事务应用已审阅的 `0007`、`0008`，并在完整 schema 校验后提交。若提交包含其他新的 drizzle/*.sql：
 
 1. 复核 SQL、外键、空值、索引和数据回填。
 2. 明确目标 DATABASE_URL。
@@ -82,11 +82,11 @@ npm run db:push 会直接修改所指数据库，只能在确认目标后有意�
 
 仓库根目录 `vercel.json` 通过 `experimentalServices` 在现有 Git-connected Vercel 项目内同时构建 Next.js 与 FastAPI。`5.0` 的真实 Preview 已证明根配置在项目设置仍报告 `Next.js` Preset 时也会构建两个服务，因此不要仅为本功能修改 Preset，也不要创建第二个项目或在 `services/douyin-scraper/` 下增加另一份 `vercel.json`。服务名 `douyin_scraper` 自动生成仅服务端可见的 `DOUYIN_SCRAPER_URL`，正常 Preview/Production 无需手工设置它；只有本地 Uvicorn 或经过批准的外部 HTTPS 适配器才使用优先级更高的 `DOUYIN_SCRAPER_URL_OVERRIDE`。
 
-`vercel.json` 每天调用 `/api/cron/cleanup-orphan-assets` 和 `/api/cron/sync-douyin-profiles`。Vercel Cron 只在 Production deployment 激活，因此 Preview 不要求定时触发；Production 必须配置 CRON_SECRET。抖音同步应先在 Preview 隔离数据库单独应用 migration、单独配置 Preview 环境变量，并保持 `DOUYIN_SYNC_ENABLED=false` 完成同一 deployment 内抓取服务的健康检查和只读探针；随后短时启用开关完成后台单达人写入验证，再在 Production 保留开关以启用每日任务。真实 `@账号` 链接还必须先证明 Vercel Python runtime 可启动兼容 Chromium，再用简介内含可点击 mention 的公开主页完成渲染目标验收；Python Playwright 包本身不包含浏览器。无法恢复真实 Douyin URL 时只能返回 unavailable，不能按昵称猜测。回滚优先关闭该开关，不删除已同步的历史数据。
+`vercel.json` 每天调用 `/api/cron/cleanup-orphan-assets` 和 `/api/cron/sync-douyin-profiles`。Vercel Cron 只在 Production deployment 激活，因此 Preview 不要求定时触发；Production 必须配置 CRON_SECRET。抖音同步应在 Preview 配置受控迁移门和其他环境变量，并保持 `DOUYIN_SYNC_ENABLED=false` 完成同一 deployment 内抓取服务的健康检查和只读探针；随后短时启用开关完成后台单达人写入验证，再在 Production 保留开关以启用每日任务。真实 Preview 已验证 `signature_extra` 的结构化 mention 目标；只有缺少该结构化目标时的浏览器后备路径仍必须先证明 Vercel Python runtime 可启动兼容 Chromium。Python Playwright 包本身不包含浏览器。无法恢复真实 Douyin URL 时只能返回 unavailable，不能按昵称猜测。回滚优先关闭该开关，不删除已同步的历史数据。
 
 ## 5. Preview 核验
 
-1. 保留现有 Vercel 项目和当前 Framework Preset。核对 Preview 范围已配置 `SCRAPER_SHARED_SECRET`、数据库/R2 变量和禁用状态的 `DOUYIN_SYNC_ENABLED=false`；如需真实写入，先对 Preview 的隔离数据库应用新增 migration。不要新建第二个项目。
+1. 保留现有 Vercel 项目和当前 Framework Preset。核对 `5.0` Preview 范围已配置 `SCRAPER_SHARED_SECRET`、数据库/R2 变量、`TIANTI_PREVIEW_V5_MIGRATIONS=1` 和禁用状态的 `DOUYIN_SYNC_ENABLED=false`；让部署专属连接在构建门内完成 `0007/0008`，不要从本地拉取项目级 Preview URL 后运行全量迁移。不要新建第二个项目。
 2. 确认现有项目的 Git Repository 连接仍指向当前仓库，且该分支未被 deployment ignore 后，推送功能分支并记录本地提交。Git push 只触发符合这些条件的 Preview；它不会替代 Preview 环境变量配置或数据库 migration：
 
    ~~~bash

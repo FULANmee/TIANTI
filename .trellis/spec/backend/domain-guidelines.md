@@ -83,11 +83,11 @@ const isFuture = deriveEventTemporalStatus(event.startsAt, event.endsAt) === "fu
 
 ## Current Lineup Contract
 
-All lineups saved through the current admin flow are normalized to status confirmed and source blank.
+All lineups saved through the current admin flow are normalized to status confirmed. New manual lineups and arbitrary client-provided sources are stored with source blank.
 
-This happens in both src/components/admin/archive-manager-utils.ts and src/modules/admin/mutations.ts. ParticipationStatus and old rows may still contain pending, but current UI/write behavior does not preserve pending/source input.
+An existing `douyin:<scheduleEntryId>` source is preserved only when the saved lineup keeps the same persisted lineup ID, talent ID, and date identity. Removing it or changing that identity clears the source and suppresses the schedule entry so a later sync cannot silently recreate the administrator's edit. ParticipationStatus and old rows may still contain pending, but the current UI/write flow does not preserve pending or accept a new client-provided source.
 
-Do not revive pending/source behavior merely because old reports or broad types mention it. A task that restores it must deliberately update the UI, mutation schema/normalization, public rendering, and tests.
+Do not revive other pending/source behavior merely because old reports or broad types mention it. A task that adds another source must deliberately update the UI, mutation schema/normalization, public rendering, reconciliation ownership, and tests.
 
 ## Talent and Public Identity
 

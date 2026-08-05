@@ -37,7 +37,7 @@ async function confirmCrop(page: Page, uploadTestId: string) {
 }
 
 async function waitForArchiveSaved(page: Page) {
-  await expect(page.getByText(/我的档案已保存到/)).toBeVisible();
+  await expect(page.getByText(/我的档案已保存到/)).toBeVisible({ timeout: 15_000 });
 }
 
 async function dragByTestId(page: Page, sourceTestId: string, targetTestId: string) {

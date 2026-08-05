@@ -166,8 +166,8 @@ Cron 路由要求 `Authorization: Bearer ${CRON_SECRET}`，仅用于生产自动
 
 1. 保留现有 Git-connected Vercel 项目及其当前 Framework Preset；不要新建第二个项目，也不要在子目录添加 `vercel.json`。`5.0` Preview 已实际证明：即使项目设置仍显示 `Next.js`，根目录 `experimentalServices` 也会构建并挂载两个服务。
 2. 为 Preview 配置 `SCRAPER_SHARED_SECRET`、数据库/R2 变量和下列抓取选项，先保持 `DOUYIN_SYNC_ENABLED=false`。
-3. 在 Preview 所指向的隔离数据库应用新增 Drizzle migration；不要对保留内容的数据库执行 `db:seed`。
-4. 确认现有项目仍连接当前 Git 仓库，且该分支未被 deployment ignore 后再推送功能分支；满足这些前提时，同一次 Preview 会从同一提交构建两个服务，并向 Next.js 服务注入由服务名生成的服务端 `DOUYIN_SCRAPER_URL`。推送本身不会配置 Preview 环境变量或应用数据库 migration，这两步必须单独完成。
+3. 仅在 `5.0` Preview 范围设置 `TIANTI_PREVIEW_V5_MIGRATIONS=1`。构建门会验证 Vercel Preview/目标环境/分支/deployment、Neon endpoint 和非 Production branch ID，在单一事务内只应用 `0007`、`0008`；其他分支、本地与 Production 必须保持该值非 `1`。不要对保留内容的数据库执行 `db:seed`。
+4. 确认现有项目仍连接当前 Git 仓库，且该分支未被 deployment ignore 后再推送功能分支；满足这些前提时，同一次 Preview 会从同一提交先运行受控迁移门，再构建两个服务，并向 Next.js 服务注入由服务名生成的服务端 `DOUYIN_SCRAPER_URL`。推送不会替代其他 Preview 环境变量配置。
 5. 访问 `/_internal/douyin-scraper/healthz`，再用 Bearer 鉴权完成只读 profile 探针。确认结果后才短时启用同步并用后台单达人操作验证写入。
 
 ```env
@@ -180,10 +180,11 @@ DOUYIN_SYNC_ENABLED=false
 DOUYIN_SYNC_CONCURRENCY=2
 DOUYIN_SYNC_COOLDOWN_MINUTES=10
 DOUYIN_SYNC_TIMEOUT_SECONDS=20
+TIANTI_PREVIEW_V5_MIGRATIONS=0
 ```
 
 `DOUYIN_SCRAPER_URL` 由 `douyin_scraper` 服务自动生成，正常的 Vercel Preview/Production 不要手工覆盖。如需在本地把 Next.js 指向 Uvicorn，或临时使用经过批准的外部 HTTPS 适配器，可设置优先级更高的 `DOUYIN_SCRAPER_URL_OVERRIDE`；Production override 仍必须使用 HTTPS。
 
 `CRON_SECRET` 同时保护素材清理和 `/api/cron/sync-douyin-profiles`。Vercel Cron 只在 Production deployment 激活，Preview 核验通过只读探针和后台手动同步完成，不要求定时任务实际运行。共享密钥、Cookie、`ttwid`、签名 URL 和上游完整响应不得进入日志或数据库。回滚时关闭 `DOUYIN_SYNC_ENABLED`，保留已有资料、活动和迁移结构。
 
-关联小号功能仍有两个 Preview 验收门槛：Vercel Python Service 必须实际具备可启动的 Chromium 与系统依赖，并且必须使用“主简介内实际包含可点击 `@账号`”的公开主页，确认渲染后的真实 Douyin URL/`sec_user_id` 可以被恢复。Python `playwright` 依赖本身不会安装浏览器。完成这些验证前应保持 `DOUYIN_ENABLE_BROWSER_LINKS=false`，不得把浏览器提取路径标记为验收完成，也不得按昵称猜测链接；无法权威提取时服务返回 `linkSource=unavailable` 并保留网站上一次成功的小号数据。
+关联小号的结构化 `signature_extra` 路径已用真实 Preview 主页验收完成，无需 Chromium。浏览器后备路径仍有两个门槛：Vercel Python Service 必须实际具备可启动的 Chromium 与系统依赖，并且必须用缺少结构化目标但含可点击 `@账号` 的公开主页恢复真实 Douyin URL/`sec_user_id`。Python `playwright` 依赖本身不会安装浏览器。完成这些验证前应保持 `DOUYIN_ENABLE_BROWSER_LINKS=false`，不得把浏览器提取路径标记为验收完成，也不得按昵称猜测链接；无法权威提取时服务返回 `linkSource=unavailable` 并保留网站上一次成功的小号数据。

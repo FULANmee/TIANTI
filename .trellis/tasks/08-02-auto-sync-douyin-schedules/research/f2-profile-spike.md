@@ -71,10 +71,22 @@
 
 ## 验收状态与后续验证
 
-- “主账号简介包含 `@小号`”的真实 URL 已提供，结构化 `signature_extra` 路径已恢复目标 `sec_user_id`；仍需把修复部署到 Vercel Preview 后重复同一只读探针。
+- “主账号简介包含 `@小号`”的真实 URL 已提供，结构化 `signature_extra` 路径已恢复目标 `sec_user_id`，并已在 Vercel Preview 完成真实数据库写入与公开页面验收。
 - 如果未来遇到没有 `signature_extra` 的 `@账号` 简介且必须使用浏览器渲染，需先在 Vercel Python Preview 中证明兼容 Chromium 与系统库可用；Python Playwright 包本身不安装浏览器。此路径仍只用于含 `@` 且结构化提取失败的简介。
 - 对同一主页做多次低频请求，验证访客 `ttwid` 有效期、频控错误形态和 Cookie 轮换策略。
 - 验证公开主页被注销、私密、风控、验证码或地区限制时的错误分类；这些失败不得推进“未来行程连续消失”计数。
+
+## Vercel Preview 真实验收（2026-08-05）
+
+- Git SHA：`55e83b30716e1b6cac3fe07ce012db50445e77f6`；最终关闭同步的 Preview：<https://skill-deploy-mf0nplcd7f-qr74qifx8-flames-projects-8676b81b.vercel.app>。
+- Vercel Neon deployment action 只作用于 Preview。生产资源 branch ID 为 `br-patient-dust-anwfalxy`，5.0 Preview branch ID 为 `br-steep-band-anelimoy`；两者不同后才允许迁移。
+- 构建门在单一事务中只应用 `0007_adorable_brood.sql` 与 `0008_big_tigra.sql`，不运行完整 Drizzle migration、不写 migration journal、不 seed。后续同一 Preview 分支构建得到 `schema already complete`。
+- 数据库模式登录返回 HTTP 200，携带 session 访问另一个受保护函数仍为 HTTP 200，证明 session 不再依赖函数本地 mock 内存。
+- 单达人真实同步结果：`requested=1`、`succeeded=1`、`skipped=0`、`failed=0`，安全结果码 `SYNCED`。
+- 达人详情实测显示 `231 万`，不显示抓取时间；保留 `8.7成都codm➡️8.8深圳金铲铲➡️8.9青岛AS(签售)`；“关联小号”正确链接 `@望月水母.zip`。
+- 详情“即将参与”只有一条 `2026.08.08 深圳 · 金铲铲`，对应活动详情只有该达人；成都、青岛只留在行程原文，不生成活动。
+- 首页、达人列表卡片和搜索结果均未显示粉丝量；页面有内容、无 Next.js error overlay、无浏览器 console error/warning。
+- 验收后立即把 `DOUYIN_SYNC_ENABLED` 恢复为 `false` 并重新部署；受保护单达人同步返回 HTTP 503 / `DISABLED`。临时达人和自动活动均已删除，公开 URL 返回 404。
 
 ## 相关项目规范
 

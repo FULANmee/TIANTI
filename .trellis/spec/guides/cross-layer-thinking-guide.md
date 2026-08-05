@@ -86,7 +86,7 @@ Missing one mapping often produces a successful save followed by data disappeari
 
 ### Lineups and deletion
 
-- Current event/archive save paths normalize lineup status to confirmed and source to blank.
+- Current event/archive save paths normalize lineup status to confirmed. New manual lineups use source blank; an existing `douyin:*` source survives only when its lineup ID, talent, and date identity remain unchanged, otherwise its schedule entry is suppressed.
 - Archive talent must belong to the saved event lineup.
 - Talent/event deletion cascades related records and invokes reference-aware asset cleanup; do not reintroduce old deletion blocking based on removed reports.
 

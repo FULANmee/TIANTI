@@ -129,3 +129,81 @@ await repository.saveDouyinSyncState(input); // row lock + suppression/origin gu
 ~~~
 
 Wrong: recover a mention using nickname search or trust `signature_extra.nickname` without validating offsets. Correct: pair an authoritative `sec_uid` with the unique exact `@昵称` slice under code-point/UTF-16 interpretations, or accept a rendered Douyin `/user/<sec_user_id>` target; otherwise report `unavailable`.
+
+## Scenario: Deployment-scoped Neon Preview migration safety
+
+### 1. Scope / Trigger
+
+Use this contract when a Vercel Preview uses the Neon integration's deployment action to clone a retained database that has business tables but no `drizzle.__drizzle_migrations` journal. The deployment-specific connection exists only during build/runtime; project-level Preview variables may still point at the same resource record as Production.
+
+### 2. Signatures
+
+~~~text
+npm run build
+  -> tsx scripts/apply-preview-v5-migrations.ts
+  -> next build
+
+Environment:
+TIANTI_PREVIEW_V5_MIGRATIONS=1  # Preview branch 5.0 only
+VERCEL_ENV=preview
+VERCEL_TARGET_ENV=preview
+VERCEL_GIT_COMMIT_REF=5.0
+VERCEL_DEPLOYMENT_ID=dpl_*
+DATABASE_URL=postgres(s)://...<ep-*.neon.tech>/...
+~~~
+
+Database identity and lock:
+
+~~~sql
+select pg_advisory_xact_lock(hashtext('tianti-preview-v5-migrations'));
+select current_setting('neon.branch_id', true) as branch_id;
+~~~
+
+### 3. Contracts
+
+- The migration command is inert unless the explicit feature flag equals `1`. If enabled, all Vercel environment/branch/deployment guards are mandatory before a Postgres client is constructed.
+- The Neon branch ID must be nonempty, start with `br-`, and differ from the recorded Production branch `br-patient-dust-anwfalxy`. If the Production Neon project changes, update this identity and its tests before enabling the guard.
+- Validate the `DATABASE_URL` without ever surfacing its raw value in thrown errors or logs. The host must be a Neon `ep-*` endpoint; success logs may contain only the endpoint ID and branch ID.
+- Under one `sql.begin`, acquire the advisory transaction lock, classify the target schema as `fresh`, `complete`, or `partial`, apply only `0007` and `0008` for `fresh`, and verify `complete` before COMMIT.
+- `complete` includes every target table, column, primary key, foreign key, and index. `partial` is fatal; do not repair it piecemeal.
+- Never run `drizzle-kit migrate`, `db:seed`, or create/backfill the Drizzle journal on a retained clone without a trustworthy existing journal.
+- Keep the build gate in the final Preview code: Neon may provision deployment/branch-specific credentials that cannot be recovered later with `vercel env pull`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Flag absent or not `1` | Log `migration skipped`; never construct Postgres client |
+| Production/non-Preview/non-`5.0`/local context | Fail build before database access |
+| Missing, malformed, or non-Neon URL | Safe error without raw URL, userinfo, password, or query |
+| Branch ID missing/malformed | Roll back and fail build |
+| Branch ID equals Production | Roll back before schema snapshot/DDL |
+| Base `events`/`talents` tables missing | `invalid_base`; roll back |
+| No 5.0 objects | `fresh`; apply `0007` + `0008` once |
+| All expected objects present | `complete`; no-op |
+| Any expected object missing or only a subset present | `partial`; roll back and fail closed |
+| COMMIT/connection close fails | No success log; fail build |
+
+### 5. Good / Base / Bad Cases
+
+- Good: Preview branch `br-steep-band-anelimoy` differs from Production, starts with the retained schema, applies both migrations atomically, then renders the database-mode site.
+- Base: a redeploy on the same Preview branch reports `schema already complete` and performs no DDL.
+- Bad: use the project-level Preview `DATABASE_URL` locally, assume it is isolated because the integration toggle is enabled, or run the whole migration history against a database with no journal.
+
+### 6. Tests Required
+
+- `tests/unit/scripts/apply-preview-v5-migrations.test.ts`: explicit flag and every Vercel context guard; Production branch constant; URL redaction; fresh/complete/partial classification; exact tables, columns, PK/FK constraints, and indexes from `0007/0008`.
+- `npm run build` with the migration flag absent must print `skipped` and complete without database access.
+- Preview build logs must show a non-Production branch ID and `schema applied` or `schema already complete`, followed by a successful Next.js and Python Service build.
+- Database-mode Preview smoke must prove sign-in/session across functions before enabling any sync write.
+
+### 7. Wrong vs Correct
+
+Wrong: pull the project Preview env locally and run the full migration journal.
+
+~~~sh
+vercel env pull .env.local --environment preview
+npx drizzle-kit migrate
+~~~
+
+Correct: let the guarded Preview build use its deployment-scoped Neon URL, verify the branch identity, and apply only the reviewed delta inside one fail-closed transaction. Keep `DOUYIN_SYNC_ENABLED=false` except for the bounded manual verification window.

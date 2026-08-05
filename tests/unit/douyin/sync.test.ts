@@ -134,6 +134,78 @@ describe("Douyin profile synchronization", () => {
     expect(getMockState().douyinProfiles.map((profile) => profile.signatureRaw)).toEqual(signaturesBeforeFailure);
   });
 
+  it("isolates one failed talent without stopping the rest of the batch", async () => {
+    const execution = await runDouyinSync({
+      trigger: "cron",
+      repository: mockRepository,
+      config: CONFIG,
+      now: NOW,
+      fetchProfile: async (profileUrl) => {
+        if (profileUrl === PROFILE_ONE) {
+          throw new DouyinScraperError("RATE_LIMITED", "upstream detail", true);
+        }
+        return responseFor(profileUrl, SAMPLE_TWO);
+      }
+    });
+
+    expect(execution.run).toMatchObject({ succeededCount: 1, failedCount: 1 });
+    expect(execution.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ talentId: getMockState().talents[0].id, status: "failed" }),
+        expect.objectContaining({ talentId: getMockState().talents[1].id, status: "succeeded" })
+      ])
+    );
+    expect(getMockState().douyinProfiles.some((profile) => profile.profileUrl === PROFILE_TWO)).toBe(true);
+  });
+
+  it("enforces the persisted run lock", async () => {
+    const state = getMockState();
+    state.douyinSyncRuns.push({
+      id: "already-running",
+      trigger: "cron",
+      status: "running",
+      requestedCount: 1,
+      succeededCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      startedAt: NOW.toISOString(),
+      finishedAt: null
+    });
+    setMockState(state);
+
+    await expect(runWithSignatures(SAMPLE_ONE, SAMPLE_TWO)).rejects.toMatchObject({
+      code: "RUNNING"
+    });
+  });
+
+  it("skips a repeated manual talent sync during cooldown without fetching", async () => {
+    const talentId = getMockState().talents[0].id;
+    const fetchProfile = vi.fn(async (profileUrl: string) => responseFor(profileUrl, SAMPLE_ONE));
+    await runDouyinSync({
+      trigger: "manual_talent",
+      talentId,
+      repository: mockRepository,
+      config: CONFIG,
+      now: NOW,
+      fetchProfile
+    });
+
+    const second = await runDouyinSync({
+      trigger: "manual_talent",
+      talentId,
+      repository: mockRepository,
+      config: CONFIG,
+      now: new Date(NOW.getTime() + 60_000),
+      fetchProfile
+    });
+
+    expect(fetchProfile).toHaveBeenCalledTimes(1);
+    expect(second.run).toMatchObject({ succeededCount: 0, skippedCount: 1, failedCount: 0 });
+    expect(second.results).toEqual([
+      expect.objectContaining({ code: "MANUAL_SYNC_COOLDOWN", status: "skipped" })
+    ]);
+  });
+
   it("freezes past events and source lineups even after the itinerary disappears", async () => {
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
     const before = getMockState();

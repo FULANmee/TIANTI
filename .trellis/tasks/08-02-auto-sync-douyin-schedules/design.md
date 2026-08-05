@@ -110,12 +110,9 @@ Error response uses a stable code and retryability flag, for example:
 
 ### Mention-link extraction gate
 
-The f2 user detail response exposes the raw `signature` and `follower_count` but no verified `@account` target in the tested response. Before the small-account feature is considered complete:
+The first f2 response sample exposed only raw `signature` and `follower_count`. A later real main-profile response supplied `user.signature_extra[].sec_uid/start/end`; the Vercel Preview proved this authoritative structured path recovers `@望月水母.zip` without Chromium. The adapter derives the nickname from the exact mention slice, accepts code-point or UTF-16 offsets only when they resolve unambiguously, and never trusts a sibling nickname field.
 
-1. test a main profile whose rendered intro contains a clickable `@account`;
-2. inspect rendered DOM and relevant network responses;
-3. implement extraction from an authoritative target URL/`sec_user_id` only;
-4. if no target can be recovered, return `linkSource=unavailable` and do not guess by nickname.
+Rendered DOM remains a conditional fallback only when a signature contains `@` but no valid structured target is available. Until the Vercel Python runtime proves Chromium and its system libraries can launch, keep that fallback disabled; return `linkSource=unavailable` rather than guessing by nickname.
 
 ## 3. Domain and persistence model
 
@@ -404,4 +401,4 @@ Rollback:
 
 ## 12. Deferred technical item
 
-The only deferred technical discovery is the authoritative extraction of `@account` targets from a main profile that actually contains clickable mentions. The Vercel Python runtime must also prove it has a compatible Chromium binary and system libraries; installing the Python Playwright package alone is insufficient. This does not change the website contract or 5.0 behavior: links are shown only when their true Douyin target is verified, never guessed.
+The structured `signature_extra` extraction path and a real clickable mention are complete. The remaining optional discovery is whether the Vercel Python runtime has a compatible Chromium binary and system libraries for profiles that contain `@account` text but do not expose a structured target; installing the Python Playwright package alone is insufficient. This does not change the website contract or 5.0 behavior: links are shown only when their true Douyin target is verified, never guessed.
