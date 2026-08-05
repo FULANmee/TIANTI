@@ -144,6 +144,14 @@ test("public homepage renders and links into talent detail", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "青鸾" })).toBeVisible();
 });
 
+test("talent detail hides the optional Douyin summary when no profile exists", async ({ page }) => {
+  await page.goto("/talents/talent-qingluan");
+
+  await expect(page.getByTestId("douyin-profile-summary")).toHaveCount(0);
+  await expect(page.getByText("主页行程")).toHaveCount(0);
+  await expect(page.getByText("关联小号")).toHaveCount(0);
+});
+
 test("legacy schedule and admin event routes redirect into archive views", async ({ page }) => {
   await page.goto("/schedule?q=青鸾&status=confirmed");
   await expect(page).toHaveURL(/\/events\?/);
