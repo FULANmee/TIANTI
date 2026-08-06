@@ -94,3 +94,24 @@ Cloned the migrated TIANTI repository, consolidated source-backed backend/fronte
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: 活动合并与抖音日期区间同步
+
+**Date**: 2026-08-06
+**Task**: 活动合并与抖音日期区间同步
+**Branch**: `5.0`
+
+### Summary
+
+完成活动快捷合并、抖音 8.8～9 日期区间解析与合并后持续自动更新；通过 lint、TypeScript、147 项单测、build、smoke E2E 与多日活动 E2E。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `02b088f` | (see git log) |
+
+### Status
+
+[OK] **Completed**
