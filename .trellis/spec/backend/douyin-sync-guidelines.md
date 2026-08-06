@@ -164,8 +164,8 @@ select current_setting('neon.branch_id', true) as branch_id;
 - The migration command is inert unless the explicit feature flag equals `1`. If enabled, all Vercel environment/branch/deployment guards are mandatory before a Postgres client is constructed.
 - The Neon branch ID must be nonempty, start with `br-`, and differ from the recorded Production branch `br-patient-dust-anwfalxy`. If the Production Neon project changes, update this identity and its tests before enabling the guard.
 - Validate the `DATABASE_URL` without ever surfacing its raw value in thrown errors or logs. The host must be a Neon `ep-*` endpoint; success logs may contain only the endpoint ID and branch ID.
-- Under one `sql.begin`, acquire the advisory transaction lock, classify the target schema as `fresh`, `complete`, or `partial`, apply only `0007`, `0008`, and `0009` for `fresh`, and verify `complete` before COMMIT.
-- `complete` includes every target table, column, primary key, foreign key, and index. `partial` is fatal; do not repair it piecemeal.
+- Under one `sql.begin`, acquire the advisory transaction lock, classify the target schema as `fresh`, `legacy_complete`, `complete`, or `partial`, apply `0007`–`0009` for `fresh`, apply only the reviewed `0009` delta for `legacy_complete`, and verify `complete` before COMMIT.
+- `legacy_complete` is the exact retained 0007/0008 shape: every old target table, column, primary key, foreign key, and index is present while every 0009 merge-rule object is absent. `complete` includes all target objects. Any other missing or mixed state is `partial`, which is fatal; do not repair it piecemeal.
 - Never run `drizzle-kit migrate`, `db:seed`, or create/backfill the Drizzle journal on a retained clone without a trustworthy existing journal.
 - Keep the build gate in the final Preview code: Neon may provision deployment/branch-specific credentials that cannot be recovered later with `vercel env pull`.
 
@@ -180,19 +180,21 @@ select current_setting('neon.branch_id', true) as branch_id;
 | Branch ID equals Production | Roll back before schema snapshot/DDL |
 | Base `events`/`talents` tables missing | `invalid_base`; roll back |
 | No 5.0 objects | `fresh`; apply `0007` + `0008` + `0009` once |
+| Exact 0007/0008 objects, no 0009 merge-rule objects | `legacy_complete`; apply only `0009` once |
 | All expected objects present | `complete`; no-op |
 | Any expected object missing or only a subset present | `partial`; roll back and fail closed |
 | COMMIT/connection close fails | No success log; fail build |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: Preview branch `br-steep-band-anelimoy` differs from Production, starts with the retained schema, applies migrations `0007`–`0009` atomically, then renders the database-mode site.
+- Good: a fresh Preview branch `br-steep-band-anelimoy` differs from Production, starts with the retained schema, applies migrations `0007`–`0009` atomically, then renders the database-mode site.
+- Upgrade: a retained Preview branch with the exact 0007/0008 shape applies only the reviewed 0009 delta atomically, then renders the database-mode site.
 - Base: a redeploy on the same Preview branch reports `schema already complete` and performs no DDL.
 - Bad: use the project-level Preview `DATABASE_URL` locally, assume it is isolated because the integration toggle is enabled, or run the whole migration history against a database with no journal.
 
 ### 6. Tests Required
 
-- `tests/unit/scripts/apply-preview-v5-migrations.test.ts`: explicit flag and every Vercel context guard; Production branch constant; URL redaction; fresh/complete/partial classification; exact tables, columns, PK/FK constraints, and indexes from `0007`–`0009`.
+- `tests/unit/scripts/apply-preview-v5-migrations.test.ts`: explicit flag and every Vercel context guard; Production branch constant; URL redaction; fresh/legacy-complete/complete/partial classification; exact tables, columns, PK/FK constraints, and indexes from `0007`–`0009`.
 - `npm run build` with the migration flag absent must print `skipped` and complete without database access.
 - Preview build logs must show a non-Production branch ID and `schema applied` or `schema already complete`, followed by a successful Next.js and Python Service build.
 - Database-mode Preview smoke must prove sign-in/session across functions before enabling any sync write.

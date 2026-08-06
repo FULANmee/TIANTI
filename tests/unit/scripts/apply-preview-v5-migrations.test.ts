@@ -35,6 +35,38 @@ function makeCompleteSnapshot(): SchemaSnapshot {
   };
 }
 
+function makeLegacyCompleteSnapshot(): SchemaSnapshot {
+  const snapshot = makeCompleteSnapshot();
+  const mergeRuleTables = ["event_merge_rule_members", "event_merge_rules"] as const;
+  const mergeRuleIndexes = [
+    "event_merge_rule_members_rule_idx",
+    "event_merge_rule_members_source_entry_idx",
+    "event_merge_rule_members_identity_idx",
+    "event_merge_rules_target_event_idx"
+  ] as const;
+  const mergeRuleConstraints = [
+    "event_merge_rule_members_pkey",
+    "event_merge_rule_members_rule_id_event_merge_rules_id_fk",
+    "event_merge_rule_members_talent_id_talents_id_fk",
+    "event_merge_rules_pkey",
+    "event_merge_rules_target_event_id_events_id_fk"
+  ] as const;
+
+  for (const tableName of mergeRuleTables) {
+    snapshot.targetTableNames.delete(tableName);
+    for (const columnName of targetColumns[tableName]) {
+      snapshot.targetColumnNames.delete(`${tableName}.${columnName}`);
+    }
+  }
+  for (const indexName of mergeRuleIndexes) {
+    snapshot.targetIndexNames.delete(indexName);
+  }
+  for (const constraintName of mergeRuleConstraints) {
+    snapshot.targetConstraintNames.delete(constraintName);
+  }
+  return snapshot;
+}
+
 describe("TIANTI 5.0 Preview migration gate", () => {
   it("stays disabled unless the explicit migration flag is set", () => {
     expect(isEnabledForThisBuild({})).toBe(false);
@@ -83,7 +115,7 @@ describe("TIANTI 5.0 Preview migration gate", () => {
     expect(String(thrown)).not.toContain(secret);
   });
 
-  it("classifies only the exact fresh and complete states as safe", () => {
+  it("classifies fresh, legacy-complete, complete, and partial states", () => {
     const fresh: SchemaSnapshot = {
       baseTablesPresent: true,
       targetTableNames: new Set(),
@@ -93,6 +125,7 @@ describe("TIANTI 5.0 Preview migration gate", () => {
       targetConstraintNames: new Set()
     };
     expect(getSchemaState(fresh)).toBe("fresh");
+    expect(getSchemaState(makeLegacyCompleteSnapshot())).toBe("legacy_complete");
     expect(getSchemaState(makeCompleteSnapshot())).toBe("complete");
 
     const missingPrimaryKey = makeCompleteSnapshot();

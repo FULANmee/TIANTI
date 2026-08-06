@@ -114,6 +114,21 @@ export const targetColumns = {
   ]
 } as const;
 
+const mergeRuleTableNames = new Set(["event_merge_rule_members", "event_merge_rules"]);
+const mergeRuleIndexNames = new Set([
+  "event_merge_rule_members_rule_idx",
+  "event_merge_rule_members_source_entry_idx",
+  "event_merge_rule_members_identity_idx",
+  "event_merge_rules_target_event_idx"
+]);
+const mergeRuleConstraintNames = new Set([
+  "event_merge_rule_members_pkey",
+  "event_merge_rule_members_rule_id_event_merge_rules_id_fk",
+  "event_merge_rule_members_talent_id_talents_id_fk",
+  "event_merge_rules_pkey",
+  "event_merge_rules_target_event_id_events_id_fk"
+]);
+
 type Sql = postgres.TransactionSql;
 type MigrationEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -233,6 +248,10 @@ function hasEveryExpectedColumn(snapshot: SchemaSnapshot) {
   );
 }
 
+function hasExactlyExpectedValues(actual: Set<string>, expected: readonly string[]) {
+  return actual.size === expected.length && expected.every((value) => actual.has(value));
+}
+
 export function getSchemaState(snapshot: SchemaSnapshot) {
   if (!snapshot.baseTablesPresent) {
     return "invalid_base" as const;
@@ -246,6 +265,24 @@ export function getSchemaState(snapshot: SchemaSnapshot) {
     snapshot.targetConstraintNames.size === 0;
   if (isFresh) {
     return "fresh" as const;
+  }
+
+  const legacyTableNames = targetTables.filter((tableName) => !mergeRuleTableNames.has(tableName));
+  const legacyColumnNames = Object.entries(targetColumns)
+    .filter(([tableName]) => !mergeRuleTableNames.has(tableName))
+    .flatMap(([tableName, columns]) => columns.map((columnName) => `${tableName}.${columnName}`));
+  const legacyIndexNames = targetIndexes.filter((indexName) => !mergeRuleIndexNames.has(indexName));
+  const legacyConstraintNames = targetConstraints.filter(
+    (constraintName) => !mergeRuleConstraintNames.has(constraintName)
+  );
+  const isLegacyComplete =
+    hasExactlyExpectedValues(snapshot.targetTableNames, legacyTableNames) &&
+    hasExactlyExpectedValues(snapshot.targetColumnNames, legacyColumnNames) &&
+    snapshot.originColumnPresent &&
+    hasExactlyExpectedValues(snapshot.targetIndexNames, legacyIndexNames) &&
+    hasExactlyExpectedValues(snapshot.targetConstraintNames, legacyConstraintNames);
+  if (isLegacyComplete) {
+    return "legacy_complete" as const;
   }
 
   const isComplete =
@@ -266,7 +303,7 @@ export async function main(environment: MigrationEnvironment = process.env) {
   const database = getValidatedDatabaseUrl(environment);
   const sql = postgres(database.raw, { max: 1, prepare: false });
   let migrationResult: {
-    beforeState: "fresh" | "complete";
+    beforeState: "fresh" | "legacy_complete" | "complete";
     branchId: string;
   };
 
@@ -299,6 +336,12 @@ export async function main(environment: MigrationEnvironment = process.env) {
         await transaction.unsafe(migrationSeven, [], { prepare: false });
         await transaction.unsafe(migrationEight, [], { prepare: false });
         await transaction.unsafe(migrationNine, [], { prepare: false });
+      } else if (beforeState === "legacy_complete") {
+        const migrationNine = await readFile(
+          new URL("../drizzle/0009_lowly_fabian_cortez.sql", import.meta.url),
+          "utf8"
+        );
+        await transaction.unsafe(migrationNine, [], { prepare: false });
       }
 
       const afterState = getSchemaState(await readSchemaSnapshot(transaction));
@@ -313,7 +356,13 @@ export async function main(environment: MigrationEnvironment = process.env) {
   }
 
   console.log(
-    `TIANTI 5.0 Preview schema ${migrationResult.beforeState === "fresh" ? "applied" : "already complete"}; endpoint=${database.endpointId}; branch=${migrationResult.branchId}.`
+    `TIANTI 5.0 Preview schema ${
+      migrationResult.beforeState === "fresh"
+        ? "applied"
+        : migrationResult.beforeState === "legacy_complete"
+          ? "upgraded"
+          : "already complete"
+    }; endpoint=${database.endpointId}; branch=${migrationResult.branchId}.`
   );
 }
 
