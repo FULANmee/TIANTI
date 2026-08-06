@@ -1,0 +1,10 @@
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Check migration, ContentRepository parity, seed mapping, and Postgres/mock persistence for merge rules."}
+{"file":".trellis/spec/backend/domain-guidelines.md","reason":"Check event bulk invariants, date-only semantics, origin ownership, lineup/archive dedupe, and past-event safety."}
+{"file":".trellis/spec/backend/douyin-sync-guidelines.md","reason":"Check Shenzhen-only reconciliation, source ownership, merged-event override persistence, and cleanup behavior."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check bulk route authentication, named response envelope, status codes, and client-safe errors."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Run required lint, typecheck, unit, build, and E2E quality gates."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Check merge dialog semantics, accessibility, and responsive admin interaction."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Check live state replacement, draft reset, pending state, and failed-request preservation."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Check shared bulk payload/result types and server/client boundary narrowing."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check Playwright coverage and frontend quality gates for the new admin workflow."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Trace merge writes through UI, API, mutation, repository, migration, and public read state."}

@@ -39,7 +39,9 @@ Use this contract whenever an admin write accepts an event, lineup, or archive d
 ~~~ts
 toDateOnlyIso(value?: string | null): string | null
 isValidDateOnlyValue(value: string): boolean
-type EventBulkPayload = { action: "delete"; ids: string[] }
+type EventBulkPayload =
+  | { action: "delete"; ids: string[] }
+  | { action: "merge"; ids: string[]; targetId: string }
 ~~~
 
 ### 3. Contracts
@@ -47,7 +49,7 @@ type EventBulkPayload = { action: "delete"; ids: string[] }
 - A blank optional date may be null, undefined, or an empty string.
 - A nonblank date must be an exact, real yyyy-MM-dd calendar day; accepted values persist at 12:00 UTC.
 - saveEvent() rejects endsAt earlier than startsAt and derives stored status from valid dates.
-- Event bulk writes accept only action delete with at least one ID.
+- Event bulk writes accept delete or merge with at least one ID. Merge additionally requires at least two future IDs and a selected `targetId`.
 
 ### 4. Validation & Error Matrix
 
@@ -56,7 +58,7 @@ type EventBulkPayload = { action: "delete"; ids: string[] }
 | Impossible or malformed nonblank date | `请输入有效的日期。` |
 | endsAt earlier than startsAt | `活动结束日期不能早于开始日期。` |
 | Whitespace-only required talent/event/ladder/asset text | Field-specific Chinese required error |
-| Event bulk action other than delete, or empty IDs | Zod validation failure before repository access |
+| Event bulk action other than delete/merge, or empty IDs | Zod validation failure before repository access |
 
 ### 5. Good / Base / Bad Cases
 
@@ -141,7 +143,7 @@ Current notable rules:
 - Event deletion is cascading, not blocked: lineups and editor archives are removed.
 - Formerly referenced asset IDs are passed to reference-aware cleanup after deletion.
 - Talent bulk operations accept add tags, remove tags, and delete.
-- Event bulk mutation currently accepts delete only.
+- Event bulk mutation accepts delete and an atomic merge. Merge keeps the target's editor-owned fields, spans the selected dates, deduplicates lineups/archives, and persists a Douyin merge rule so source lineups continue to update.
 
 ## Anti-Patterns
 

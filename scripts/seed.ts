@@ -11,6 +11,8 @@ import {
   editorArchives,
   editors,
   eventLineup,
+  eventMergeRuleMembers,
+  eventMergeRules,
   events,
   ladderEntries,
   ladders,
@@ -45,6 +47,14 @@ async function buildSeedState() {
   const assetIds = new Map(demoSeedState.assets.map((asset) => [asset.id, toStableUuid("asset", asset.id)]));
   const talentIds = new Map(demoSeedState.talents.map((talent) => [talent.id, toStableUuid("talent", talent.id)]));
   const eventIds = new Map(demoSeedState.events.map((event) => [event.id, toStableUuid("event", event.id)]));
+  const mergeRuleIds = new Map(
+    demoSeedState.eventMergeRules.map((rule) => [rule.id, toStableUuid("event-merge-rule", rule.id)])
+  );
+  const mergeRuleMemberIds = new Map(
+    demoSeedState.eventMergeRules.flatMap((rule) =>
+      rule.members.map((member) => [member.id, toStableUuid("event-merge-rule-member", member.id)])
+    )
+  );
   const lineupIds = new Map(demoSeedState.lineups.map((lineup) => [lineup.id, toStableUuid("lineup", lineup.id)]));
   const ladderIds = new Map(demoSeedState.ladders.map((ladder) => [ladder.id, toStableUuid("ladder", ladder.id)]));
   const tierIds = new Map(
@@ -99,6 +109,16 @@ async function buildSeedState() {
       ...event,
       id: eventIds.get(event.id)!
     })),
+    eventMergeRules: demoSeedState.eventMergeRules.map((rule) => ({
+      ...rule,
+      id: mergeRuleIds.get(rule.id)!,
+      targetEventId: eventIds.get(rule.targetEventId)!,
+      members: rule.members.map((member) => ({
+        ...member,
+        id: mergeRuleMemberIds.get(member.id)!,
+        talentId: talentIds.get(member.talentId)!
+      }))
+    })),
     lineups: demoSeedState.lineups.map((lineup) => ({
       ...lineup,
       id: lineupIds.get(lineup.id)!,
@@ -143,6 +163,8 @@ async function main() {
   await db.delete(talentDouyinProfiles);
   await db.delete(archiveEntries);
   await db.delete(editorArchives);
+  await db.delete(eventMergeRuleMembers);
+  await db.delete(eventMergeRules);
   await db.delete(ladderEntries);
   await db.delete(ladderTiers);
   await db.delete(ladders);
@@ -224,6 +246,31 @@ async function main() {
       updatedAt: new Date(event.updatedAt)
     }))
   );
+  if (state.eventMergeRules.length > 0) {
+    await db.insert(eventMergeRules).values(
+      state.eventMergeRules.map((rule) => ({
+        id: rule.id,
+        targetEventId: rule.targetEventId,
+        createdAt: new Date(rule.createdAt),
+        updatedAt: new Date(rule.updatedAt)
+      }))
+    );
+    await db.insert(eventMergeRuleMembers).values(
+      state.eventMergeRules.flatMap((rule) =>
+        rule.members.map((member) => ({
+          id: member.id,
+          ruleId: rule.id,
+          sourceEntryId: member.sourceEntryId,
+          talentId: member.talentId,
+          city: member.city,
+          normalizedName: member.normalizedName,
+          startsAt: new Date(member.startsAt),
+          endsAt: new Date(member.endsAt),
+          lastSeenAt: new Date(member.lastSeenAt)
+        }))
+      )
+    );
+  }
   await db.insert(eventLineup).values(
     state.lineups.map((lineup) => ({
       ...lineup,

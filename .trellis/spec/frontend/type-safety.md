@@ -67,4 +67,4 @@ Use optional chaining, null coalescing, conditional JSX, public-path fallbacks, 
 
 Give reusable admin responses a named type in src/modules/admin/types.ts and keep it aligned with the actual route envelope. Still guard failed/non-JSON responses at runtime.
 
-EventBulkPayload accepts only `{ action: "delete", ids: string[] }`, matching the executable schema and handler. Adding another action requires updating the runtime schema, handler, client, and regression tests together.
+EventBulkPayload accepts `{ action: "delete", ids: string[] }` or `{ action: "merge", ids: string[], targetId?: string }`, matching the executable schema and handler. The merge mutation performs the additional target and future-event validation on the server. Adding another action requires updating the runtime schema, handler, client, and regression tests together.

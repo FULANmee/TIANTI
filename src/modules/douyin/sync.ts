@@ -10,6 +10,8 @@ import type {
   DouyinSyncTrigger,
   Event,
   EventLineup,
+  EventMergeRule,
+  EventMergeRuleMember,
   Talent,
   TalentDouyinProfile,
   TalentDouyinRelatedAccount,
@@ -532,6 +534,101 @@ function syncEventCanBeReused(
   return getDateDistanceDays(combinedStart, combinedEnd) <= 5;
 }
 
+function isManualEvent(event: Event) {
+  // Older rows and mock seed data may omit origin; the database default treats
+  // those rows as manual rather than as automatic sync-owned activities.
+  return event.origin === undefined || event.origin === "manual";
+}
+
+function isSameDouyinCity(left: string, right: string) {
+  return isShenzhenCity(left) && isShenzhenCity(right);
+}
+
+function getMergeMemberDistance(member: EventMergeRuleMember, entry: TalentDouyinScheduleEntry) {
+  const memberStart = getDateOnlyKey(member.startsAt);
+  const memberEnd = getDateOnlyKey(member.endsAt);
+  const entryStart = getDateOnlyKey(entry.startsAt);
+  const entryEnd = getDateOnlyKey(entry.endsAt);
+  if (!memberStart || !memberEnd || !entryStart || !entryEnd) {
+    return null;
+  }
+
+  if (memberStart <= entryEnd && memberEnd >= entryStart) {
+    return 0;
+  }
+
+  return Math.min(getDateDistanceDays(memberStart, entryEnd), getDateDistanceDays(memberEnd, entryStart));
+}
+
+function getMergeMemberNameScore(member: EventMergeRuleMember, entry: TalentDouyinScheduleEntry) {
+  const memberName = member.normalizedName;
+  const entryName = normalizeDouyinEventName(entry.eventName);
+  if (memberName === entryName) return 0;
+  if (!memberName || !entryName) return 1;
+  return 2;
+}
+
+function findMergeMemberMatch(
+  rule: EventMergeRule,
+  entry: TalentDouyinScheduleEntry,
+  claimedMemberIds: Set<string>
+) {
+  const candidates = rule.members
+    .filter(
+      (member) =>
+        !claimedMemberIds.has(member.id) &&
+        member.talentId === entry.talentId &&
+        isSameDouyinCity(member.city, entry.city)
+    )
+    .flatMap((member) => {
+      const distance = getMergeMemberDistance(member, entry);
+      return distance === null || distance > 5 ? [] : [{ member, distance, nameScore: getMergeMemberNameScore(member, entry) }];
+    })
+    .sort(
+      (left, right) =>
+        left.nameScore - right.nameScore ||
+        left.distance - right.distance ||
+        left.member.id.localeCompare(right.member.id)
+    );
+
+  const best = candidates[0];
+  const second = candidates[1];
+  if (!best || (second && second.nameScore === best.nameScore && second.distance === best.distance)) {
+    return null;
+  }
+
+  return best.member;
+}
+
+function refreshMergeRuleMember(member: EventMergeRuleMember, entry: TalentDouyinScheduleEntry, nowIso: string) {
+  return {
+    ...member,
+    sourceEntryId: entry.id,
+    talentId: entry.talentId,
+    city: entry.city,
+    normalizedName: normalizeDouyinEventName(entry.eventName),
+    startsAt: entry.startsAt,
+    endsAt: entry.endsAt,
+    lastSeenAt: nowIso
+  };
+}
+
+function buildMergedEvent(
+  existing: Event,
+  startsOn: string,
+  endsOn: string,
+  nowIso: string
+): Event {
+  return {
+    ...existing,
+    startsAt: toDateOnlyIso(startsOn),
+    endsAt: toDateOnlyIso(endsOn),
+    status: "future",
+    updatedAt: nowIso,
+    origin: "douyin_merged"
+  };
+}
+
 function buildAutoEvent(
   existing: Event | undefined,
   id: string,
@@ -560,10 +657,14 @@ function buildAutoEvent(
 function reconcileEventsAndLineups(
   state: ContentState,
   scheduleEntries: TalentDouyinScheduleEntry[],
+  eventMergeRules: EventMergeRule[],
   now: Date
 ) {
   const nowIso = now.toISOString();
   const entryMap = new Map(scheduleEntries.map((entry) => [entry.id, entry]));
+  const nextMergeRules = structuredClone(eventMergeRules);
+  const mergeRuleByTargetEventId = new Map(nextMergeRules.map((rule) => [rule.targetEventId, rule]));
+  const claimedMergeMemberIds = new Set<string>();
   const activeParsedEntries = scheduleEntries
     .filter(
       (entry) =>
@@ -577,11 +678,44 @@ function reconcileEventsAndLineups(
   const eventMap = new Map(state.events.map((event) => [event.id, event]));
   const usedEventIds = new Set<string>();
   const upsertEvents: Event[] = [];
+  const mergedBoundsByTarget = new Map<string, { startsOn: string; endsOn: string }>();
 
   for (const group of groups) {
     const groupedEntries = group.entries
       .map((entry) => entryMap.get(entry.rawText))
       .filter((entry): entry is TalentDouyinScheduleEntry => Boolean(entry));
+    const forcedTargetIds = new Set<string>();
+    for (const entry of groupedEntries) {
+      const directRule = [...mergeRuleByTargetEventId.values()].find((rule) =>
+        rule.members.some((member) => member.sourceEntryId === entry.id)
+      );
+      if (directRule) {
+        forcedTargetIds.add(directRule.targetEventId);
+        const directMember = directRule.members.find((member) => member.sourceEntryId === entry.id);
+        if (directMember && entry.lastSeenAt === nowIso) {
+          const refreshed = refreshMergeRuleMember(directMember, entry, nowIso);
+          directRule.members = directRule.members.map((member) =>
+            member.id === refreshed.id ? refreshed : member
+          );
+          claimedMergeMemberIds.add(directMember.id);
+        }
+        continue;
+      }
+
+      const matchedRules = nextMergeRules.flatMap((rule) => {
+        const member = findMergeMemberMatch(rule, entry, claimedMergeMemberIds);
+        return member ? [{ rule, member }] : [];
+      });
+      if (matchedRules.length === 1) {
+        const { rule, member } = matchedRules[0];
+        forcedTargetIds.add(rule.targetEventId);
+        claimedMergeMemberIds.add(member.id);
+        const refreshed = refreshMergeRuleMember(member, entry, nowIso);
+        rule.members = rule.members.map((item) => (item.id === refreshed.id ? refreshed : item));
+      }
+    }
+    const forcedTargetId = forcedTargetIds.size === 1 ? [...forcedTargetIds][0] : null;
+    const forcedTarget = forcedTargetId ? eventMap.get(forcedTargetId) ?? null : null;
     const mappedSyncCandidates = [...new Set(groupedEntries.map((entry) => entry.eventId).filter(Boolean))]
       .map((eventId) => eventMap.get(eventId!))
       .filter(
@@ -598,8 +732,9 @@ function reconcileEventsAndLineups(
         return rightCount - leftCount || left.id.localeCompare(right.id);
       });
 
-    let targetEvent = mappedSyncCandidates[0];
-    if (!targetEvent) {
+    let targetEvent = forcedTarget ?? mappedSyncCandidates[0];
+    const isForcedMergedTarget = Boolean(forcedTarget);
+    if (!targetEvent && !isForcedMergedTarget) {
       const reusableSyncEvents = state.events
         .filter(
           (event) =>
@@ -610,10 +745,10 @@ function reconcileEventsAndLineups(
       targetEvent = reusableSyncEvents[0];
     }
 
-    if (!targetEvent) {
+    if (!targetEvent && !isForcedMergedTarget) {
       const manualMatches = state.events.filter(
         (event) =>
-          event.origin !== "douyin_sync" &&
+          isManualEvent(event) &&
           isShenzhenCity(event.city) &&
           deriveEventTemporalStatus(event.startsAt, event.endsAt, now) === "future" &&
           rangesOverlap(event, group.startsOn, group.endsOn) &&
@@ -624,13 +759,26 @@ function reconcileEventsAndLineups(
       }
     }
 
-    if (!targetEvent) {
+    if (!targetEvent && !isForcedMergedTarget) {
       const id = randomUUID();
       targetEvent = buildAutoEvent(undefined, id, group.name, group.startsOn, group.endsOn, nowIso);
     }
 
     usedEventIds.add(targetEvent.id);
-    if (targetEvent.origin === "douyin_sync") {
+    if (isForcedMergedTarget) {
+      const previousBounds = mergedBoundsByTarget.get(targetEvent.id);
+      const startsOn = previousBounds
+        ? previousBounds.startsOn < group.startsOn
+          ? previousBounds.startsOn
+          : group.startsOn
+        : group.startsOn;
+      const endsOn = previousBounds
+        ? previousBounds.endsOn > group.endsOn
+          ? previousBounds.endsOn
+          : group.endsOn
+        : group.endsOn;
+      mergedBoundsByTarget.set(targetEvent.id, { startsOn, endsOn });
+    } else if (targetEvent.origin === "douyin_sync") {
       const nextEvent = buildAutoEvent(
         targetEvent,
         targetEvent.id,
@@ -646,6 +794,14 @@ function reconcileEventsAndLineups(
     for (const entry of groupedEntries) {
       entry.eventId = targetEvent.id;
     }
+  }
+
+  for (const [targetId, bounds] of mergedBoundsByTarget) {
+    const targetEvent = eventMap.get(targetId);
+    if (!targetEvent) continue;
+    const nextEvent = buildMergedEvent(targetEvent, bounds.startsOn, bounds.endsOn, nowIso);
+    eventMap.set(targetId, nextEvent);
+    upsertEvents.push(nextEvent);
   }
 
   const existingSourceLineupByEntryId = new Map(
@@ -735,7 +891,8 @@ function reconcileEventsAndLineups(
   return {
     upsertEvents,
     sourceLineups,
-    deleteSyncEventIds
+    deleteSyncEventIds,
+    eventMergeRules: nextMergeRules
   };
 }
 
@@ -899,7 +1056,12 @@ export async function runDouyinSync(options: RunDouyinSyncOptions): Promise<Douy
     }
 
     const scheduleEntries = reconcileScheduleEntries(reconciliationState, snapshots, now);
-    const reconciliation = reconcileEventsAndLineups(reconciliationState, scheduleEntries, now);
+    const reconciliation = reconcileEventsAndLineups(
+      reconciliationState,
+      scheduleEntries,
+      reconciliationState.eventMergeRules,
+      now
+    );
     const finishedRun = finalizeRun(run, results, new Date().toISOString());
 
     await repository.saveDouyinSyncState({
@@ -908,6 +1070,7 @@ export async function runDouyinSync(options: RunDouyinSyncOptions): Promise<Douy
       scheduleEntries,
       upsertEvents: reconciliation.upsertEvents,
       sourceLineups: reconciliation.sourceLineups,
+      eventMergeRules: reconciliation.eventMergeRules,
       deleteSyncEventIds: reconciliation.deleteSyncEventIds,
       syncRun: finishedRun,
       syncResults: results

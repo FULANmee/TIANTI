@@ -2,7 +2,7 @@ export type EditorSlug = "lin" | "yu";
 export type EventStatus = "future" | "past";
 export type DerivedEventStatus = "future" | "past" | "undated";
 export type ParticipationStatus = "confirmed" | "pending";
-export type EventOrigin = "manual" | "douyin_sync";
+export type EventOrigin = "manual" | "douyin_sync" | "douyin_merged";
 export type DouyinLinkExtractionStatus = "structured" | "rendered" | "unavailable";
 export type DouyinScheduleEntryState = "active" | "removed_future" | "retained_past" | "suppressed";
 export type DouyinSyncTrigger = "cron" | "manual_all" | "manual_talent";
@@ -91,6 +91,25 @@ export interface Event {
   note: string;
   updatedAt: string;
   origin?: EventOrigin;
+}
+
+export interface EventMergeRuleMember {
+  id: string;
+  sourceEntryId: string;
+  talentId: string;
+  city: string;
+  normalizedName: string;
+  startsAt: string;
+  endsAt: string;
+  lastSeenAt: string;
+}
+
+export interface EventMergeRule {
+  id: string;
+  targetEventId: string;
+  createdAt: string;
+  updatedAt: string;
+  members: EventMergeRuleMember[];
 }
 
 export interface EventLineup {
@@ -220,6 +239,7 @@ export interface ContentState {
   assets: Asset[];
   talents: Talent[];
   events: Event[];
+  eventMergeRules: EventMergeRule[];
   lineups: EventLineup[];
   ladders: EditorLadder[];
   archives: EditorArchive[];

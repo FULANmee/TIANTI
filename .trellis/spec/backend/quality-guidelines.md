@@ -65,7 +65,7 @@ Playwright is serial with one worker and launches the app with mock content/stor
 Do not copy these current leftovers as conventions:
 
 - the mojibake auth string in the admin asset GET route;
-- stale set_status in EventBulkPayload when the executable schema accepts only delete;
+- stale set_status in EventBulkPayload when the executable schema accepts only delete/merge;
 - incomplete discovery/date serialization in scripts/seed.ts;
 - the getTalentDetail() related-event reason reading stored event.status instead of the shared derived status;
 - full-page reload in older client flows when local-state update or router.refresh() can preserve work.

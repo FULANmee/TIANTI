@@ -1,6 +1,9 @@
 import type {
   DouyinSyncResult,
   DouyinSyncRun,
+  EditorArchive,
+  Event,
+  EventLineup,
   Talent,
   TalentDouyinAdminStatus,
   TalentTag
@@ -14,6 +17,9 @@ export interface BlockedBulkAction {
 export interface BulkActionResult {
   succeededIds: string[];
   blocked: BlockedBulkAction[];
+  mergedEvent?: Event;
+  mergedLineups?: EventLineup[];
+  mergedArchives?: EditorArchive[];
 }
 
 export interface TalentBulkPayload {
@@ -23,8 +29,9 @@ export interface TalentBulkPayload {
 }
 
 export interface EventBulkPayload {
-  action: "delete";
+  action: "delete" | "merge";
   ids: string[];
+  targetId?: string;
 }
 
 export interface TalentBulkResponse extends BulkActionResult {

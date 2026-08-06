@@ -49,7 +49,7 @@ const CITY_NAMES = [
 
 const CITY_SOURCE = CITY_NAMES.join("|");
 const CITY_PATTERN = new RegExp(`(${CITY_SOURCE})(?:市)?`, "u");
-const DATE_TOKEN_SOURCE = String.raw`(?<!\d)(?:(?:(\d{4})[./年])?(\d{1,2})[.月](\d{1,2})(?:日|号)?(?:\s*[-~—至]\s*(?:(\d{1,2})[.月])?(\d{1,2})(?:日|号)?)?|(\d{3,4})(?=(?:${CITY_SOURCE})(?:市)?))`;
+const DATE_TOKEN_SOURCE = String.raw`(?<!\d)(?:(?:(\d{4})[./年])?(\d{1,2})[.月](\d{1,2})(?:日|号)?(?:\s*[-~～—至]\s*(?:(\d{1,2})[.月])?(\d{1,2})(?:日|号)?)?|(\d{3,4})(?=(?:${CITY_SOURCE})(?:市)?))`;
 const TRIM_SEPARATORS = /^[\s/➡️→·,，;；:：|✨]+|[\s/➡️→·,，;；:：|✨]+$/gu;
 
 interface DateCandidate {

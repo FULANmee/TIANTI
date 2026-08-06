@@ -35,7 +35,7 @@ suppressDouyinScheduleEntries(entryIds: string[]): Promise<void>
 Source ownership:
 
 ~~~text
-Event.origin = "manual" | "douyin_sync"
+Event.origin = "manual" | "douyin_sync" | "douyin_merged"
 EventLineup.source = "" | `douyin:${scheduleEntryId}`
 TalentDouyinScheduleEntry.state = active | removed_future | retained_past | suppressed
 ~~~
@@ -64,7 +64,7 @@ CRON_SECRET
 - The parser keeps itinerary display text even when a date is invalid or missing, while invalid/ambiguous entries never reach reconciliation. Compact dates are accepted only next to a recognized city context.
 - Only future `深圳` entries write activities. Compatible entries may aggregate only when the earliest-to-latest difference is at most five calendar days. Two different nonblank normalized names never merge; an unnamed entry joins a named group only when exactly one group is compatible.
 - A successful empty snapshot advances a future entry's missing count. A fetch/validation/infrastructure failure does not. Remove a future automatic source only after two consecutive successful misses; past events and lineups are immutable to sync cleanup.
-- A strict manual-event match may receive a `douyin:*` lineup, but sync never changes manual event fields. Admin edits convert an automatic event to `manual`. Removing or changing the talent/date identity of a source lineup suppresses the old schedule entry.
+- A strict manual-event match may receive a `douyin:*` lineup, but sync never changes manual event fields. Admin edits convert an automatic event to `manual`. Removing or changing the talent/date identity of a source lineup suppresses the old schedule entry. A `douyin_merged` event is an editor-selected target whose name, venue, note, aliases, keywords, and slug remain editor-owned while sync updates only its date/status and source lineups.
 - Fetches may take minutes. Re-read repository state before reconciliation, then preserve suppression/manual ownership again inside the final transaction. Postgres locks current schedule rows, automatic event updates use an origin guard, and cleanup deletes only still-automatic events with no lineups or archives. Mock behavior must match.
 - `sec_user_id` is globally unique for primary profiles. A duplicate response fails only the conflicting talent result; it must not abort the batch transaction.
 - The real rendered-mention path is not release-complete until a public main profile containing a clickable `@account` proves that the target Douyin URL/`sec_user_id` can be recovered. Until then, return `unavailable` rather than guessing.
@@ -164,7 +164,7 @@ select current_setting('neon.branch_id', true) as branch_id;
 - The migration command is inert unless the explicit feature flag equals `1`. If enabled, all Vercel environment/branch/deployment guards are mandatory before a Postgres client is constructed.
 - The Neon branch ID must be nonempty, start with `br-`, and differ from the recorded Production branch `br-patient-dust-anwfalxy`. If the Production Neon project changes, update this identity and its tests before enabling the guard.
 - Validate the `DATABASE_URL` without ever surfacing its raw value in thrown errors or logs. The host must be a Neon `ep-*` endpoint; success logs may contain only the endpoint ID and branch ID.
-- Under one `sql.begin`, acquire the advisory transaction lock, classify the target schema as `fresh`, `complete`, or `partial`, apply only `0007` and `0008` for `fresh`, and verify `complete` before COMMIT.
+- Under one `sql.begin`, acquire the advisory transaction lock, classify the target schema as `fresh`, `complete`, or `partial`, apply only `0007`, `0008`, and `0009` for `fresh`, and verify `complete` before COMMIT.
 - `complete` includes every target table, column, primary key, foreign key, and index. `partial` is fatal; do not repair it piecemeal.
 - Never run `drizzle-kit migrate`, `db:seed`, or create/backfill the Drizzle journal on a retained clone without a trustworthy existing journal.
 - Keep the build gate in the final Preview code: Neon may provision deployment/branch-specific credentials that cannot be recovered later with `vercel env pull`.
@@ -179,20 +179,20 @@ select current_setting('neon.branch_id', true) as branch_id;
 | Branch ID missing/malformed | Roll back and fail build |
 | Branch ID equals Production | Roll back before schema snapshot/DDL |
 | Base `events`/`talents` tables missing | `invalid_base`; roll back |
-| No 5.0 objects | `fresh`; apply `0007` + `0008` once |
+| No 5.0 objects | `fresh`; apply `0007` + `0008` + `0009` once |
 | All expected objects present | `complete`; no-op |
 | Any expected object missing or only a subset present | `partial`; roll back and fail closed |
 | COMMIT/connection close fails | No success log; fail build |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: Preview branch `br-steep-band-anelimoy` differs from Production, starts with the retained schema, applies both migrations atomically, then renders the database-mode site.
+- Good: Preview branch `br-steep-band-anelimoy` differs from Production, starts with the retained schema, applies migrations `0007`–`0009` atomically, then renders the database-mode site.
 - Base: a redeploy on the same Preview branch reports `schema already complete` and performs no DDL.
 - Bad: use the project-level Preview `DATABASE_URL` locally, assume it is isolated because the integration toggle is enabled, or run the whole migration history against a database with no journal.
 
 ### 6. Tests Required
 
-- `tests/unit/scripts/apply-preview-v5-migrations.test.ts`: explicit flag and every Vercel context guard; Production branch constant; URL redaction; fresh/complete/partial classification; exact tables, columns, PK/FK constraints, and indexes from `0007/0008`.
+- `tests/unit/scripts/apply-preview-v5-migrations.test.ts`: explicit flag and every Vercel context guard; Production branch constant; URL redaction; fresh/complete/partial classification; exact tables, columns, PK/FK constraints, and indexes from `0007`–`0009`.
 - `npm run build` with the migration flag absent must print `skipped` and complete without database access.
 - Preview build logs must show a non-Production branch ID and `schema applied` or `schema already complete`, followed by a successful Next.js and Python Service build.
 - Database-mode Preview smoke must prove sign-in/session across functions before enabling any sync write.
@@ -207,3 +207,67 @@ npx drizzle-kit migrate
 ~~~
 
 Correct: let the guarded Preview build use its deployment-scoped Neon URL, verify the branch identity, and apply only the reviewed delta inside one fail-closed transaction. Keep `DOUYIN_SYNC_ENABLED=false` except for the bounded manual verification window.
+
+## Scenario: Editor-selected merged activities that remain sync-owned
+
+### 1. Scope / Trigger
+
+Use this contract when an editor merges two or more future activities that were created from different Shenzhen itinerary groups but wants later Douyin profile changes to keep updating one activity.
+
+### 2. Signatures
+
+~~~ts
+POST /api/admin/events/bulk
+{ action: "merge", ids: string[], targetId: string }
+-> { result: {
+  succeededIds: string[], blocked: [],
+  mergedEvent: Event,
+  mergedLineups: EventLineup[],
+  mergedArchives: EditorArchive[]
+} }
+~~~
+
+Database records:
+
+~~~text
+event_merge_rules(id, target_event_id, created_at, updated_at)
+event_merge_rule_members(id, rule_id, source_entry_id, talent_id, city,
+  normalized_name, starts_at, ends_at, last_seen_at)
+~~~
+
+### 3. Contracts
+
+- The mutation requires at least two existing, future events and a target that is one of the selected IDs. It computes one target snapshot before calling the repository's atomic `mergeEvents()` transaction.
+- The selected target keeps its name, slug, aliases, search keywords, city, venue, and note. Dates span the earliest selected start through the latest selected end; the result origin is `douyin_merged`.
+- Lineups are deduplicated by talent plus lineup date, preferring `douyin:<scheduleEntryId>` sources so automatic updates remain attached; archives are merged per editor and deduplicated by talent, date, and cosplay title.
+- Source schedule entries are reattached to the target, and a rule member snapshot records their last known identity. During future syncs, exact source IDs are preferred; changed activity names or dates may match only when the Shenzhen/talent/date candidate is unique within five days. Conflicting candidates are left to normal grouping instead of being forced together.
+- A merge rule is never removed merely because a profile omits an itinerary for one or two successful syncs. Missing future sources lose only their automatic lineup after the existing two-success grace period; the target event and past records are retained.
+- Completed/past activities are rejected as merge inputs so history is never deleted by this shortcut. Regular event deletion still removes the target rule through the repository/database cascade.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| fewer than two IDs | 400 with `请至少选择两个活动后再合并。` |
+| target is absent or not selected | 400 with `请选择一个保留活动。` |
+| an ID is missing | 400 with refresh/retry guidance; no writes |
+| any selected event is past/undated | 400 with the completed-event protection message; no writes |
+| repository transaction fails | whole merge rolls back; client keeps its prior live state |
+
+### 5. Good / Base / Bad Cases
+
+- Good: `8.8 深圳 金铲铲` and `8.8 深圳 和平精英` are manually merged; a later renamed `8.9` entry for each still points to the one target.
+- Base: a source disappears from the profile; its historical member remains in the rule and the target is not deleted.
+- Bad: deleting source activities one by one without reattaching schedule IDs, or letting sync overwrite the editor-selected target name with a new profile name.
+
+### 6. Tests Required
+
+- Mutation/repository tests assert target field preservation, date span, lineup/archive dedupe, schedule reattachment, rule creation, past-event rejection, and no state change on validation failure.
+- Sync regression tests assert different named groups stay on one target after merge, changed names/dates update the same target, and missing sources never delete a merged or past event.
+- `tests/e2e/smoke.spec.ts` asserts the radio target picker, warning, success refresh, and removal of the source from the admin list.
+
+### 7. Wrong vs Correct
+
+Wrong: treat a merged activity as an ordinary `manual` event or persist only the current event ID; the next sync recreates the split activities or loses automatic lineups.
+
+Correct: persist `douyin_merged` plus `event_merge_rules`, reattach every selected schedule entry in one transaction, and let reconciliation update only dates/status/source-owned lineups while retaining editor-owned fields.

@@ -149,6 +149,49 @@ export const eventLineup = pgTable("event_lineup", {
   note: text("note").notNull()
 });
 
+export const eventMergeRules = pgTable(
+  "event_merge_rules",
+  {
+    id: uuid("id").primaryKey(),
+    targetEventId: uuid("target_event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => ({
+    targetEventIdx: uniqueIndex("event_merge_rules_target_event_idx").on(table.targetEventId)
+  })
+);
+
+export const eventMergeRuleMembers = pgTable(
+  "event_merge_rule_members",
+  {
+    id: uuid("id").primaryKey(),
+    ruleId: uuid("rule_id")
+      .notNull()
+      .references(() => eventMergeRules.id, { onDelete: "cascade" }),
+    sourceEntryId: text("source_entry_id").notNull(),
+    talentId: uuid("talent_id")
+      .notNull()
+      .references(() => talents.id, { onDelete: "cascade" }),
+    city: text("city").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    ruleIdx: index("event_merge_rule_members_rule_idx").on(table.ruleId),
+    sourceEntryIdx: index("event_merge_rule_members_source_entry_idx").on(table.sourceEntryId),
+    identityIdx: index("event_merge_rule_members_identity_idx").on(
+      table.talentId,
+      table.city,
+      table.normalizedName
+    )
+  })
+);
+
 export const talentDouyinProfiles = pgTable(
   "talent_douyin_profiles",
   {

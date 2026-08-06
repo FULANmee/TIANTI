@@ -102,10 +102,11 @@ describe("TIANTI 5.0 Preview migration gate", () => {
     expect(getSchemaState({ ...fresh, baseTablesPresent: false })).toBe("invalid_base");
   });
 
-  it("keeps the guarded artifact lists aligned with migrations 0007 and 0008", () => {
+  it("keeps the guarded artifact lists aligned with migrations 0007 through 0009", () => {
     const migrationSql = [
       readFileSync(resolve(process.cwd(), "drizzle/0007_adorable_brood.sql"), "utf8"),
-      readFileSync(resolve(process.cwd(), "drizzle/0008_big_tigra.sql"), "utf8")
+      readFileSync(resolve(process.cwd(), "drizzle/0008_big_tigra.sql"), "utf8"),
+      readFileSync(resolve(process.cwd(), "drizzle/0009_lowly_fabian_cortez.sql"), "utf8")
     ].join("\n");
     const createdTables = [...migrationSql.matchAll(/CREATE TABLE "([^"]+)"/g)].map(
       (match) => match[1]

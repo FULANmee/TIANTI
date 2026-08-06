@@ -654,6 +654,199 @@ describe("admin mutations", () => {
     expect(state.archives.some((archive) => archive.eventId === "event-mist-lantern")).toBe(false);
   });
 
+  it("merges future events into a persistent douyin target without losing archives", async () => {
+    const state = getMockState();
+    state.events.push(
+      {
+        id: "event-merge-target",
+        slug: null,
+        name: "保留活动名称",
+        aliases: ["target-alias"],
+        searchKeywords: ["target-search"],
+        startsAt: "2026-05-01T12:00:00.000Z",
+        endsAt: "2026-05-02T12:00:00.000Z",
+        city: "深圳",
+        venue: "目标场馆",
+        status: "future",
+        note: "目标备注",
+        updatedAt: "2026-04-01T00:00:00.000Z",
+        origin: "douyin_sync"
+      },
+      {
+        id: "event-merge-source",
+        slug: null,
+        name: "另一个自动名称",
+        aliases: [],
+        searchKeywords: [],
+        startsAt: "2026-05-01T12:00:00.000Z",
+        endsAt: "2026-05-03T12:00:00.000Z",
+        city: "深圳",
+        venue: "来源场馆",
+        status: "future",
+        note: "来源备注",
+        updatedAt: "2026-04-01T00:00:00.000Z",
+        origin: "douyin_sync"
+      }
+    );
+    state.lineups.push(
+      {
+        id: "lineup-merge-target",
+        eventId: "event-merge-target",
+        talentId: "talent-qingluan",
+        lineupDate: "2026-05-01T12:00:00.000Z",
+        status: "confirmed",
+        source: "",
+        note: "目标备注"
+      },
+      {
+        id: "lineup-merge-source-auto",
+        eventId: "event-merge-source",
+        talentId: "talent-qingluan",
+        lineupDate: "2026-05-01T12:00:00.000Z",
+        status: "confirmed",
+        source: "douyin:merge-entry-qingluan",
+        note: ""
+      },
+      {
+        id: "lineup-merge-source-yunmo",
+        eventId: "event-merge-source",
+        talentId: "talent-yunmo",
+        lineupDate: "2026-05-03T12:00:00.000Z",
+        status: "confirmed",
+        source: "douyin:merge-entry-yunmo",
+        note: ""
+      }
+    );
+    state.archives.push(
+      {
+        id: "archive-merge-target",
+        editorId: "editor-lin",
+        eventId: "event-merge-target",
+        note: "保留档案备注",
+        updatedAt: "2026-04-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "archive-merge-target-entry",
+            talentId: "talent-qingluan",
+            entryDate: "2026-05-01T12:00:00.000Z",
+            sceneAssetId: "asset-scene-1",
+            sharedPhotoAssetId: null,
+            cosplayTitle: "角色 A",
+            hasSharedPhoto: false
+          }
+        ]
+      },
+      {
+        id: "archive-merge-source",
+        editorId: "editor-lin",
+        eventId: "event-merge-source",
+        note: "来源档案备注",
+        updatedAt: "2026-04-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "archive-merge-source-entry",
+            talentId: "talent-qingluan",
+            entryDate: "2026-05-01T12:00:00.000Z",
+            sceneAssetId: null,
+            sharedPhotoAssetId: "asset-shared-1",
+            cosplayTitle: "角色 A",
+            hasSharedPhoto: true
+          },
+          {
+            id: "archive-merge-source-entry-2",
+            talentId: "talent-yunmo",
+            entryDate: "2026-05-03T12:00:00.000Z",
+            sceneAssetId: null,
+            sharedPhotoAssetId: null,
+            cosplayTitle: "角色 B",
+            hasSharedPhoto: false
+          }
+        ]
+      }
+    );
+    state.douyinScheduleEntries.push(
+      {
+        id: "merge-entry-qingluan",
+        talentId: "talent-qingluan",
+        fingerprint: "merge-fingerprint-qingluan",
+        rawText: "5.1深圳活动 A",
+        startsAt: "2026-05-01T12:00:00.000Z",
+        endsAt: "2026-05-01T12:00:00.000Z",
+        city: "深圳",
+        eventName: "活动 A",
+        eventId: "event-merge-source",
+        firstSeenAt: "2026-04-01T00:00:00.000Z",
+        lastSeenAt: "2026-04-01T00:00:00.000Z",
+        consecutiveMissingCount: 0,
+        state: "active",
+        parserVersion: "1"
+      },
+      {
+        id: "merge-entry-yunmo",
+        talentId: "talent-yunmo",
+        fingerprint: "merge-fingerprint-yunmo",
+        rawText: "5.3深圳活动 B",
+        startsAt: "2026-05-03T12:00:00.000Z",
+        endsAt: "2026-05-03T12:00:00.000Z",
+        city: "深圳",
+        eventName: "活动 B",
+        eventId: "event-merge-source",
+        firstSeenAt: "2026-04-01T00:00:00.000Z",
+        lastSeenAt: "2026-04-01T00:00:00.000Z",
+        consecutiveMissingCount: 0,
+        state: "active",
+        parserVersion: "1"
+      }
+    );
+    setMockState(state);
+
+    const result = await saveEventBulk({
+      action: "merge",
+      ids: ["event-merge-target", "event-merge-source"],
+      targetId: "event-merge-target"
+    });
+
+    expect(result.succeededIds).toEqual(["event-merge-source"]);
+    expect(result.mergedEvent).toMatchObject({
+      id: "event-merge-target",
+      name: "保留活动名称",
+      venue: "目标场馆",
+      startsAt: "2026-05-01T12:00:00.000Z",
+      endsAt: "2026-05-03T12:00:00.000Z",
+      origin: "douyin_merged"
+    });
+    expect(result.mergedLineups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ talentId: "talent-qingluan", source: "douyin:merge-entry-qingluan" }),
+        expect.objectContaining({ talentId: "talent-yunmo", source: "douyin:merge-entry-yunmo" })
+      ])
+    );
+    expect(result.mergedArchives).toHaveLength(1);
+    expect(result.mergedArchives?.[0]?.entries).toHaveLength(2);
+
+    const nextState = getMockState();
+    expect(nextState.events.some((event) => event.id === "event-merge-source")).toBe(false);
+    expect(nextState.eventMergeRules).toHaveLength(1);
+    expect(nextState.eventMergeRules[0]?.targetEventId).toBe("event-merge-target");
+    expect(nextState.douyinScheduleEntries.filter((entry) => entry.eventId === "event-merge-target")).toHaveLength(2);
+  });
+
+  it("rejects merging a completed event without changing state", async () => {
+    const before = structuredClone(getMockState());
+
+    await expect(
+      saveEventBulk({
+        action: "merge",
+        ids: ["event-mist-lantern", "event-echo-market"],
+        targetId: "event-echo-market"
+      })
+    ).rejects.toThrow("只能合并尚未结束的活动");
+
+    expect(getMockState().events).toEqual(before.events);
+    expect(getMockState().lineups).toEqual(before.lineups);
+    expect(getMockState().eventMergeRules).toEqual(before.eventMergeRules);
+  });
+
   it("derives ladder titles from the current editor name and preserves tier talent order", async () => {
     const saved = await saveLadder("editor-lin", {
       id: "ladder-lin",

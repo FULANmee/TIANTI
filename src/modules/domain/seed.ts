@@ -230,6 +230,7 @@ export const demoSeedState: RepositoryState = {
       updatedAt: "2026-04-10T16:30:00.000Z"
     }
   ],
+  eventMergeRules: [],
   lineups: [
     {
       id: "lineup-1",

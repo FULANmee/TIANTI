@@ -11,6 +11,8 @@ import {
   editorArchives,
   editors,
   eventLineup,
+  eventMergeRuleMembers,
+  eventMergeRules,
   events,
   ladderEntries,
   ladders,
@@ -32,7 +34,7 @@ import type {
   Event,
   Talent
 } from "@/modules/domain/types";
-import type { ContentRepository } from "@/modules/repository/types";
+import type { ContentRepository, EventMergePersistenceInput } from "@/modules/repository/types";
 
 function toEditorProfile(row: typeof editors.$inferSelect): EditorProfile {
   return {
@@ -67,6 +69,8 @@ async function loadState(): Promise<ContentState> {
     talentAssetRows,
     eventRows,
     lineupRows,
+    eventMergeRuleRows,
+    eventMergeRuleMemberRows,
     ladderRows,
     tierRows,
     ladderEntryRows,
@@ -87,6 +91,8 @@ async function loadState(): Promise<ContentState> {
     db.select().from(talentAssets),
     db.select().from(events),
     db.select().from(eventLineup),
+    db.select().from(eventMergeRules),
+    db.select().from(eventMergeRuleMembers),
     db.select().from(ladders),
     db.select().from(ladderTiers),
     db.select().from(ladderEntries),
@@ -183,7 +189,26 @@ async function loadState(): Promise<ContentState> {
       status: row.status as Event["status"],
       note: row.note,
       updatedAt: row.updatedAt.toISOString(),
-      origin: row.origin as Event["origin"]
+        origin: row.origin as Event["origin"]
+      })),
+    eventMergeRules: eventMergeRuleRows.map((row) => ({
+      id: row.id,
+      targetEventId: row.targetEventId,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      members: eventMergeRuleMemberRows
+        .filter((member) => member.ruleId === row.id)
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .map((member) => ({
+          id: member.id,
+          sourceEntryId: member.sourceEntryId,
+          talentId: member.talentId,
+          city: member.city,
+          normalizedName: member.normalizedName,
+          startsAt: member.startsAt.toISOString(),
+          endsAt: member.endsAt.toISOString(),
+          lastSeenAt: member.lastSeenAt.toISOString()
+        }))
     })),
     lineups: lineupRows.map((row) => ({
       id: row.id,
@@ -522,6 +547,169 @@ export const postgresRepository: ContentRepository = {
       });
     return event;
   },
+  async mergeEvents(input: EventMergePersistenceInput) {
+    const db = getDb();
+    const selectedEventIds = [input.targetEvent.id, ...input.deletedEventIds];
+
+    await db.transaction(async (tx) => {
+      // Keep lock ordering aligned with saveDouyinSyncState(), which locks
+      // schedule entries before touching automatic event rows. This avoids a
+      // merge/sync deadlock while preserving the latest source ownership.
+      await tx
+        .select({ id: talentDouyinScheduleEntries.id })
+        .from(talentDouyinScheduleEntries)
+        .where(inArray(talentDouyinScheduleEntries.eventId, selectedEventIds))
+        .for("update");
+      const selectedRows = await tx
+        .select({ id: events.id })
+        .from(events)
+        .where(inArray(events.id, selectedEventIds))
+        .for("update");
+      const selectedIds = new Set(selectedRows.map((row) => row.id));
+      if (!selectedIds.has(input.targetEvent.id)) {
+        throw new Error("合并目标活动不存在或不合法。");
+      }
+      if (input.deletedEventIds.some((id) => !selectedIds.has(id))) {
+        throw new Error("待合并活动已不存在，请刷新后重试。");
+      }
+
+      await tx
+        .insert(events)
+        .values({
+          id: input.targetEvent.id,
+          slug: input.targetEvent.slug ?? null,
+          name: input.targetEvent.name,
+          aliases: input.targetEvent.aliases,
+          searchKeywords: input.targetEvent.searchKeywords,
+          startsAt: input.targetEvent.startsAt ? new Date(input.targetEvent.startsAt) : null,
+          endsAt: input.targetEvent.endsAt ? new Date(input.targetEvent.endsAt) : null,
+          city: input.targetEvent.city,
+          venue: input.targetEvent.venue,
+          status: input.targetEvent.status,
+          note: input.targetEvent.note,
+          origin: input.targetEvent.origin ?? "douyin_merged",
+          updatedAt: new Date(input.targetEvent.updatedAt)
+        })
+        .onConflictDoUpdate({
+          target: events.id,
+          set: {
+            slug: input.targetEvent.slug ?? null,
+            name: input.targetEvent.name,
+            aliases: input.targetEvent.aliases,
+            searchKeywords: input.targetEvent.searchKeywords,
+            startsAt: input.targetEvent.startsAt ? new Date(input.targetEvent.startsAt) : null,
+            endsAt: input.targetEvent.endsAt ? new Date(input.targetEvent.endsAt) : null,
+            city: input.targetEvent.city,
+            venue: input.targetEvent.venue,
+            status: input.targetEvent.status,
+            note: input.targetEvent.note,
+            origin: input.targetEvent.origin ?? "douyin_merged",
+            updatedAt: new Date(input.targetEvent.updatedAt)
+          }
+        });
+
+      await tx.delete(eventLineup).where(inArray(eventLineup.eventId, selectedEventIds));
+      if (input.lineups.length > 0) {
+        await tx.insert(eventLineup).values(
+          input.lineups.map((lineup) => ({
+            ...lineup,
+            lineupDate: lineup.lineupDate ? new Date(lineup.lineupDate) : null
+          }))
+        );
+      }
+
+      if (input.deletedEventIds.length > 0) {
+        await tx.delete(editorArchives).where(inArray(editorArchives.eventId, input.deletedEventIds));
+      }
+      for (const archive of input.archives) {
+        await tx
+          .insert(editorArchives)
+          .values({
+            id: archive.id,
+            editorId: archive.editorId,
+            eventId: archive.eventId,
+            note: archive.note,
+            updatedAt: new Date(archive.updatedAt)
+          })
+          .onConflictDoUpdate({
+            target: editorArchives.id,
+            set: {
+              eventId: archive.eventId,
+              note: archive.note,
+              updatedAt: new Date(archive.updatedAt)
+            }
+          });
+        await tx.delete(archiveEntries).where(eq(archiveEntries.archiveId, archive.id));
+        if (archive.entries.length > 0) {
+          await tx.insert(archiveEntries).values(
+            archive.entries.map((entry) => ({
+              id: entry.id,
+              archiveId: archive.id,
+              talentId: entry.talentId,
+              entryDate: entry.entryDate ? new Date(entry.entryDate) : null,
+              sceneAssetId: entry.sceneAssetId ?? null,
+              sharedPhotoAssetId: entry.sharedPhotoAssetId ?? null,
+              cosplayTitle: entry.cosplayTitle,
+              hasSharedPhoto: entry.hasSharedPhoto
+            }))
+          );
+        }
+      }
+
+      if (input.scheduleEntryIds.length > 0) {
+        await tx
+          .update(talentDouyinScheduleEntries)
+          .set({ eventId: input.targetEvent.id })
+          .where(inArray(talentDouyinScheduleEntries.id, input.scheduleEntryIds));
+      }
+
+      if (input.deletedMergeRuleIds.length > 0) {
+        await tx
+          .delete(eventMergeRules)
+          .where(inArray(eventMergeRules.id, input.deletedMergeRuleIds));
+      }
+      if (input.mergeRules.length > 0) {
+        const ruleIds = input.mergeRules.map((rule) => rule.id);
+        await tx.delete(eventMergeRuleMembers).where(inArray(eventMergeRuleMembers.ruleId, ruleIds));
+        for (const rule of input.mergeRules) {
+          await tx
+            .insert(eventMergeRules)
+            .values({
+              id: rule.id,
+              targetEventId: rule.targetEventId,
+              createdAt: new Date(rule.createdAt),
+              updatedAt: new Date(rule.updatedAt)
+            })
+            .onConflictDoUpdate({
+              target: eventMergeRules.id,
+              set: {
+                targetEventId: rule.targetEventId,
+                updatedAt: new Date(rule.updatedAt)
+              }
+            });
+          if (rule.members.length > 0) {
+            await tx.insert(eventMergeRuleMembers).values(
+              rule.members.map((member) => ({
+                id: member.id,
+                ruleId: rule.id,
+                sourceEntryId: member.sourceEntryId,
+                talentId: member.talentId,
+                city: member.city,
+                normalizedName: member.normalizedName,
+                startsAt: new Date(member.startsAt),
+                endsAt: new Date(member.endsAt),
+                lastSeenAt: new Date(member.lastSeenAt)
+              }))
+            );
+          }
+        }
+      }
+
+      if (input.deletedEventIds.length > 0) {
+        await tx.delete(events).where(inArray(events.id, input.deletedEventIds));
+      }
+    });
+  },
   async replaceEventLineup(eventId, nextLineups) {
     const db = getDb();
     await db.delete(eventLineup).where(eq(eventLineup.eventId, eventId));
@@ -639,6 +827,30 @@ export const postgresRepository: ContentRepository = {
       }
 
       for (const event of input.upsertEvents) {
+        if (event.origin === "douyin_merged") {
+          const existingRows = await tx
+            .select({ id: events.id, origin: events.origin })
+            .from(events)
+            .where(eq(events.id, event.id))
+            .for("update");
+          const existing = existingRows[0];
+          if (!existing) {
+            throw new Error("抖音合并目标活动不存在，请刷新后重试。");
+          }
+          if (existing.origin === "douyin_merged") {
+            await tx
+              .update(events)
+              .set({
+                startsAt: event.startsAt ? new Date(event.startsAt) : null,
+                endsAt: event.endsAt ? new Date(event.endsAt) : null,
+                status: event.status,
+                updatedAt: new Date(event.updatedAt)
+              })
+              .where(eq(events.id, event.id));
+          }
+          continue;
+        }
+
         await tx
           .insert(events)
           .values({
@@ -674,6 +886,56 @@ export const postgresRepository: ContentRepository = {
               updatedAt: new Date(event.updatedAt)
             }
           });
+      }
+
+      if (input.eventMergeRules.length > 0) {
+        for (const rule of input.eventMergeRules) {
+          await tx
+            .insert(eventMergeRules)
+            .values({
+              id: rule.id,
+              targetEventId: rule.targetEventId,
+              createdAt: new Date(rule.createdAt),
+              updatedAt: new Date(rule.updatedAt)
+            })
+            .onConflictDoUpdate({
+              target: eventMergeRules.id,
+              set: {
+                targetEventId: rule.targetEventId,
+                updatedAt: new Date(rule.updatedAt)
+              }
+            });
+          if (rule.members.length > 0) {
+            for (const member of rule.members) {
+              await tx
+                .insert(eventMergeRuleMembers)
+                .values({
+                  id: member.id,
+                  ruleId: rule.id,
+                  sourceEntryId: member.sourceEntryId,
+                  talentId: member.talentId,
+                  city: member.city,
+                  normalizedName: member.normalizedName,
+                  startsAt: new Date(member.startsAt),
+                  endsAt: new Date(member.endsAt),
+                  lastSeenAt: new Date(member.lastSeenAt)
+                })
+                .onConflictDoUpdate({
+                  target: eventMergeRuleMembers.id,
+                  set: {
+                    ruleId: rule.id,
+                    sourceEntryId: member.sourceEntryId,
+                    talentId: member.talentId,
+                    city: member.city,
+                    normalizedName: member.normalizedName,
+                    startsAt: new Date(member.startsAt),
+                    endsAt: new Date(member.endsAt),
+                    lastSeenAt: new Date(member.lastSeenAt)
+                  }
+                });
+            }
+          }
+        }
       }
 
       await tx.delete(talentDouyinScheduleEntries);

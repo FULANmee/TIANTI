@@ -8,6 +8,8 @@ const MIGRATION_LOCK_KEY = "tianti-preview-v5-migrations";
 export const targetTables = [
   "douyin_sync_results",
   "douyin_sync_runs",
+  "event_merge_rule_members",
+  "event_merge_rules",
   "talent_douyin_profiles",
   "talent_douyin_related_accounts",
   "talent_douyin_schedule_entries"
@@ -20,6 +22,10 @@ export const targetIndexes = [
   "douyin_sync_runs_started_at_idx",
   "douyin_sync_runs_status_idx",
   "douyin_sync_runs_running_idx",
+  "event_merge_rule_members_rule_idx",
+  "event_merge_rule_members_source_entry_idx",
+  "event_merge_rule_members_identity_idx",
+  "event_merge_rules_target_event_idx",
   "talent_douyin_profiles_sec_user_id_idx",
   "talent_douyin_profiles_last_success_idx",
   "talent_douyin_related_accounts_talent_idx",
@@ -36,6 +42,11 @@ export const targetConstraints = [
   "douyin_sync_results_run_id_douyin_sync_runs_id_fk",
   "douyin_sync_results_talent_id_talents_id_fk",
   "douyin_sync_runs_pkey",
+  "event_merge_rule_members_pkey",
+  "event_merge_rule_members_rule_id_event_merge_rules_id_fk",
+  "event_merge_rule_members_talent_id_talents_id_fk",
+  "event_merge_rules_pkey",
+  "event_merge_rules_target_event_id_events_id_fk",
   "talent_douyin_profiles_pkey",
   "talent_douyin_profiles_talent_id_talents_id_fk",
   "talent_douyin_related_accounts_pkey",
@@ -58,6 +69,18 @@ export const targetColumns = {
     "started_at",
     "finished_at"
   ],
+  event_merge_rule_members: [
+    "id",
+    "rule_id",
+    "source_entry_id",
+    "talent_id",
+    "city",
+    "normalized_name",
+    "starts_at",
+    "ends_at",
+    "last_seen_at"
+  ],
+  event_merge_rules: ["id", "target_event_id", "created_at", "updated_at"],
   talent_douyin_profiles: [
     "talent_id",
     "profile_url",
@@ -268,12 +291,14 @@ export async function main(environment: MigrationEnvironment = process.env) {
       }
 
       if (beforeState === "fresh") {
-        const [migrationSeven, migrationEight] = await Promise.all([
+        const [migrationSeven, migrationEight, migrationNine] = await Promise.all([
           readFile(new URL("../drizzle/0007_adorable_brood.sql", import.meta.url), "utf8"),
-          readFile(new URL("../drizzle/0008_big_tigra.sql", import.meta.url), "utf8")
+          readFile(new URL("../drizzle/0008_big_tigra.sql", import.meta.url), "utf8"),
+          readFile(new URL("../drizzle/0009_lowly_fabian_cortez.sql", import.meta.url), "utf8")
         ]);
         await transaction.unsafe(migrationSeven, [], { prepare: false });
         await transaction.unsafe(migrationEight, [], { prepare: false });
+        await transaction.unsafe(migrationNine, [], { prepare: false });
       }
 
       const afterState = getSchemaState(await readSchemaSnapshot(transaction));

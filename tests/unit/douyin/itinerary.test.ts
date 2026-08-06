@@ -55,6 +55,44 @@ describe("Douyin itinerary parsing", () => {
     ]);
   });
 
+  it("parses full-width wave date ranges without leaking the end day into the name", () => {
+    const parsed = parseDouyinItinerary("8.8～9深圳金铲铲", NOW);
+
+    expect(parsed.entries).toEqual([
+      expect.objectContaining({
+        dateKey: "2026-08-08",
+        endDateKey: "2026-08-09",
+        city: "深圳",
+        eventName: "金铲铲"
+      })
+    ]);
+  });
+
+  it.each(["-", "~", "～", "—", "至"])(
+    "keeps the existing date-range separator %s equivalent",
+    (separator) => {
+      const parsed = parseDouyinItinerary(`8.8${separator}9深圳金铲铲`, NOW);
+
+      expect(parsed.entries).toEqual([
+        expect.objectContaining({
+          dateKey: "2026-08-08",
+          endDateKey: "2026-08-09",
+          eventName: "金铲铲"
+        })
+      ]);
+    }
+  );
+
+  it("keeps full-width wave ranges safe when the end date is invalid", () => {
+    const parsed = parseDouyinItinerary("行程：8.8～2深圳测试活动", NOW);
+
+    expect(parsed.entries).toEqual([]);
+    expect(parsed.skipped).toContainEqual({
+      rawText: "8.8～2深圳测试活动",
+      reason: "invalid_date"
+    });
+  });
+
   it("starts unlabeled display blocks at the first date", () => {
     expect(parseDouyinItinerary(SAMPLE_FOUR, NOW).displayBlocks).toEqual(["8.9号广州黑蜻蜓"]);
     expect(parseDouyinItinerary(SAMPLE_FIVE, NOW).displayBlocks).toEqual([

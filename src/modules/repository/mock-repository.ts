@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getMockState, setMockState, toContentState, toEditorProfile } from "@/modules/repository/mock-store";
-import type { ContentRepository } from "@/modules/repository/types";
+import type { ContentRepository, EventMergePersistenceInput } from "@/modules/repository/types";
 import type { EditorProfile, RepositoryState } from "@/modules/domain/types";
 
 function replaceState(mutator: (state: RepositoryState) => RepositoryState) {
@@ -139,6 +139,10 @@ export const mockRepository: ContentRepository = {
       state.douyinProfiles = state.douyinProfiles.filter((profile) => profile.talentId !== id);
       state.douyinRelatedAccounts = state.douyinRelatedAccounts.filter((account) => account.talentId !== id);
       state.douyinScheduleEntries = state.douyinScheduleEntries.filter((entry) => entry.talentId !== id);
+      state.eventMergeRules = state.eventMergeRules.map((rule) => ({
+        ...rule,
+        members: rule.members.filter((member) => member.talentId !== id)
+      }));
       state.douyinSyncResults = state.douyinSyncResults.map((result) =>
         result.talentId === id ? { ...result, talentId: null } : result
       );
@@ -156,6 +160,45 @@ export const mockRepository: ContentRepository = {
       return state;
     });
     return event;
+  },
+  async mergeEvents(input: EventMergePersistenceInput) {
+    replaceState((state) => {
+      const deletedEventIds = new Set(input.deletedEventIds);
+      const scheduleEntryIds = new Set(input.scheduleEntryIds);
+      const deletedRuleIds = new Set(input.deletedMergeRuleIds);
+      const targetExists = state.events.some((event) => event.id === input.targetEvent.id);
+      const allSelectedEventIds = new Set([input.targetEvent.id, ...input.deletedEventIds]);
+
+      if (!targetExists || input.deletedEventIds.some((id) => id === input.targetEvent.id)) {
+        throw new Error("合并目标活动不存在或不合法。");
+      }
+      if (input.deletedEventIds.some((id) => !state.events.some((event) => event.id === id))) {
+        throw new Error("待合并活动已不存在，请刷新后重试。");
+      }
+
+      const eventIndex = state.events.findIndex((event) => event.id === input.targetEvent.id);
+      state.events[eventIndex] = structuredClone(input.targetEvent);
+      state.lineups = [
+        ...state.lineups.filter((lineup) => !allSelectedEventIds.has(lineup.eventId)),
+        ...structuredClone(input.lineups)
+      ];
+      state.archives = [
+        ...state.archives.filter((archive) => !allSelectedEventIds.has(archive.eventId)),
+        ...structuredClone(input.archives)
+      ];
+      state.douyinScheduleEntries = state.douyinScheduleEntries.map((entry) =>
+        scheduleEntryIds.has(entry.id) ? { ...entry, eventId: input.targetEvent.id } : entry
+      );
+      state.events = state.events.filter((event) => !deletedEventIds.has(event.id));
+      state.douyinScheduleEntries = state.douyinScheduleEntries.map((entry) =>
+        entry.eventId && deletedEventIds.has(entry.eventId) ? { ...entry, eventId: null } : entry
+      );
+      state.eventMergeRules = [
+        ...state.eventMergeRules.filter((rule) => !deletedRuleIds.has(rule.id)),
+        ...structuredClone(input.mergeRules)
+      ];
+      return state;
+    });
   },
   async replaceEventLineup(eventId, nextLineups) {
     replaceState((state) => {
@@ -185,13 +228,48 @@ export const mockRepository: ContentRepository = {
       state.douyinProfiles = structuredClone(input.profiles);
       state.douyinRelatedAccounts = structuredClone(input.relatedAccounts);
       state.douyinScheduleEntries = scheduleEntries;
+      const nextMergeRules = [...state.eventMergeRules];
+      for (const rule of input.eventMergeRules) {
+        const ruleIndex = nextMergeRules.findIndex((item) => item.id === rule.id);
+        if (ruleIndex >= 0) {
+          const currentRule = nextMergeRules[ruleIndex];
+          const membersById = new Map(currentRule.members.map((member) => [member.id, member]));
+          for (const member of rule.members) {
+            membersById.set(member.id, structuredClone(member));
+          }
+          nextMergeRules[ruleIndex] = {
+            ...currentRule,
+            ...structuredClone(rule),
+            members: [...membersById.values()].sort((left, right) => left.id.localeCompare(right.id))
+          };
+        } else {
+          nextMergeRules.push(structuredClone(rule));
+        }
+      }
+      state.eventMergeRules = nextMergeRules.filter((rule) =>
+        state.events.some((event) => event.id === rule.targetEventId)
+      );
 
       for (const event of input.upsertEvents) {
         const eventIndex = state.events.findIndex((item) => item.id === event.id);
         if (eventIndex >= 0) {
-          if (state.events[eventIndex].origin === "douyin_sync") {
+          const existingEvent = state.events[eventIndex];
+          if (event.origin === "douyin_merged") {
+            if (existingEvent.origin === "douyin_merged") {
+              state.events[eventIndex] = {
+                ...existingEvent,
+                startsAt: event.startsAt,
+                endsAt: event.endsAt,
+                status: event.status,
+                updatedAt: event.updatedAt,
+                origin: "douyin_merged"
+              };
+            }
+          } else if (existingEvent.origin === "douyin_sync") {
             state.events[eventIndex] = structuredClone(event);
           }
+        } else if (event.origin === "douyin_merged") {
+          throw new Error("抖音合并目标活动不存在，请刷新后重试。");
         } else {
           state.events.push(structuredClone(event));
         }
@@ -286,6 +364,7 @@ export const mockRepository: ContentRepository = {
       state.events = state.events.filter((item) => item.id !== id);
       state.lineups = state.lineups.filter((item) => item.eventId !== id);
       state.archives = state.archives.filter((item) => item.eventId !== id);
+      state.eventMergeRules = state.eventMergeRules.filter((rule) => rule.targetEventId !== id);
       state.douyinScheduleEntries = state.douyinScheduleEntries.map((entry) =>
         entry.eventId === id ? { ...entry, eventId: null } : entry
       );

@@ -1,4 +1,5 @@
 import { demoSeedState } from "@/modules/domain/seed";
+import { saveEventBulk } from "@/modules/admin/mutations";
 import type { Talent } from "@/modules/domain/types";
 import { DouyinScraperError, type DouyinScraperResponse } from "@/modules/douyin/scraper-client";
 import { runDouyinSync } from "@/modules/douyin/sync";
@@ -251,6 +252,33 @@ describe("Douyin profile synchronization", () => {
     expect(nextState.lineups.filter((lineup) => lineup.eventId === manualEvent.id)).toHaveLength(2);
   });
 
+  it("treats legacy events without an origin as manual matches", async () => {
+    const state = getMockState();
+    const legacyEvent = {
+      id: "legacy-shenzhen-event",
+      slug: null,
+      name: "金铲铲",
+      aliases: ["旧别名"],
+      searchKeywords: ["旧关键词"],
+      startsAt: "2026-08-08T12:00:00.000Z",
+      endsAt: "2026-08-08T12:00:00.000Z",
+      city: "深圳市",
+      venue: "旧场馆",
+      status: "future" as const,
+      note: "旧备注",
+      updatedAt: "2026-08-01T00:00:00.000Z"
+    };
+    state.events.push(legacyEvent);
+    setMockState(state);
+
+    await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
+
+    const nextState = getMockState();
+    expect(nextState.events.filter((event) => event.origin === "douyin_sync")).toHaveLength(0);
+    expect(nextState.events.find((event) => event.id === legacyEvent.id)).toEqual(legacyEvent);
+    expect(nextState.lineups.filter((lineup) => lineup.eventId === legacyEvent.id)).toHaveLength(2);
+  });
+
   it("does not revive an admin-suppressed lineup when suppression races the final save", async () => {
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
     const entryId = getMockState().douyinScheduleEntries.find(
@@ -322,5 +350,107 @@ describe("Douyin profile synchronization", () => {
         (lineup) => lineup.eventId === event?.id && lineup.talentId === state.talents[0].id
       )
     ).toHaveLength(1);
+  });
+
+  it("keeps manually merged named groups on one target while continuing source updates", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    try {
+      await runWithSignatures("8.8深圳金铲铲", "8.8深圳和平精英");
+      const beforeMerge = getMockState();
+      const sourceEvents = beforeMerge.events.filter((event) => event.origin === "douyin_sync");
+      expect(sourceEvents).toHaveLength(2);
+
+      const targetId = sourceEvents[0]!.id;
+      const mergeResult = await saveEventBulk({
+        action: "merge",
+        ids: sourceEvents.map((event) => event.id),
+        targetId
+      });
+
+      expect(mergeResult.succeededIds).toHaveLength(1);
+      expect(getMockState().eventMergeRules).toHaveLength(1);
+      expect(getMockState().events.find((event) => event.id === targetId)?.origin).toBe("douyin_merged");
+
+      await runWithSignatures("8.9深圳金铲铲新", "8.9深圳和平精英新", new Date("2026-08-05T04:00:00.000Z"));
+
+      const afterSync = getMockState();
+      expect(afterSync.events.filter((event) => event.origin === "douyin_sync")).toHaveLength(0);
+      expect(afterSync.events.find((event) => event.id === targetId)).toMatchObject({
+        origin: "douyin_merged",
+        startsAt: "2026-08-08T12:00:00.000Z",
+        endsAt: "2026-08-09T12:00:00.000Z"
+      });
+      expect(afterSync.lineups.filter((lineup) => lineup.eventId === targetId)).toHaveLength(4);
+      expect(afterSync.douyinScheduleEntries.filter((entry) => entry.eventId === targetId)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ eventName: "金铲铲新", startsAt: "2026-08-09T12:00:00.000Z" }),
+          expect.objectContaining({ eventName: "和平精英新", startsAt: "2026-08-09T12:00:00.000Z" })
+        ])
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not let a stale sync snapshot overwrite editor-owned merged fields", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    try {
+      await runWithSignatures("8.8深圳金铲铲", "8.8深圳和平精英");
+      const beforeMerge = getMockState();
+      const sourceEvents = beforeMerge.events.filter((event) => event.origin === "douyin_sync");
+      const targetId = sourceEvents[0]!.id;
+      await saveEventBulk({
+        action: "merge",
+        ids: sourceEvents.map((event) => event.id),
+        targetId
+      });
+
+      const repository = {
+        ...mockRepository,
+        async saveDouyinSyncState(input: Parameters<typeof mockRepository.saveDouyinSyncState>[0]) {
+          const state = getMockState();
+          setMockState({
+            ...state,
+            events: state.events.map((event) =>
+              event.id === targetId
+                ? {
+                    ...event,
+                    name: "管理员改名",
+                    aliases: ["编辑别名"],
+                    searchKeywords: ["编辑关键词"],
+                    venue: "管理员场馆",
+                    note: "管理员备注"
+                  }
+                : event
+            )
+          });
+          await mockRepository.saveDouyinSyncState(input);
+        }
+      };
+
+      await runDouyinSync({
+        trigger: "cron",
+        repository,
+        config: CONFIG,
+        now: new Date("2026-08-05T04:00:00.000Z"),
+        fetchProfile: async (profileUrl) =>
+          responseFor(profileUrl, profileUrl === PROFILE_ONE ? "8.9深圳金铲铲新" : "8.9深圳和平精英新")
+      });
+
+      expect(getMockState().events.find((event) => event.id === targetId)).toMatchObject({
+        name: "管理员改名",
+        aliases: ["编辑别名"],
+        searchKeywords: ["编辑关键词"],
+        venue: "管理员场馆",
+        note: "管理员备注",
+        origin: "douyin_merged",
+        startsAt: "2026-08-08T12:00:00.000Z",
+        endsAt: "2026-08-09T12:00:00.000Z"
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

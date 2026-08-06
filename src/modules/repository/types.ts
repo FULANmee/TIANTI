@@ -6,6 +6,7 @@ import type {
   EditorArchive,
   EditorLadder,
   Event,
+  EventMergeRule,
   EventLineup,
   DouyinSyncResult,
   DouyinSyncRun,
@@ -16,12 +17,23 @@ import type {
   TalentDouyinScheduleEntry
 } from "@/modules/domain/types";
 
+export interface EventMergePersistenceInput {
+  targetEvent: Event;
+  deletedEventIds: string[];
+  lineups: EventLineup[];
+  archives: ContentState["archives"];
+  scheduleEntryIds: string[];
+  mergeRules: EventMergeRule[];
+  deletedMergeRuleIds: string[];
+}
+
 export interface DouyinSyncPersistenceInput {
   profiles: TalentDouyinProfile[];
   relatedAccounts: TalentDouyinRelatedAccount[];
   scheduleEntries: TalentDouyinScheduleEntry[];
   upsertEvents: Event[];
   sourceLineups: EventLineup[];
+  eventMergeRules: EventMergeRule[];
   deleteSyncEventIds: string[];
   syncRun: DouyinSyncRun;
   syncResults: DouyinSyncResult[];
@@ -39,6 +51,7 @@ export interface ContentRepository {
   upsertTalent(talent: Talent): Promise<Talent>;
   deleteTalent(id: string): Promise<void>;
   upsertEvent(event: Event): Promise<Event>;
+  mergeEvents(input: EventMergePersistenceInput): Promise<void>;
   replaceEventLineup(eventId: string, state: ContentState["lineups"]): Promise<void>;
   saveDouyinSyncState(input: DouyinSyncPersistenceInput): Promise<void>;
   tryStartDouyinSyncRun(run: DouyinSyncRun, staleBefore: string): Promise<boolean>;

@@ -215,6 +215,37 @@ test("editor can create a talent with inline uploads and publish a future event"
   await expect(page.getByRole("link", { name: /Starlight Expo/ }).first()).toBeVisible();
 });
 
+test("editor can quickly merge two future activities and keep the selected target", async ({ page }) => {
+  const firstDate = getFutureDateKey(30);
+  const secondDate = getFutureDateKey(31);
+  await login(page);
+  await page.goto("/admin/archives");
+
+  for (const [name, date] of [
+    ["深圳活动 A", firstDate],
+    ["深圳活动 B", secondDate]
+  ] as const) {
+    await page.getByTestId("new-event-button").click();
+    await page.locator('input[name="name"]').fill(name);
+    await page.locator('input[name="startsAt"]').fill(date);
+    await page.locator('input[name="endsAt"]').fill(date);
+    await page.locator('input[name="city"]').fill("深圳");
+    await page.getByTestId("save-event").click();
+    await expect(page.getByText(`活动「${name}」已保存。`)).toBeVisible();
+  }
+
+  await page.getByRole("checkbox", { name: "选择 深圳活动 A" }).check();
+  await page.getByRole("checkbox", { name: "选择 深圳活动 B" }).check();
+  await page.getByTestId("bulk-merge-events").click();
+  await expect(page.getByTestId("bulk-merge-dialog")).toBeVisible();
+  await page.getByRole("radio", { name: "保留 深圳活动 A" }).check();
+  await page.getByTestId("bulk-merge-submit").click();
+
+  await expect(page.getByText(/已将 2 个活动合并为「深圳活动 A」/)).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "选择 深圳活动 B" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "深圳活动 A" })).toBeVisible();
+});
+
 test("multi-day event lineups are grouped by date in admin, list cards, and detail pages", async ({ page }) => {
   const firstDate = getFutureDateKey(40);
   const secondDate = getFutureDateKey(41);
