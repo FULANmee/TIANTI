@@ -58,6 +58,7 @@ Extend the shared guard if another protected workflow gains meaningful unsaved w
 
 - Wrap navigation and nonblocking mutation UI updates in useTransition.
 - Use pending to disable duplicate submissions and communicate progress.
+- When one manager exposes multiple save actions, keep each action's visible pending state focused on that action. A shared transition may still coordinate mutual exclusion, but button labels/loading indicators must use per-action booleans that reset in `finally` so one request cannot make unrelated save buttons look active.
 - Use useDeferredValue for client search over large local lists, as TalentManager does.
 - Derive maps, filtered lists, and duplicate matches with useMemo instead of storing synchronized copies.
 - Use functional state setters when the next array/object depends on the current one.

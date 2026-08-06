@@ -246,6 +246,51 @@ test("editor can quickly merge two future activities and keep the selected targe
   await expect(page.getByRole("heading", { name: "深圳活动 A" })).toBeVisible();
 });
 
+test("archive save buttons keep their pending labels independent", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin/archives");
+  await openSelectedEventEditor(page);
+
+  const eventSaveButton = page.getByTestId("save-event");
+  const archiveSaveButton = page.getByTestId("save-archive");
+  await page.locator('textarea[name="note"]').fill("活动保存 pending 状态回归测试");
+
+  let releaseEventRequest!: () => void;
+  const eventRequestPaused = new Promise<void>((resolve) => {
+    releaseEventRequest = resolve;
+  });
+  await page.route("**/api/admin/events/**", async (route) => {
+    await eventRequestPaused;
+    await route.continue();
+  });
+
+  await eventSaveButton.click();
+  await expect(eventSaveButton).toHaveText("保存中...");
+  await expect(archiveSaveButton).toHaveText("保存我的档案");
+  releaseEventRequest();
+  await expect(page.getByText(/活动「.+」已保存。/)).toBeVisible();
+  await page.unroute("**/api/admin/events/**");
+
+  await openSelectedEventEditor(page);
+  await page.getByTestId("archive-note").fill("档案保存 pending 状态回归测试");
+
+  let releaseArchiveRequest!: () => void;
+  const archiveRequestPaused = new Promise<void>((resolve) => {
+    releaseArchiveRequest = resolve;
+  });
+  await page.route("**/api/admin/archives", async (route) => {
+    await archiveRequestPaused;
+    await route.continue();
+  });
+
+  await archiveSaveButton.click();
+  await expect(archiveSaveButton).toHaveText("保存中...");
+  await expect(eventSaveButton).toHaveText("保存活动信息");
+  releaseArchiveRequest();
+  await waitForArchiveSaved(page);
+  await page.unroute("**/api/admin/archives");
+});
+
 test("multi-day event lineups are grouped by date in admin, list cards, and detail pages", async ({ page }) => {
   const firstDate = getFutureDateKey(40);
   const secondDate = getFutureDateKey(41);

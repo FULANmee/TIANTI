@@ -298,6 +298,8 @@ export function ArchiveManager({
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [pending, startTransition] = useTransition();
+  const [savingEvent, setSavingEvent] = useState(false);
+  const [savingArchive, setSavingArchive] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [liveAssets, setLiveAssets] = useState(assets);
   const [cleanupCandidateAssetIds, setCleanupCandidateAssetIds] = useState<string[]>([]);
@@ -692,43 +694,48 @@ export function ArchiveManager({
       lineups: editableLineups
     };
 
+    setSavingEvent(true);
     startTransition(async () => {
-      const response = await fetch(eventDraft.id ? `/api/admin/events/${eventDraft.id}` : "/api/admin/events", {
-        method: eventDraft.id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const response = await fetch(eventDraft.id ? `/api/admin/events/${eventDraft.id}` : "/api/admin/events", {
+          method: eventDraft.id ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
-      const data = (await response.json().catch(() => null)) as { error?: string; event?: Event } | null;
-      if (!response.ok || !data?.event) {
-        setMessage(data?.error ?? "保存活动失败。");
-        return;
+        const data = (await response.json().catch(() => null)) as { error?: string; event?: Event } | null;
+        if (!response.ok || !data?.event) {
+          setMessage(data?.error ?? "保存活动失败。");
+          return;
+        }
+
+        const nextEventId = data.event.id;
+        const nextEvents = sortEventsForManager(
+          liveEvents.some((event) => event.id === nextEventId)
+            ? liveEvents.map((event) => (event.id === nextEventId ? data.event! : event))
+            : [...liveEvents, data.event]
+        );
+        const nextLineups = [
+          ...liveLineups.filter((lineup) => lineup.eventId !== nextEventId),
+          ...editableLineups
+            .filter((lineup) => lineup.talentId)
+            .map((lineup) => ({
+              ...lineup,
+              eventId: nextEventId,
+              lineupDate: toDateOnlyIso(lineup.lineupDate) ?? null,
+              status: "confirmed" as const,
+              source: ""
+            }))
+        ];
+
+        setLiveEvents(nextEvents);
+        setLiveLineups(nextLineups);
+        resetDrafts(nextEventId, nextEvents, nextLineups, liveArchives);
+        setIsEventEditorOpen(false);
+        setMessage(`活动「${data.event.name}」已保存。`);
+      } finally {
+        setSavingEvent(false);
       }
-
-      const nextEventId = data.event.id;
-      const nextEvents = sortEventsForManager(
-        liveEvents.some((event) => event.id === nextEventId)
-          ? liveEvents.map((event) => (event.id === nextEventId ? data.event! : event))
-          : [...liveEvents, data.event]
-      );
-      const nextLineups = [
-        ...liveLineups.filter((lineup) => lineup.eventId !== nextEventId),
-        ...editableLineups
-          .filter((lineup) => lineup.talentId)
-          .map((lineup) => ({
-            ...lineup,
-            eventId: nextEventId,
-            lineupDate: toDateOnlyIso(lineup.lineupDate) ?? null,
-            status: "confirmed" as const,
-            source: ""
-          }))
-      ];
-
-      setLiveEvents(nextEvents);
-      setLiveLineups(nextLineups);
-      resetDrafts(nextEventId, nextEvents, nextLineups, liveArchives);
-      setIsEventEditorOpen(false);
-      setMessage(`活动「${data.event.name}」已保存。`);
     });
   }
 
@@ -753,36 +760,41 @@ export function ArchiveManager({
 
     setMessage(null);
 
+    setSavingArchive(true);
     startTransition(async () => {
-      const response = await fetch("/api/admin/archives", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          id: archiveDraft.id || undefined,
-          eventId,
-          note: archiveDraft.note,
-          cleanupCandidateAssetIds,
-          entries: archiveDraft.entries
-        })
-      });
+      try {
+        const response = await fetch("/api/admin/archives", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            id: archiveDraft.id || undefined,
+            eventId,
+            note: archiveDraft.note,
+            cleanupCandidateAssetIds,
+            entries: archiveDraft.entries
+          })
+        });
 
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string; archive?: EditorArchive }
-        | null;
-      if (!response.ok || !data?.archive) {
-        setMessage(data?.error ?? "保存档案失败。");
-        return;
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string; archive?: EditorArchive }
+          | null;
+        if (!response.ok || !data?.archive) {
+          setMessage(data?.error ?? "保存档案失败。");
+          return;
+        }
+
+        const nextArchives = liveArchives.some((archive) => archive.eventId === eventId)
+          ? liveArchives.map((archive) => (archive.eventId === eventId ? data.archive! : archive))
+          : [...liveArchives, data.archive];
+
+        setLiveArchives(nextArchives);
+        resetDrafts(eventId, liveEvents, liveLineups, nextArchives);
+        setMessage(`我的档案已保存到「${selectedEvent ? getEventDisplayName(selectedEvent) : eventDraft.name}」。`);
+      } finally {
+        setSavingArchive(false);
       }
-
-      const nextArchives = liveArchives.some((archive) => archive.eventId === eventId)
-        ? liveArchives.map((archive) => (archive.eventId === eventId ? data.archive! : archive))
-        : [...liveArchives, data.archive];
-
-      setLiveArchives(nextArchives);
-      resetDrafts(eventId, liveEvents, liveLineups, nextArchives);
-      setMessage(`我的档案已保存到「${selectedEvent ? getEventDisplayName(selectedEvent) : eventDraft.name}」。`);
     });
   }
 
@@ -1364,11 +1376,11 @@ export function ArchiveManager({
               <button
                 type="button"
                 onClick={handleSaveEvent}
-                disabled={pending}
+                disabled={pending || savingEvent}
                 data-testid="save-event"
                 className="rounded-full bg-[var(--color-accent)] px-5 py-3 text-sm uppercase tracking-[0.25em] text-black disabled:opacity-60"
               >
-                {pending ? "保存中..." : "保存活动信息"}
+                {savingEvent ? "保存中..." : "保存活动信息"}
               </button>
             </div>
           </div>
@@ -1570,10 +1582,10 @@ export function ArchiveManager({
                 type="button"
                 onClick={handleSaveArchive}
                 data-testid="save-archive"
-                disabled={pending}
+                disabled={pending || savingArchive}
                 className="rounded-full bg-[var(--color-accent)] px-5 py-3 text-sm uppercase tracking-[0.25em] text-black disabled:opacity-60"
               >
-                {pending ? "保存中..." : "保存我的档案"}
+                {savingArchive ? "保存中..." : "保存我的档案"}
               </button>
             </div>
           </>
