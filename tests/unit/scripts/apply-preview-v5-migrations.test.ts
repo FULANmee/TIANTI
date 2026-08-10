@@ -3,7 +3,9 @@ import { resolve } from "node:path";
 import {
   PRODUCTION_NEON_BRANCH_ID,
   getSchemaState,
+  getMigrationTarget,
   getValidatedDatabaseUrl,
+  isEnabledForProductionBuild,
   isEnabledForThisBuild,
   targetColumns,
   targetConstraints,
@@ -17,6 +19,14 @@ const validPreviewEnvironment = {
   VERCEL_ENV: "preview",
   VERCEL_TARGET_ENV: "preview",
   VERCEL_GIT_COMMIT_REF: "5.0",
+  VERCEL_DEPLOYMENT_ID: "dpl_test"
+};
+
+const validProductionEnvironment = {
+  TIANTI_PRODUCTION_V5_MIGRATIONS: "1",
+  VERCEL_ENV: "production",
+  VERCEL_TARGET_ENV: "production",
+  VERCEL_GIT_COMMIT_REF: "main",
   VERCEL_DEPLOYMENT_ID: "dpl_test"
 };
 
@@ -70,6 +80,7 @@ function makeLegacyCompleteSnapshot(): SchemaSnapshot {
 describe("TIANTI 5.0 Preview migration gate", () => {
   it("stays disabled unless the explicit migration flag is set", () => {
     expect(isEnabledForThisBuild({})).toBe(false);
+    expect(isEnabledForProductionBuild({})).toBe(false);
   });
 
   it.each([
@@ -89,6 +100,24 @@ describe("TIANTI 5.0 Preview migration gate", () => {
         VERCEL_DEPLOYMENT_ID: undefined
       })
     ).toThrow("Preview migration guard requires a Vercel deployment ID.");
+  });
+
+  it("accepts only a guarded Production main build", () => {
+    expect(isEnabledForProductionBuild(validProductionEnvironment)).toBe(true);
+    expect(getMigrationTarget(validProductionEnvironment)).toBe("production");
+
+    expect(() =>
+      isEnabledForProductionBuild({ ...validProductionEnvironment, VERCEL_GIT_COMMIT_REF: "5.0" })
+    ).toThrow("Production migration guard rejected this deployment context.");
+    expect(() =>
+      isEnabledForProductionBuild({ ...validProductionEnvironment, VERCEL_DEPLOYMENT_ID: undefined })
+    ).toThrow("Production migration guard requires a Vercel deployment ID.");
+  });
+
+  it("does not allow Preview and Production migration gates together", () => {
+    expect(() =>
+      getMigrationTarget({ ...validPreviewEnvironment, TIANTI_PRODUCTION_V5_MIGRATIONS: "1" })
+    ).toThrow("Preview and Production migration flags cannot be enabled together.");
   });
 
   it("pins the known Production Neon branch deny-list value", () => {
@@ -111,7 +140,7 @@ describe("TIANTI 5.0 Preview migration gate", () => {
     }
 
     expect(thrown).toBeInstanceOf(Error);
-    expect(String(thrown)).toBe("Error: Preview migration requires a valid database URL.");
+    expect(String(thrown)).toBe("Error: 5.0 migration requires a valid database URL.");
     expect(String(thrown)).not.toContain(secret);
   });
 

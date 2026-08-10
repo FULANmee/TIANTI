@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import postgres from "postgres";
 
 export const PRODUCTION_NEON_BRANCH_ID = "br-patient-dust-anwfalxy";
-const MIGRATION_LOCK_KEY = "tianti-preview-v5-migrations";
+const MIGRATION_LOCK_KEY = "tianti-v5-migrations";
 
 export const targetTables = [
   "douyin_sync_results",
@@ -132,6 +132,8 @@ const mergeRuleConstraintNames = new Set([
 type Sql = postgres.TransactionSql;
 type MigrationEnvironment = Readonly<Record<string, string | undefined>>;
 
+export type MigrationTarget = "preview" | "production";
+
 export interface SchemaSnapshot {
   baseTablesPresent: boolean;
   targetTableNames: Set<string>;
@@ -161,10 +163,49 @@ export function isEnabledForThisBuild(environment: MigrationEnvironment = proces
   return true;
 }
 
+export function isEnabledForProductionBuild(environment: MigrationEnvironment = process.env) {
+  if (environment.TIANTI_PRODUCTION_V5_MIGRATIONS !== "1") {
+    return false;
+  }
+
+  if (
+    environment.VERCEL_ENV !== "production" ||
+    environment.VERCEL_TARGET_ENV !== "production" ||
+    environment.VERCEL_GIT_COMMIT_REF !== "main"
+  ) {
+    throw new Error("Production migration guard rejected this deployment context.");
+  }
+
+  if (!environment.VERCEL_DEPLOYMENT_ID?.startsWith("dpl_")) {
+    throw new Error("Production migration guard requires a Vercel deployment ID.");
+  }
+
+  return true;
+}
+
+export function getMigrationTarget(environment: MigrationEnvironment = process.env): MigrationTarget | null {
+  const previewEnabled = environment.TIANTI_PREVIEW_V5_MIGRATIONS === "1";
+  const productionEnabled = environment.TIANTI_PRODUCTION_V5_MIGRATIONS === "1";
+
+  if (previewEnabled && productionEnabled) {
+    throw new Error("Preview and Production migration flags cannot be enabled together.");
+  }
+
+  if (previewEnabled) {
+    return isEnabledForThisBuild(environment) ? "preview" : null;
+  }
+
+  if (productionEnabled) {
+    return isEnabledForProductionBuild(environment) ? "production" : null;
+  }
+
+  return null;
+}
+
 export function getValidatedDatabaseUrl(environment: MigrationEnvironment = process.env) {
   const raw = environment.DATABASE_URL;
   if (!raw) {
-    throw new Error("Preview migration requires DATABASE_URL.");
+    throw new Error("5.0 migration requires DATABASE_URL.");
   }
 
   let parsed: URL;
@@ -173,14 +214,14 @@ export function getValidatedDatabaseUrl(environment: MigrationEnvironment = proc
   } catch {
     // Node's ERR_INVALID_URL includes the original input, which can contain the
     // database password. Replace it with a deliberately secret-free error.
-    throw new Error("Preview migration requires a valid database URL.");
+    throw new Error("5.0 migration requires a valid database URL.");
   }
   if (
     !["postgres:", "postgresql:"].includes(parsed.protocol) ||
     !parsed.hostname.endsWith(".neon.tech") ||
     !parsed.hostname.split(".")[0]?.startsWith("ep-")
   ) {
-    throw new Error("Preview migration requires a Neon deployment endpoint.");
+    throw new Error("5.0 migration requires a Neon deployment endpoint.");
   }
 
   return {
@@ -295,8 +336,9 @@ export function getSchemaState(snapshot: SchemaSnapshot) {
 }
 
 export async function main(environment: MigrationEnvironment = process.env) {
-  if (!isEnabledForThisBuild(environment)) {
-    console.log("TIANTI 5.0 Preview migration skipped.");
+  const migrationTarget = getMigrationTarget(environment);
+  if (!migrationTarget) {
+    console.log("TIANTI 5.0 migration skipped.");
     return;
   }
 
@@ -314,17 +356,21 @@ export async function main(environment: MigrationEnvironment = process.env) {
         select current_setting('neon.branch_id', true) as branch_id
       `;
       const branchId = branchRows[0]?.branch_id;
-      if (!branchId || !branchId.startsWith("br-") || branchId === PRODUCTION_NEON_BRANCH_ID) {
-        throw new Error("Preview migration rejected an unverified or production Neon branch.");
+      if (migrationTarget === "preview") {
+        if (!branchId || !branchId.startsWith("br-") || branchId === PRODUCTION_NEON_BRANCH_ID) {
+          throw new Error("Preview migration rejected an unverified or production Neon branch.");
+        }
+      } else if (branchId !== PRODUCTION_NEON_BRANCH_ID) {
+        throw new Error("Production migration rejected a non-production Neon branch.");
       }
 
       const before = await readSchemaSnapshot(transaction);
       const beforeState = getSchemaState(before);
       if (beforeState === "invalid_base") {
-        throw new Error("Preview database is missing required TIANTI base tables.");
+        throw new Error("5.0 migration database is missing required TIANTI base tables.");
       }
       if (beforeState === "partial") {
-        throw new Error("Preview database contains a partial TIANTI 5.0 schema.");
+        throw new Error("5.0 migration database contains a partial TIANTI 5.0 schema.");
       }
 
       if (beforeState === "fresh") {
@@ -346,7 +392,7 @@ export async function main(environment: MigrationEnvironment = process.env) {
 
       const afterState = getSchemaState(await readSchemaSnapshot(transaction));
       if (afterState !== "complete") {
-        throw new Error("Preview database failed the complete TIANTI 5.0 schema check.");
+        throw new Error("5.0 migration database failed the complete TIANTI 5.0 schema check.");
       }
 
       return { beforeState, branchId };
@@ -356,7 +402,7 @@ export async function main(environment: MigrationEnvironment = process.env) {
   }
 
   console.log(
-    `TIANTI 5.0 Preview schema ${
+    `TIANTI 5.0 ${migrationTarget === "preview" ? "Preview" : "Production"} schema ${
       migrationResult.beforeState === "fresh"
         ? "applied"
         : migrationResult.beforeState === "legacy_complete"
