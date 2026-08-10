@@ -1,9 +1,0 @@
-{"file":".trellis/spec/frontend/index.md","reason":"Defines the frontend architecture and routes this multi-surface interaction repair to the applicable component, state, and quality contracts."}
-{"file":".trellis/spec/frontend/state-management.md","reason":"Required for semantic dirty-state comparison and integration with the shared admin unsaved-changes guard."}
-{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Defines accessible control labeling, modal semantics, keyboard behavior, and shared component boundaries."}
-{"file":".trellis/spec/frontend/routing-and-data-loading.md","reason":"Keeps server-rendered filter URL state and guarded client navigation behavior aligned with existing conventions."}
-{"file":".trellis/spec/frontend/type-safety.md","reason":"Governs payload narrowing, nullable dates, runtime boundary checks, and reconciliation of the stale event bulk type."}
-{"file":".trellis/spec/backend/index.md","reason":"Defines backend layer ownership for validation and domain behavior."}
-{"file":".trellis/spec/backend/domain-guidelines.md","reason":"Required for Shanghai-derived event state, date-only storage, mutation invariants, and stored-status compatibility rules."}
-{"file":".trellis/spec/backend/error-handling.md","reason":"Keeps new validation failures and corrected API text within existing response-envelope and user-message conventions."}
-{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Ensures admin writes, repository compatibility, public projections, sitemap output, and regression proofs are traced end to end."}
