@@ -1,5 +1,11 @@
 # 开发日志
 
+## 2026-08-11 — 开启 codex/5.1 Preview 抖音同步
+
+- 为 `codex/5.1` 的 Vercel Preview 环境生成并配置分支专用 `SCRAPER_SHARED_SECRET`，不记录密钥值。
+- 设置 `DOUYIN_SYNC_ENABLED=true`；显式关闭浏览器链接实验开关，避免影响本次 Preview 验收。
+- 以上配置仅作用于 `codex/5.1` Preview，不改变 `5.0` 或 Production。
+
 ## 2026-08-11 — 恢复抖音人工搜索快捷窗口
 
 - 根据验收反馈移除抖音主页候选自动查询、候选选择接口与相关页面；保留抖音昵称搜索快捷窗口。
