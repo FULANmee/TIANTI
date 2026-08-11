@@ -81,12 +81,8 @@ describe("Douyin profile synchronization", () => {
     prepareTalents();
   });
 
-  it("stores the newest work and only auto-fills MCN when a manual value does not win", async () => {
+  it("stores the newest work", async () => {
     prepareTalents();
-    const state = getMockState();
-    state.talents[0] = { ...state.talents[0]!, mcn: "", mcnSource: "manual" };
-    state.talents[1] = { ...state.talents[1]!, mcn: "人工机构", mcnSource: "manual" };
-    setMockState(state);
 
     await runDouyinSync({
       trigger: "cron",
@@ -96,7 +92,6 @@ describe("Douyin profile synchronization", () => {
       fetchProfile: async (profileUrl) => ({
         ...responseFor(profileUrl, ""),
         schemaVersion: 2,
-        profile: { ...responseFor(profileUrl, "").profile, mcn: "抖音结构化机构" },
         latestWork: {
           url: "https://www.douyin.com/video/1234567890",
           caption: "最新作品文案",
@@ -110,8 +105,6 @@ describe("Douyin profile synchronization", () => {
     });
 
     const after = getMockState();
-    expect(after.talents[0]).toMatchObject({ mcn: "抖音结构化机构", mcnSource: "douyin" });
-    expect(after.talents[1]).toMatchObject({ mcn: "人工机构", mcnSource: "manual" });
     expect(after.douyinProfiles[0]).toMatchObject({
       latestWorkUrl: "https://www.douyin.com/video/1234567890",
       latestWorkCaption: "最新作品文案",

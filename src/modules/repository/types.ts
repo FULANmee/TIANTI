@@ -39,7 +39,6 @@ export interface DouyinSyncPersistenceInput {
   deleteSyncEventIds: string[];
   syncRun: DouyinSyncRun;
   syncResults: DouyinSyncResult[];
-  mcnUpdates: Array<{ talentId: string; mcn: string }>;
 }
 
 export interface ContentRepository {

@@ -35,7 +35,6 @@ const talentSchema = z.object({
   nickname: z.string().trim().min(1, "达人昵称不能为空。"),
   slug: z.string().nullable().optional(),
   bio: z.string().optional().default(""),
-  mcn: z.string().optional().default(""),
   aliases: z.array(z.string()).optional(),
   searchKeywords: z.array(z.string()).optional(),
   coverAssetId: z.string().nullable().optional(),
@@ -374,8 +373,6 @@ export async function saveTalent(payload: unknown) {
     [nickname, ...aliases, ...((input.searchKeywords ?? []).map((item) => item.trim()).filter(Boolean))]
   );
   const assetTitleMap = new Map<string | null, string>(state.assets.map((asset) => [asset.id, asset.title]));
-  const existingTalent = state.talents.find((talent) => talent.id === id);
-  const normalizedMcn = input.mcn.trim();
 
   await ensureUniqueTalentSlug(id, slug);
   await ensureUniqueTalentNickname(id, nickname);
@@ -385,11 +382,6 @@ export async function saveTalent(payload: unknown) {
     slug,
     nickname,
     bio: input.bio.trim(),
-    mcn: normalizedMcn,
-    mcnSource:
-      existingTalent && existingTalent.mcn === normalizedMcn
-        ? existingTalent.mcnSource ?? "manual"
-        : "manual",
     aliases,
     searchKeywords,
     coverAssetId: input.coverAssetId?.trim() || null,

@@ -101,7 +101,6 @@ export default async function TalentDetailPage({
 
   const publicInfoRows = [
     detail.talent.aliases.length > 0 ? { label: "别名", value: detail.talent.aliases.join(" / ") } : null,
-    detail.talent.mcn ? { label: "所属机构", value: detail.talent.mcn } : null,
     detail.douyinProfile?.followerCount != null
       ? { label: "抖音粉丝", value: formatDouyinFollowerCount(detail.douyinProfile.followerCount) }
       : null

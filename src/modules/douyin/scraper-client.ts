@@ -13,8 +13,7 @@ const responseSchema = z.object({
   }),
   profile: z.object({
     signatureRaw: z.string().max(5_000),
-    followerCount: z.number().int().nonnegative(),
-    mcn: z.string().max(256).nullable().optional()
+    followerCount: z.number().int().nonnegative()
   }),
   relatedAccounts: z.array(
     z.object({

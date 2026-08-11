@@ -65,15 +65,25 @@ export async function main(environment: Environment = process.env) {
         )
       `;
       const markers = new Set(rows.map((row) => `${row.table_name}.${row.column_name}`));
-      const complete = [
-        "assets.crop_x", "talents.mcn_source", "talent_douyin_profiles.latest_work_url",
+      const baseComplete = [
+        "assets.crop_x", "talent_douyin_profiles.latest_work_url",
         "asset_cleanup_runs.id", "asset_object_deletion_jobs.object_key"
       ].every((marker) => markers.has(marker));
-      if (complete) return;
-      if (markers.size > 0) throw new Error("5.1 migration found a partial schema and stopped safely.");
+      if (!baseComplete) {
+        if (markers.size > 0) throw new Error("5.1 migration found a partial schema and stopped safely.");
+        const migration = await readFile(new URL("../drizzle/0010_empty_mentor.sql", import.meta.url), "utf8");
+        await transaction.unsafe(migration, [], { prepare: false });
+      }
 
-      const migration = await readFile(new URL("../drizzle/0010_empty_mentor.sql", import.meta.url), "utf8");
-      await transaction.unsafe(migration, [], { prepare: false });
+      const mcnRows = await transaction<{ column_name: string }[]>`
+        select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = 'talents'
+          and column_name in ('mcn', 'mcn_source')
+      `;
+      if (mcnRows.length > 0) {
+        const removal = await readFile(new URL("../drizzle/0011_remove_mcn.sql", import.meta.url), "utf8");
+        await transaction.unsafe(removal, [], { prepare: false });
+      }
     });
   } finally {
     await sql.end({ timeout: 5 });

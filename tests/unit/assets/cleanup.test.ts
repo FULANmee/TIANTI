@@ -69,7 +69,6 @@ describe("asset cleanup", () => {
     await saveTalent({
       nickname: "Guardian",
       bio: "",
-      mcn: "",
       aliases: [],
       coverAssetId: asset.id,
       links: [],

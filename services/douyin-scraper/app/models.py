@@ -29,7 +29,6 @@ class Account(ApiModel):
 class Profile(ApiModel):
     signature_raw: str = Field(max_length=5_000)
     follower_count: int = Field(ge=0)
-    mcn: str | None = Field(default=None, max_length=256)
 
 
 class LatestWork(ApiModel):

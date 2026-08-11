@@ -266,13 +266,6 @@ export const mockRepository: ContentRepository = {
       });
 
       state.douyinProfiles = structuredClone(input.profiles);
-      for (const update of input.mcnUpdates) {
-        const talent = state.talents.find((item) => item.id === update.talentId);
-        if (talent) {
-          talent.mcn = update.mcn;
-          talent.mcnSource = "douyin";
-        }
-      }
       state.douyinRelatedAccounts = structuredClone(input.relatedAccounts);
       state.douyinScheduleEntries = scheduleEntries;
       const nextMergeRules = [...state.eventMergeRules];

@@ -13,7 +13,6 @@ export type AssetKind =
   | "event_scene"
   | "shared_photo";
 
-export type TalentMcnSource = "manual" | "douyin";
 export type AssetCleanupRunStatus = "running" | "completed" | "completed_with_errors" | "failed";
 
 export interface EditorProfile {
@@ -66,8 +65,6 @@ export interface Talent {
   slug?: string | null;
   nickname: string;
   bio: string;
-  mcn: string;
-  mcnSource?: TalentMcnSource;
   aliases: string[];
   searchKeywords: string[];
   coverAssetId?: string | null;

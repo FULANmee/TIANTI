@@ -176,7 +176,6 @@ test("editor can create a talent with inline uploads and publish a future event"
   await page.getByTestId("new-talent-button").click();
   await page.locator('input[name="nickname"]').fill("Star Lume");
   await page.locator('textarea[name="bio"]').fill("A fresh showcase talent for the v3.1 acceptance flow.");
-  await page.locator('input[name="mcn"]').fill("Orbit Studio");
   await page.getByTestId("talent-cover-upload").setInputFiles(sceneUploadPath);
   await confirmCrop(page, "talent-cover-upload");
   await expect(page.getByTestId("talent-cover-select")).toHaveCount(0);
@@ -614,9 +613,8 @@ test("editor can reopen crop for an existing image", async ({ page }) => {
 
 test("public filters apply automatically without a filter button", async ({ page }) => {
   await page.goto("/talents");
-  await page.getByLabel("按 MCN 筛选达人").selectOption("浮光社");
-  await expect(page).toHaveURL(/mcn=/);
-  await expect(page.getByText("雁锦")).toBeVisible();
+  await page.getByLabel("按编辑视角筛选达人").selectOption("lin");
+  await expect(page).toHaveURL(/editor=lin/);
 
   await page.goto("/events");
   await page.getByLabel("按状态筛选活动").selectOption("past");

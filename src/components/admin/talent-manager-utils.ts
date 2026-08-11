@@ -2,7 +2,6 @@ interface TalentDraftValue {
   id?: string;
   nickname: string;
   bio: string;
-  mcn: string;
   douyinProfileUrl?: string;
   aliases: string;
   coverAssetId: string;
@@ -19,7 +18,6 @@ export function normalizeTalentDraft(value: TalentDraftValue) {
     id: value.id ?? "",
     nickname: value.nickname.trim(),
     bio: value.bio.trim(),
-    mcn: value.mcn.trim(),
     douyinProfileUrl: value.douyinProfileUrl?.trim() ?? "",
     aliases: splitCommaValues(value.aliases),
     coverAssetId: value.coverAssetId.trim(),

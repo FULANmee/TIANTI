@@ -196,7 +196,6 @@ export interface TalentFilters {
   editorId?: string;
   tierId?: string;
   hasSchedule?: boolean;
-  mcn?: string;
   sort?: "alphabetical" | "recent" | "relevance";
 }
 
@@ -298,7 +297,6 @@ function getTalentRelevanceScore(state: ContentState, talent: Talent, terms: str
     scoreTerms(talent.aliases.join(" "), terms, 6) +
     scoreTerms(talent.searchKeywords.join(" "), terms, 3) +
     scoreTerms(talent.bio, terms, 2) +
-    scoreTerms(talent.mcn, terms, 2) +
     scoreTerms(
       lineupEvents.map((event) => `${event.name} ${event.city} ${event.venue}`).join(" "),
       terms,
@@ -588,11 +586,9 @@ export function listTalents(state: ContentState, filters: TalentFilters = {}): T
         talent.nickname,
         talent.aliases.join(" "),
         talent.searchKeywords.join(" "),
-        talent.bio,
-        talent.mcn
+        talent.bio
       ];
       const matchesQuery = queryTerms.length === 0 || (relevanceScore > 0 && includesEveryTerm(haystacks, queryTerms));
-      const matchesMcn = !filters.mcn || talent.mcn === filters.mcn;
       const matchesSchedule =
         !filters.hasSchedule ||
         state.lineups
@@ -613,7 +609,7 @@ export function listTalents(state: ContentState, filters: TalentFilters = {}): T
         }
       }
 
-      return matchesQuery && matchesMcn && matchesSchedule && matchesLadder;
+      return matchesQuery && matchesSchedule && matchesLadder;
     });
 
   const sort = filters.sort ?? "alphabetical";

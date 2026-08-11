@@ -71,7 +71,7 @@ def test_profile_contract_and_authentication(monkeypatch):
             "nickname": "测试达人",
             "canonicalUrl": "https://www.douyin.com/user/MS4wLjABAAAA-test",
         },
-        "profile": {"signatureRaw": "8.8深圳金铲铲", "followerCount": 126438, "mcn": None},
+        "profile": {"signatureRaw": "8.8深圳金铲铲", "followerCount": 126438},
         "relatedAccounts": [
             {
                 "nickname": "小号",

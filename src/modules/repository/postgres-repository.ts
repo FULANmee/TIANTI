@@ -160,8 +160,6 @@ async function loadState(): Promise<ContentState> {
         slug: row.slug,
         nickname: row.nickname,
         bio: row.bio,
-        mcn: row.mcn,
-        mcnSource: row.mcnSource as Talent["mcnSource"],
         aliases: row.aliases,
         searchKeywords: row.searchKeywords,
         coverAssetId: row.coverAssetId ?? null,
@@ -558,8 +556,6 @@ export const postgresRepository: ContentRepository = {
         slug: talent.slug,
         nickname: talent.nickname,
         bio: talent.bio,
-        mcn: talent.mcn,
-        mcnSource: talent.mcnSource ?? "manual",
         aliases: talent.aliases,
         searchKeywords: talent.searchKeywords,
         coverAssetId: talent.coverAssetId ?? null,
@@ -571,8 +567,6 @@ export const postgresRepository: ContentRepository = {
           slug: talent.slug,
           nickname: talent.nickname,
           bio: talent.bio,
-          mcn: talent.mcn,
-          mcnSource: talent.mcnSource ?? "manual",
           aliases: talent.aliases,
           searchKeywords: talent.searchKeywords,
           coverAssetId: talent.coverAssetId ?? null,
@@ -903,11 +897,6 @@ export const postgresRepository: ContentRepository = {
               latestWorkPublishedAt: profile.latestWorkPublishedAt ? new Date(profile.latestWorkPublishedAt) : null
             }
           });
-      }
-
-      for (const update of input.mcnUpdates) {
-        await tx.update(talents).set({ mcn: update.mcn, mcnSource: "douyin", updatedAt: new Date() })
-          .where(and(eq(talents.id, update.talentId), sql`(${talents.mcn} = '' or ${talents.mcnSource} = 'douyin')`));
       }
 
       await tx.delete(talentDouyinRelatedAccounts);

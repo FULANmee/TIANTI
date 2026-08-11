@@ -6,7 +6,6 @@ describe("talent manager utils", () => {
       id: "talent-1",
       nickname: "青鸾",
       bio: "简介",
-      mcn: "机构",
       douyinProfileUrl: "https://www.douyin.com/user/account",
       aliases: "Qingluan",
       coverAssetId: "asset-1",
@@ -27,7 +26,6 @@ describe("talent manager utils", () => {
     const normalized = normalizeTalentDraft({
       nickname: "New",
       bio: "",
-      mcn: "",
       douyinProfileUrl: "",
       aliases: "",
       coverAssetId: "",

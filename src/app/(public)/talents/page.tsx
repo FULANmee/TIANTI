@@ -4,7 +4,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { PageShell } from "@/components/ui/page-shell";
 import { SectionFrame } from "@/components/ui/section-frame";
-import { compareByPinyin } from "@/lib/pinyin";
 import { buildMetadata } from "@/lib/site";
 import { getContentState, getTalentIndex } from "@/modules/content/service";
 
@@ -12,7 +11,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata = buildMetadata({
   title: "TIANTI | 达人",
-  description: "按编辑视角、MCN 与关键词浏览 TIANTI 的公开达人索引。",
+  description: "按编辑视角与关键词浏览 TIANTI 的公开达人索引。",
   path: "/talents"
 });
 
@@ -20,10 +19,8 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
   const selectedEditorSlug = typeof params.editor === "string" ? params.editor : "";
-  const mcn = typeof params.mcn === "string" ? params.mcn : undefined;
   const hasSchedule = typeof params.hasSchedule === "string" && params.hasSchedule === "1";
   const state = await getContentState();
-  const mcns = [...new Set(state.talents.map((talent) => talent.mcn).filter(Boolean))].sort(compareByPinyin);
   const selectedEditor = state.editors.find((editor) => editor.slug === selectedEditorSlug) ?? null;
   const selectedLadder =
     selectedEditor ? state.ladders.find((ladder) => ladder.editorId === selectedEditor.id) ?? null : null;
@@ -33,12 +30,10 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
     query: q,
     editorId: selectedEditor?.id,
     tierId,
-    hasSchedule,
-    mcn
+    hasSchedule
   });
 
   const summaryParts = [
-    mcn ? `MCN：${mcn}` : null,
     selectedEditor ? `${selectedEditor.name} 的视角` : null,
     tierId ? `梯度：${selectedLadder?.tiers.find((tier) => tier.id === tierId)?.name}` : null,
     hasSchedule ? "有行程" : null
@@ -49,14 +44,14 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
       <SectionFrame
         eyebrow="Talent Index"
         title="以展示优先的方式浏览达人"
-        description="用统一的筛选入口压缩关键词、编辑视角和 MCN，让扫描路径更清楚。"
+        description="用统一的筛选入口压缩关键词、编辑视角和行程，让扫描路径更清楚。"
         titleTestId="talents-page-title"
       />
 
       <div className="mt-10 space-y-8">
         <FilterBar>
           <AutoFilterForm className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_1fr_1fr_1fr]">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_1fr_1fr]">
               <label className="sr-only" htmlFor="talent-filter-search">
                 搜索达人
               </label>
@@ -64,27 +59,10 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
                 id="talent-filter-search"
                 name="q"
                 defaultValue={q}
-                placeholder="搜索昵称、别名、MCN 或关键词"
+                placeholder="搜索昵称、别名或关键词"
                 className="ui-input rounded-full"
                 data-testid="talent-filter-search"
               />
-              <label className="sr-only" htmlFor="talent-filter-mcn">
-                按 MCN 筛选达人
-              </label>
-              <select
-                id="talent-filter-mcn"
-                name="mcn"
-                defaultValue={mcn ?? ""}
-                data-auto-submit="true"
-                className="ui-select rounded-full"
-              >
-                <option value="">全部 MCN</option>
-                {mcns.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
               <label className="sr-only" htmlFor="talent-filter-editor">
                 按编辑视角筛选达人
               </label>
@@ -165,7 +143,7 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
         ) : (
           <EmptyState
             title="没有匹配的达人"
-            description="可以尝试放宽 MCN、行程或编辑视角，重新打开更宽的浏览范围。"
+            description="可以尝试放宽关键词、行程或编辑视角，重新打开更宽的浏览范围。"
           />
         )}
       </div>

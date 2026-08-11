@@ -18,7 +18,7 @@ describe("domain queries", () => {
     vi.useRealTimers();
   });
 
-  it("sorts talents by nickname pinyin and filters by mcn", () => {
+  it("sorts talents by nickname pinyin", () => {
     const allTalents = listTalents(demoSeedState);
     expect(allTalents.map((item) => item.id)).toEqual([
       "talent-qingluan",
@@ -27,9 +27,6 @@ describe("domain queries", () => {
       "talent-zhaoying"
     ]);
 
-    const targetMcn = demoSeedState.talents.find((talent) => talent.id === "talent-yanjin")?.mcn ?? "";
-    const filtered = listTalents(demoSeedState, { mcn: targetMcn });
-    expect(filtered.map((item) => item.id)).toEqual(["talent-yanjin"]);
   });
 
   it("expands homepage featured talents to four cards", () => {
@@ -225,7 +222,6 @@ describe("domain queries", () => {
       slug: "雁锦",
       nickname: "雁锦",
       bio: "",
-      mcn: "",
       aliases: [],
       searchKeywords: ["雁锦"],
       coverAssetId: null,
@@ -479,7 +475,6 @@ describe("domain queries", () => {
       ...state.talents[0],
       coverAssetId: null,
       bio: "",
-      mcn: "",
       aliases: [],
       links: []
     };

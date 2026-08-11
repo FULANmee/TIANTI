@@ -188,7 +188,6 @@ async function main() {
       slug: talent.slug,
       nickname: talent.nickname,
       bio: talent.bio,
-      mcn: talent.mcn,
       aliases: talent.aliases,
       searchKeywords: talent.searchKeywords,
       coverAssetId: talent.coverAssetId,

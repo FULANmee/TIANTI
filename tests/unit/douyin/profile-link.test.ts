@@ -7,7 +7,6 @@ function talentWithUrl(url: string): Talent {
     slug: null,
     nickname: "测试达人",
     bio: "",
-    mcn: "",
     aliases: [],
     searchKeywords: [],
     coverAssetId: null,

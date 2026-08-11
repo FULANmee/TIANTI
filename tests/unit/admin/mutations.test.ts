@@ -55,7 +55,6 @@ describe("admin mutations", () => {
     const saved = await saveTalent({
       nickname: "Star Lume",
       bio: "",
-      mcn: "",
       aliases: ["Star Lume CN", "Lume"],
       coverAssetId: null,
       links: [],
@@ -72,7 +71,6 @@ describe("admin mutations", () => {
       saveTalent({
         nickname: demoSeedState.talents[0]?.nickname ?? "Qingluan",
         bio: "",
-        mcn: "",
         aliases: [],
         coverAssetId: null,
         links: [],
@@ -86,7 +84,6 @@ describe("admin mutations", () => {
       saveTalent({
         nickname: "   ",
         bio: "",
-        mcn: "",
         aliases: [],
         coverAssetId: null,
         links: [],
@@ -445,7 +442,6 @@ describe("admin mutations", () => {
     const saved = await saveTalent({
       nickname: "No Rep Talent",
       bio: "",
-      mcn: "",
       aliases: [],
       coverAssetId: null,
       links: [],
@@ -465,7 +461,6 @@ describe("admin mutations", () => {
       id: "talent-qingluan",
       nickname: "Qingluan",
       bio: demoSeedState.talents[0]?.bio ?? "",
-      mcn: demoSeedState.talents[0]?.mcn ?? "",
       aliases: demoSeedState.talents[0]?.aliases ?? [],
       coverAssetId: "asset-cover-qingluan",
       links: demoSeedState.talents[0]?.links ?? [],
@@ -501,7 +496,6 @@ describe("admin mutations", () => {
       id: "talent-qingluan",
       nickname: "Qingluan",
       bio: demoSeedState.talents[0]?.bio ?? "",
-      mcn: demoSeedState.talents[0]?.mcn ?? "",
       aliases: demoSeedState.talents[0]?.aliases ?? [],
       coverAssetId: null,
       links: demoSeedState.talents[0]?.links ?? [],
@@ -533,7 +527,6 @@ describe("admin mutations", () => {
       id: "talent-qingluan",
       nickname: "Qingluan",
       bio: demoSeedState.talents[0]?.bio ?? "",
-      mcn: demoSeedState.talents[0]?.mcn ?? "",
       aliases: demoSeedState.talents[0]?.aliases ?? [],
       coverAssetId: "asset-cover-qingluan",
       links: demoSeedState.talents[0]?.links ?? [],
@@ -548,7 +541,6 @@ describe("admin mutations", () => {
     const saved = await saveTalent({
       nickname: "bulk-temp",
       bio: "",
-      mcn: "",
       coverAssetId: null,
       links: [],
       representations: []

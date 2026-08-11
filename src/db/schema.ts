@@ -67,8 +67,6 @@ export const talents = pgTable(
     slug: text("slug"),
     nickname: text("nickname").notNull(),
     bio: text("bio").notNull(),
-    mcn: text("mcn").notNull(),
-    mcnSource: text("mcn_source").notNull().default("manual"),
     aliases: text("aliases")
       .array()
       .notNull()

@@ -1082,14 +1082,7 @@ export async function runDouyinSync(options: RunDouyinSyncOptions): Promise<Douy
       eventMergeRules: reconciliation.eventMergeRules,
       deleteSyncEventIds: reconciliation.deleteSyncEventIds,
       syncRun: finishedRun,
-      syncResults: results,
-      mcnUpdates: snapshots.flatMap((snapshot) => {
-        const mcn = snapshot.response.profile.mcn?.trim();
-        const current = currentTalentById.get(snapshot.talent.id);
-        return mcn && current && (!current.mcn.trim() || current.mcnSource === "douyin")
-          ? [{ talentId: current.id, mcn }]
-          : [];
-      })
+      syncResults: results
     });
     return { run: finishedRun, results };
   } catch (error) {

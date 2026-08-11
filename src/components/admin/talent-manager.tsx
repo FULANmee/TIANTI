@@ -40,7 +40,6 @@ interface TalentDraft {
   id?: string;
   nickname: string;
   bio: string;
-  mcn: string;
   douyinProfileUrl: string;
   aliases: string;
   coverAssetId: string;
@@ -96,7 +95,6 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
     return {
       nickname: "",
       bio: "",
-      mcn: "",
       douyinProfileUrl: "",
       aliases: "",
       coverAssetId: "",
@@ -110,7 +108,6 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
     id: talent.id,
     nickname: talent.nickname,
     bio: talent.bio,
-    mcn: talent.mcn,
     douyinProfileUrl: primaryDouyin?.url ?? "",
     aliases: toCommaText(talent.aliases),
     coverAssetId: talent.coverAssetId ?? "",
@@ -179,7 +176,7 @@ export function TalentManager({
   const filteredTalents = useMemo(
     () =>
       liveTalents.filter((talent) =>
-        `${talent.nickname} ${talent.aliases.join(" ")} ${talent.bio} ${talent.searchKeywords.join(" ")} ${talent.mcn}`
+        `${talent.nickname} ${talent.aliases.join(" ")} ${talent.bio} ${talent.searchKeywords.join(" ")}`
           .toLowerCase()
           .includes(deferredQuery.toLowerCase())
       ),
@@ -447,7 +444,6 @@ export function TalentManager({
       id: draft.id,
       nickname: draft.nickname,
       bio: draft.bio,
-      mcn: draft.mcn,
       aliases: splitCommaValues(draft.aliases),
       coverAssetId: draft.coverAssetId || null,
       cleanupCandidateAssetIds,
@@ -667,7 +663,6 @@ export function TalentManager({
                 />
                 <button type="button" onClick={() => openTalentEditor(talent.id)} className="flex-1 text-left">
                   <p className="text-lg text-white">{talent.nickname}</p>
-                  <p className="mt-2 text-xs text-white/40">{talent.mcn || "未设置 MCN"}</p>
                 </button>
               </div>
             );
@@ -724,7 +719,6 @@ export function TalentManager({
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-lg text-white">{selectedTalent.nickname}</p>
-                  <p className="mt-2 text-xs text-white/40">{selectedTalent.mcn || "未设置 MCN"}</p>
                   <p className="mt-2 text-xs text-white/45">
                     抖音上次成功：{formatAdminSyncTime(selectedDouyinStatus?.lastSuccessAt)}
                     {selectedDouyinStatus?.lastErrorCode
@@ -809,13 +803,6 @@ export function TalentManager({
                   已存在同名达人“{duplicateNicknameTalent.nickname}”，建议更换昵称后再保存。
                 </p>
               ) : null}
-              <input
-                name="mcn"
-                value={draft.mcn}
-                onChange={(event) => setDraft((current) => ({ ...current, mcn: event.target.value }))}
-                placeholder="MCN / 所属机构"
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
             </div>
 
             <div className="space-y-3 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
