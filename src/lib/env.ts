@@ -104,7 +104,10 @@ const defaultEditorCredentials = [
 
 export const appEnv = {
   ...parsedEnv,
-  contentMode: parsedEnv.TIANTI_CONTENT_MODE ?? "mock",
+  // A deployed environment with a database URL should not silently fall back
+  // to the in-memory mock store when the mode override is omitted. Mock mode
+  // is still the local/test default because those environments have no DB URL.
+  contentMode: parsedEnv.TIANTI_CONTENT_MODE ?? (parsedEnv.DATABASE_URL ? "database" : "mock"),
   cronSecret: parsedEnv.CRON_SECRET?.trim() ?? null,
   douyinScraperUrl:
     (
