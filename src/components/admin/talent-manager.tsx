@@ -7,12 +7,7 @@ import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
 import { normalizeTalentDraft, splitCommaValues } from "@/components/admin/talent-manager-utils";
 import { compareByPinyin } from "@/lib/pinyin";
 import { extractDouyinProfileUrl, getPrimaryDouyinProfileLink } from "@/modules/douyin/profile-link";
-import type {
-  DouyinProfileCandidate,
-  DouyinProfileCandidatesResponse,
-  DouyinSyncResponse,
-  TalentBulkResponse
-} from "@/modules/admin/types";
+import type { DouyinSyncResponse, TalentBulkResponse } from "@/modules/admin/types";
 import type {
   Asset,
   DouyinSyncResult,
@@ -156,9 +151,6 @@ export function TalentManager({
   const [lastSyncResults, setLastSyncResults] = useState(initialLastSyncResults);
   const [draggingRepresentationId, setDraggingRepresentationId] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [douyinCandidates, setDouyinCandidates] = useState<DouyinProfileCandidate[]>([]);
-  const [douyinDiscoveryPending, setDouyinDiscoveryPending] = useState(false);
-  const [douyinDiscoveryMessage, setDouyinDiscoveryMessage] = useState<string | null>(null);
 
   const selectedTalent = liveTalents.find((talent) => talent.id === selectedId) ?? null;
   const selectedDouyinStatus = liveDouyinStatuses.find((status) => status.talentId === selectedId) ?? null;
@@ -217,8 +209,6 @@ export function TalentManager({
     setDraft(createTalentDraft(nextTalent));
     setCleanupCandidateAssetIds([]);
     setDraggingRepresentationId(null);
-    setDouyinCandidates([]);
-    setDouyinDiscoveryMessage(null);
     setMessage(null);
     setIsEditorOpen(true);
   }
@@ -229,49 +219,13 @@ export function TalentManager({
     setDraft(createTalentDraft(nextTalent));
     setCleanupCandidateAssetIds([]);
     setDraggingRepresentationId(null);
-    setDouyinCandidates([]);
-    setDouyinDiscoveryMessage(null);
     setIsEditorOpen(false);
   }
 
-  async function handleDiscoverDouyinProfiles() {
+  function openDouyinSearch() {
     const nickname = draft.nickname.trim();
-    if (!nickname) {
-      setDouyinDiscoveryMessage("请先填写达人昵称。");
-      return;
-    }
-
-    setDouyinDiscoveryPending(true);
-    setDouyinCandidates([]);
-    setDouyinDiscoveryMessage(null);
-    try {
-      const response = await fetch("/api/admin/douyin-profile-candidates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname })
-      });
-      const data = (await response.json().catch(() => null)) as DouyinProfileCandidatesResponse | null;
-      if (!response.ok || !data?.candidates) {
-        setDouyinDiscoveryMessage(data?.error ?? "暂时无法查找抖音账号，请稍后重试。");
-        return;
-      }
-
-      setDouyinCandidates(data.candidates);
-      setDouyinDiscoveryMessage(
-        data.candidates.length > 0
-          ? "请选择正确账号；同名达人可能有多个，建议先打开主页核对。"
-          : "没有查到可靠候选，可修改昵称重试或在下方手动填写主页链接。"
-      );
-    } catch {
-      setDouyinDiscoveryMessage("暂时无法查找抖音账号，请稍后重试或手动填写主页链接。");
-    } finally {
-      setDouyinDiscoveryPending(false);
-    }
-  }
-
-  function selectDouyinCandidate(candidate: DouyinProfileCandidate) {
-    setDraft((current) => ({ ...current, douyinProfileUrl: candidate.profileUrl }));
-    setDouyinDiscoveryMessage(`已选择“${candidate.nickname}”，保存后会自动校验并抓取最新作品与 MCN。`);
+    if (!nickname) return;
+    window.open(`https://www.douyin.com/search/${encodeURIComponent(nickname)}`, "_blank", "noopener,noreferrer");
   }
 
   function toggleSelectedTalent(id: string, checked: boolean) {
@@ -846,11 +800,7 @@ export function TalentManager({
               <input
                 name="nickname"
                 value={draft.nickname}
-                onChange={(event) => {
-                  setDraft((current) => ({ ...current, nickname: event.target.value }));
-                  setDouyinCandidates([]);
-                  setDouyinDiscoveryMessage(null);
-                }}
+                onChange={(event) => setDraft((current) => ({ ...current, nickname: event.target.value }))}
                 placeholder="昵称"
                 className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
               />
@@ -872,67 +822,23 @@ export function TalentManager({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm text-white">抖音主页</p>
-                  <p className="mt-1 text-xs text-white/45">按昵称查找后点选正确账号，无需再打开抖音复制链接。</p>
+                  <p className="mt-1 text-xs text-white/45">先打开抖音搜索，进入达人主页后复制链接回来。</p>
                 </div>
                 <button
                   type="button"
-                  data-testid="discover-douyin-profile"
-                  onClick={handleDiscoverDouyinProfiles}
-                  disabled={!draft.nickname.trim() || douyinDiscoveryPending}
+                  data-testid="open-douyin-search"
+                  onClick={openDouyinSearch}
+                  disabled={!draft.nickname.trim()}
                   className="rounded-full border border-white/12 px-3 py-2 text-xs text-white/72 disabled:opacity-40"
                 >
-                  {douyinDiscoveryPending ? "查找中..." : "自动查找抖音账号"}
+                  打开抖音搜索
                 </button>
               </div>
-              {douyinCandidates.length > 0 ? (
-                <div data-testid="douyin-profile-candidates" className="grid gap-3 md:grid-cols-2">
-                  {douyinCandidates.map((candidate) => {
-                    const selected = draft.douyinProfileUrl === candidate.profileUrl;
-                    return (
-                      <div
-                        key={candidate.profileUrl}
-                        className={`rounded-[1.1rem] border p-3 ${
-                          selected ? "border-[var(--color-accent)] bg-white/10" : "border-white/10 bg-black/20"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm text-white">{candidate.nickname}</p>
-                            <p className="mt-1 text-xs text-white/40">
-                              {candidate.exactNickname ? "昵称完全匹配" : "可能是同名或相近账号"}
-                            </p>
-                          </div>
-                          <a
-                            href={candidate.profileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0 text-xs text-white/65 underline underline-offset-4"
-                          >
-                            打开核对
-                          </a>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => selectDouyinCandidate(candidate)}
-                          className="mt-3 w-full rounded-full border border-white/12 px-3 py-2 text-xs text-white/75"
-                        >
-                          {selected ? "已选择" : "选择这个账号"}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-              {douyinDiscoveryMessage ? (
-                <p data-testid="douyin-discovery-message" className="text-xs leading-6 text-white/55">
-                  {douyinDiscoveryMessage}
-                </p>
-              ) : null}
               <textarea
                 name="douyinProfileUrl"
                 value={draft.douyinProfileUrl}
                 onChange={(event) => setDraft((current) => ({ ...current, douyinProfileUrl: event.target.value }))}
-                placeholder="自动查找结果会填到这里；也可粘贴主页链接或完整分享文案"
+                placeholder="粘贴主页链接或完整分享文案"
                 rows={2}
                 className="w-full rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
               />

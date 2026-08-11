@@ -44,14 +44,3 @@ export interface DouyinSyncResponse {
   results?: DouyinSyncResult[];
   statuses?: TalentDouyinAdminStatus[];
 }
-
-export interface DouyinProfileCandidate {
-  nickname: string;
-  profileUrl: string;
-  exactNickname: boolean;
-}
-
-export interface DouyinProfileCandidatesResponse {
-  candidates?: DouyinProfileCandidate[];
-  error?: string;
-}

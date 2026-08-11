@@ -215,34 +215,24 @@ test("editor can create a talent with inline uploads and publish a future event"
   await expect(page.getByRole("link", { name: /Starlight Expo/ }).first()).toBeVisible();
 });
 
-test("editor can discover and select a Douyin profile without copying its URL", async ({ page }) => {
+test("editor can open Douyin search and paste a profile URL manually", async ({ page }) => {
   await login(page);
-  await page.route("**/api/admin/douyin-profile-candidates", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        candidates: [
-          {
-            nickname: "青鸾本人",
-            profileUrl: "https://www.douyin.com/user/MS4wLjABAAAA-qingluan",
-            exactNickname: false
-          }
-        ]
-      })
-    });
-  });
-
   await page.goto("/admin/talents");
   await page.getByTestId("new-talent-button").click();
   await page.locator('input[name="nickname"]').fill("青鸾");
-  await page.getByTestId("discover-douyin-profile").click();
-  await expect(page.getByTestId("douyin-profile-candidates")).toContainText("青鸾本人");
-  await page.getByRole("button", { name: "选择这个账号" }).click();
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByTestId("open-douyin-search").click();
+  const popup = await popupPromise;
+  await expect.poll(() => popup.url()).toContain("https://www.douyin.com/search/%E9%9D%92%E9%B8%BE");
+  await popup.close();
+
+  await expect(page.locator('textarea[name="douyinProfileUrl"]')).toHaveValue(
+    ""
+  );
+  await page.locator('textarea[name="douyinProfileUrl"]').fill("https://www.douyin.com/user/MS4wLjABAAAA-qingluan");
   await expect(page.locator('textarea[name="douyinProfileUrl"]')).toHaveValue(
     "https://www.douyin.com/user/MS4wLjABAAAA-qingluan"
   );
-  await expect(page.getByTestId("douyin-discovery-message")).toContainText("保存后会自动校验并抓取最新作品与 MCN");
 });
 
 test("editor can quickly merge two future activities and keep the selected target", async ({ page }) => {
