@@ -7,7 +7,7 @@ describe("talent manager utils", () => {
       nickname: "青鸾",
       bio: "简介",
       mcn: "机构",
-      tags: "国风, 舞台",
+      douyinProfileUrl: "https://www.douyin.com/user/account",
       aliases: "Qingluan",
       coverAssetId: "asset-1",
       links: [{ id: "persisted-link", label: "Bilibili", url: "https://example.com" }],
@@ -16,7 +16,6 @@ describe("talent manager utils", () => {
     const equivalent = {
       ...base,
       nickname: " 青鸾 ",
-      tags: "国风，舞台，国风",
       links: [{ id: "client-link", label: " Bilibili ", url: "https://example.com " }],
       representations: [{ id: "client-rep", title: " 代表作 ", assetId: "asset-2" }]
     };
@@ -29,7 +28,7 @@ describe("talent manager utils", () => {
       nickname: "New",
       bio: "",
       mcn: "",
-      tags: "",
+      douyinProfileUrl: "",
       aliases: "",
       coverAssetId: "",
       links: [{ label: "Label only", url: "" }],

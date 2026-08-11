@@ -38,7 +38,7 @@ def test_health_does_not_require_authentication():
     with TestClient(app) as client:
         response = client.get("/healthz")
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "version": "5.0.0"}
+    assert response.json() == {"ok": True, "version": "5.1.0"}
 
 
 def test_profile_contract_and_authentication(monkeypatch):
@@ -64,14 +64,14 @@ def test_profile_contract_and_authentication(monkeypatch):
     assert unauthorized.status_code == 401
     assert response.status_code == 200
     assert response.json() == {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "fetchedAt": "2026-08-04T00:00:00Z",
         "account": {
             "secUserId": "MS4wLjABAAAA-test",
             "nickname": "测试达人",
             "canonicalUrl": "https://www.douyin.com/user/MS4wLjABAAAA-test",
         },
-        "profile": {"signatureRaw": "8.8深圳金铲铲", "followerCount": 126438},
+        "profile": {"signatureRaw": "8.8深圳金铲铲", "followerCount": 126438, "mcn": None},
         "relatedAccounts": [
             {
                 "nickname": "小号",
@@ -79,7 +79,12 @@ def test_profile_contract_and_authentication(monkeypatch):
                 "url": "https://www.douyin.com/user/MS4wLjABAAAA-alt",
             }
         ],
-        "diagnostics": {"profileSource": "f2-user-detail", "linkSource": "structured"},
+        "latestWork": None,
+        "diagnostics": {
+            "profileSource": "f2-user-detail",
+            "linkSource": "structured",
+            "latestWorkStatus": "unavailable",
+        },
     }
 
 

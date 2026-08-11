@@ -58,7 +58,6 @@ describe("admin mutations", () => {
       mcn: "",
       aliases: ["Star Lume CN", "Lume"],
       coverAssetId: null,
-      tags: ["cosplay"],
       links: [],
       representations: []
     });
@@ -76,7 +75,6 @@ describe("admin mutations", () => {
         mcn: "",
         aliases: [],
         coverAssetId: null,
-        tags: [],
         links: [],
         representations: []
       })
@@ -91,7 +89,6 @@ describe("admin mutations", () => {
         mcn: "",
         aliases: [],
         coverAssetId: null,
-        tags: [],
         links: [],
         representations: []
       })
@@ -451,7 +448,6 @@ describe("admin mutations", () => {
       mcn: "",
       aliases: [],
       coverAssetId: null,
-      tags: [],
       links: [],
       representations: [
         {
@@ -472,7 +468,6 @@ describe("admin mutations", () => {
       mcn: demoSeedState.talents[0]?.mcn ?? "",
       aliases: demoSeedState.talents[0]?.aliases ?? [],
       coverAssetId: "asset-cover-qingluan",
-      tags: demoSeedState.talents[0]?.tags ?? [],
       links: demoSeedState.talents[0]?.links ?? [],
       representations: [
         {
@@ -509,7 +504,6 @@ describe("admin mutations", () => {
       mcn: demoSeedState.talents[0]?.mcn ?? "",
       aliases: demoSeedState.talents[0]?.aliases ?? [],
       coverAssetId: null,
-      tags: demoSeedState.talents[0]?.tags ?? [],
       links: demoSeedState.talents[0]?.links ?? [],
       representations: demoSeedState.talents[0]?.representations ?? [],
       cleanupCandidateAssetIds: [asset.id]
@@ -542,7 +536,6 @@ describe("admin mutations", () => {
       mcn: demoSeedState.talents[0]?.mcn ?? "",
       aliases: demoSeedState.talents[0]?.aliases ?? [],
       coverAssetId: "asset-cover-qingluan",
-      tags: demoSeedState.talents[0]?.tags ?? [],
       links: demoSeedState.talents[0]?.links ?? [],
       representations: demoSeedState.talents[0]?.representations ?? [],
       cleanupCandidateAssetIds: [candidateAssetId]
@@ -551,32 +544,12 @@ describe("admin mutations", () => {
     expect(getMockState().assets.some((item) => item.id === candidateAssetId)).toBe(true);
   });
 
-  it("bulk adds tags to selected talents", async () => {
-    const result = await saveTalentBulk({
-      action: "add_tags",
-      ids: ["talent-qingluan", "talent-zhaoying"],
-      tags: ["featured", "cosplay"]
-    });
-
-    expect(result.succeededIds).toEqual(["talent-qingluan", "talent-zhaoying"]);
-    expect(result.blocked).toHaveLength(0);
-
-    const state = getMockState();
-    const qingluan = state.talents.find((talent) => talent.id === "talent-qingluan");
-    const zhaoying = state.talents.find((talent) => talent.id === "talent-zhaoying");
-
-    expect(qingluan?.tags).toContain("featured");
-    expect(zhaoying?.tags).toContain("featured");
-    expect(zhaoying?.tags).toContain("cosplay");
-  });
-
   it("bulk deletes removable talents and reports blocked rows", async () => {
     const saved = await saveTalent({
       nickname: "bulk-temp",
       bio: "",
       mcn: "",
       coverAssetId: null,
-      tags: [],
       links: [],
       representations: []
     });

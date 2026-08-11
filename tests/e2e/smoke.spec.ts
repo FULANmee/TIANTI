@@ -81,6 +81,7 @@ async function addLineupViaDialog(
     for (const date of options.allDates) {
       const checkbox = page.getByTestId(`lineup-dialog-date-${date}`);
       const shouldCheck = Object.prototype.hasOwnProperty.call(options.dateNotes, date);
+      await expect(checkbox).not.toBeChecked();
       if ((await checkbox.isChecked()) !== shouldCheck) {
         await checkbox.setChecked(shouldCheck);
       }
@@ -176,7 +177,6 @@ test("editor can create a talent with inline uploads and publish a future event"
   await page.locator('input[name="nickname"]').fill("Star Lume");
   await page.locator('textarea[name="bio"]').fill("A fresh showcase talent for the v3.1 acceptance flow.");
   await page.locator('input[name="mcn"]').fill("Orbit Studio");
-  await page.locator('input[name="tags"]').fill("cosplay, 舞台");
   await page.getByTestId("talent-cover-upload").setInputFiles(sceneUploadPath);
   await confirmCrop(page, "talent-cover-upload");
   await expect(page.getByTestId("talent-cover-select")).toHaveCount(0);
@@ -213,6 +213,36 @@ test("editor can create a talent with inline uploads and publish a future event"
   await page.getByRole("link", { name: /Starlight Expo/ }).first().click();
   await page.getByRole("link", { name: /Star Lume/ }).click();
   await expect(page.getByRole("link", { name: /Starlight Expo/ }).first()).toBeVisible();
+});
+
+test("editor can discover and select a Douyin profile without copying its URL", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/admin/douyin-profile-candidates", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        candidates: [
+          {
+            nickname: "青鸾本人",
+            profileUrl: "https://www.douyin.com/user/MS4wLjABAAAA-qingluan",
+            exactNickname: false
+          }
+        ]
+      })
+    });
+  });
+
+  await page.goto("/admin/talents");
+  await page.getByTestId("new-talent-button").click();
+  await page.locator('input[name="nickname"]').fill("青鸾");
+  await page.getByTestId("discover-douyin-profile").click();
+  await expect(page.getByTestId("douyin-profile-candidates")).toContainText("青鸾本人");
+  await page.getByRole("button", { name: "选择这个账号" }).click();
+  await expect(page.locator('textarea[name="douyinProfileUrl"]')).toHaveValue(
+    "https://www.douyin.com/user/MS4wLjABAAAA-qingluan"
+  );
+  await expect(page.getByTestId("douyin-discovery-message")).toContainText("保存后会自动校验并抓取最新作品与 MCN");
 });
 
 test("editor can quickly merge two future activities and keep the selected target", async ({ page }) => {

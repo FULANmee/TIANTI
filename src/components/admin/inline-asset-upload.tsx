@@ -7,6 +7,7 @@ import {
   getAssetDisplayPreset
 } from "@/lib/asset-display";
 import { getImageFileFromTransfer, hasImageFileInTransfer } from "@/lib/image-transfer";
+import { FramedImage } from "@/components/ui/framed-image";
 import type { Asset, AssetKind } from "@/modules/domain/types";
 
 interface InlineAssetUploadProps {
@@ -28,6 +29,7 @@ interface CropSession {
   originalFile: File;
   width: number;
   height: number;
+  existingAsset?: Asset;
 }
 
 interface CropBoxSize {
@@ -78,26 +80,8 @@ function replaceFileExtension(fileName: string, extension: string) {
   return fileName.replace(/\.[^.]+$/, "") + normalizedExtension;
 }
 
-function getOutputType(originalType: string) {
-  if (originalType === "image/jpeg" || originalType === "image/png" || originalType === "image/webp") {
-    return originalType;
-  }
-
-  return "image/png";
-}
-
-function getOutputExtension(outputType: string) {
-  if (outputType === "image/jpeg") return ".jpg";
-  if (outputType === "image/webp") return ".webp";
-  return ".png";
-}
-
 function getSafeAssetBaseName(asset: Asset) {
   return asset.title.trim() || "未命名图片";
-}
-
-function buildAssetEditFileName(asset: Asset, mimeType: string) {
-  return `${getSafeAssetBaseName(asset)}${getOutputExtension(getOutputType(mimeType))}`;
 }
 
 function scaleToSliderValue(scale: number, minScale: number, maxScale: number) {
@@ -149,104 +133,39 @@ async function createCropSession(file: File) {
   }
 }
 
-// Kept for parity with the existing asset-edit flow and possible future reuse.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function createCropSessionFromAsset(asset: Asset) {
-  const response = await fetch(`/api/admin/assets?assetId=${encodeURIComponent(asset.id)}`, {
-    cache: "no-store"
-  });
-  if (!response.ok) {
-    throw new Error("无法读取当前图片，请重新上传后再试。");
-  }
+async function prepareSourceFile(file: File) {
+  const session = await createCropSession(file);
+  if (Math.max(session.width, session.height) <= 3200) return session;
 
-  const blob = await response.blob();
-  const file = new File([blob], buildAssetEditFileName(asset, blob.type), {
-    type: blob.type || "image/png"
-  });
-  const cropSession = await createCropSession(file);
-
-  return {
-    ...cropSession,
-    baseName: getSafeAssetBaseName(asset)
-  };
+  const image = await loadImageElement(session.imageUrl);
+  const ratio = 3200 / Math.max(session.width, session.height);
+  const width = Math.round(session.width * ratio);
+  const height = Math.round(session.height * ratio);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return session;
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, width, height);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.92));
+  if (!blob) return session;
+  URL.revokeObjectURL(session.imageUrl);
+  return createCropSession(new File([blob], replaceFileExtension(file.name, ".webp"), { type: "image/webp" }));
 }
 
 async function createCropSessionFromExistingAsset(asset: Asset) {
-  const response = await fetch(`/api/admin/assets?assetId=${encodeURIComponent(asset.id)}`, {
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    const data = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "无法读取当前图片，请重新上传后再试。");
-  }
-
-  const blob = await response.blob();
-  const file = new File([blob], buildAssetEditFileName(asset, blob.type), {
-    type: blob.type || "image/png"
-  });
-  const cropSession = await createCropSession(file);
+  const image = await loadImageElement(asset.url);
 
   return {
-    ...cropSession,
-    baseName: getSafeAssetBaseName(asset)
-  };
-}
-
-async function createCroppedUploadFile(
-  cropSession: CropSession,
-  cropBox: CropBoxSize,
-  scale: number,
-  offset: CropOffset
-) {
-  const image = await loadImageElement(cropSession.imageUrl);
-  const displayedWidth = cropSession.width * scale;
-  const displayedHeight = cropSession.height * scale;
-  const imageLeft = (cropBox.width - displayedWidth) / 2 + offset.x;
-  const imageTop = (cropBox.height - displayedHeight) / 2 + offset.y;
-  const sourceX = Math.max(0, -imageLeft / scale);
-  const sourceY = Math.max(0, -imageTop / scale);
-  const sourceWidth = Math.min(cropSession.width, cropBox.width / scale);
-  const sourceHeight = Math.min(cropSession.height, cropBox.height / scale);
-  const outputWidth = Math.max(1, Math.round(sourceWidth));
-  const outputHeight = Math.max(1, Math.round(sourceHeight));
-  const outputType = getOutputType(cropSession.originalFile.type);
-  const outputFileName = replaceFileExtension(
-    cropSession.originalFile.name,
-    getOutputExtension(outputType)
-  );
-  const canvas = document.createElement("canvas");
-
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
-
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("浏览器当前无法处理图片裁剪，请更换浏览器重试。");
-  }
-
-  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight);
-
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (value) => {
-        if (!value) {
-          reject(new Error("图片裁剪失败，请重新选择图片。"));
-          return;
-        }
-
-        resolve(value);
-      },
-      outputType,
-      outputType === "image/jpeg" ? 0.92 : undefined
-    );
-  });
-
-  return {
-    file: new File([blob], outputFileName, { type: outputType }),
-    width: outputWidth,
-    height: outputHeight
-  };
+    imageUrl: asset.url,
+    originalFile: new File([], getSafeAssetBaseName(asset)),
+    width: image.naturalWidth || asset.width,
+    height: image.naturalHeight || asset.height,
+    baseName: getSafeAssetBaseName(asset),
+    existingAsset: asset
+  } satisfies CropSession;
 }
 
 export function InlineAssetUpload({
@@ -355,8 +274,25 @@ export function InlineAssetUpload({
       return;
     }
 
-    setOffset({ x: 0, y: 0 });
-    setScale(minScale);
+    const asset = cropSession.existingAsset;
+    if (!asset) {
+      setOffset({ x: 0, y: 0 });
+      setScale(minScale);
+      return;
+    }
+    const cropWidth = asset.cropWidth ?? 1;
+    const cropHeight = asset.cropHeight ?? 1;
+    const nextScale = Math.max(
+      cropBox.width / (cropWidth * cropSession.width),
+      cropBox.height / (cropHeight * cropSession.height)
+    );
+    const displayedWidth = cropSession.width * nextScale;
+    const displayedHeight = cropSession.height * nextScale;
+    setScale(nextScale);
+    setOffset({
+      x: -(asset.cropX ?? 0) * displayedWidth - (cropBox.width - displayedWidth) / 2,
+      y: -(asset.cropY ?? 0) * displayedHeight - (cropBox.height - displayedHeight) / 2
+    });
   }, [cropBox, cropSession, minScale]);
 
   useEffect(() => {
@@ -367,7 +303,50 @@ export function InlineAssetUpload({
     setOffset((current) => clampOffset(current, cropSession.width, cropSession.height, cropBox, safeScale));
   }, [cropBox, cropSession, safeScale]);
 
-  async function uploadPreparedFile(file: File, width: number, height: number, baseName: string) {
+  async function uploadPreparedFile(file: File, width: number, height: number, baseName: string, framing: Asset) {
+    let directUploadCompleted = false;
+    try {
+      const signatureResponse = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" })
+      });
+      const signature = (await signatureResponse.json().catch(() => null)) as {
+        mode?: "mock" | "r2"; uploadUrl?: string | null; publicUrl?: string | null; objectKey?: string | null;
+      } | null;
+      if (signatureResponse.ok && signature?.mode === "r2" && signature.uploadUrl && signature.publicUrl && signature.objectKey) {
+        let uploadResponse: Response | null = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          uploadResponse = await fetch(signature.uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": file.type || "application/octet-stream" },
+            body: file
+          }).catch(() => null);
+          if (uploadResponse?.ok) break;
+          await new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
+        }
+        if (!uploadResponse?.ok) throw new Error("直传失败");
+        directUploadCompleted = true;
+        const metadataResponse = await fetch("/api/admin/assets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind, title: baseName, alt: baseName, width, height,
+            url: signature.publicUrl, objectKey: signature.objectKey,
+            cropX: framing.cropX, cropY: framing.cropY, cropWidth: framing.cropWidth, cropHeight: framing.cropHeight,
+            displayAspectWidth: framing.displayAspectWidth, displayAspectHeight: framing.displayAspectHeight
+          })
+        });
+        const metadata = (await metadataResponse.json().catch(() => null)) as { error?: string; asset?: Asset } | null;
+        if (!metadataResponse.ok || !metadata?.asset) throw new Error(metadata?.error ?? "素材信息保存失败。");
+        onUploaded(metadata.asset);
+        setMessage(`已上传 ${metadata.asset.title}`);
+        return;
+      }
+    } catch (error) {
+      if (directUploadCompleted) throw error;
+    }
+
     const formData = new FormData();
 
     formData.set("file", file);
@@ -376,6 +355,12 @@ export function InlineAssetUpload({
     formData.set("alt", baseName);
     formData.set("width", String(width));
     formData.set("height", String(height));
+    formData.set("cropX", String(framing.cropX));
+    formData.set("cropY", String(framing.cropY));
+    formData.set("cropWidth", String(framing.cropWidth));
+    formData.set("cropHeight", String(framing.cropHeight));
+    formData.set("displayAspectWidth", String(framing.displayAspectWidth));
+    formData.set("displayAspectHeight", String(framing.displayAspectHeight));
 
     const response = await fetch("/api/admin/assets", {
       method: "POST",
@@ -406,7 +391,7 @@ export function InlineAssetUpload({
 
     try {
       setSelectedRatioLabel(defaultPreset.ratioLabel);
-      const nextCropSession = await createCropSession(file);
+      const nextCropSession = await prepareSourceFile(file);
       setCropSession(nextCropSession);
     } catch (error) {
       setMessage(getUploadErrorMessage(error));
@@ -524,8 +509,37 @@ export function InlineAssetUpload({
     setMessage(null);
 
     try {
-      const cropped = await createCroppedUploadFile(cropSession, cropBox, safeScale, offset);
-      await uploadPreparedFile(cropped.file, cropped.width, cropped.height, cropSession.baseName);
+      const displayedWidth = cropSession.width * safeScale;
+      const displayedHeight = cropSession.height * safeScale;
+      const imageLeft = (cropBox.width - displayedWidth) / 2 + offset.x;
+      const imageTop = (cropBox.height - displayedHeight) / 2 + offset.y;
+      const framing = {
+        cropX: Math.max(0, -imageLeft / safeScale / cropSession.width),
+        cropY: Math.max(0, -imageTop / safeScale / cropSession.height),
+        cropWidth: Math.min(1, cropBox.width / safeScale / cropSession.width),
+        cropHeight: Math.min(1, cropBox.height / safeScale / cropSession.height),
+        displayAspectWidth: preset.aspectWidth,
+        displayAspectHeight: preset.aspectHeight
+      } as Asset;
+      if (cropSession.existingAsset) {
+        const response = await fetch("/api/admin/assets", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assetId: cropSession.existingAsset.id, ...framing })
+        });
+        const data = (await response.json().catch(() => null)) as { error?: string; asset?: Asset } | null;
+        if (!response.ok || !data?.asset) throw new Error(data?.error ?? "保存取景失败。");
+        onUploaded(data.asset);
+        setMessage(`已更新 ${data.asset.title} 的显示区域`);
+      } else {
+        await uploadPreparedFile(
+          cropSession.originalFile,
+          cropSession.width,
+          cropSession.height,
+          cropSession.baseName,
+          framing
+        );
+      }
       closeCropSession();
     } catch (error) {
       setMessage(getUploadErrorMessage(error));
@@ -605,12 +619,7 @@ export function InlineAssetUpload({
         <div className="w-full max-w-xs overflow-hidden rounded-[1.2rem] border border-white/10 bg-black/20">
           <div className="relative" style={{ aspectRatio: previewPreset.aspectStyle }}>
             {currentAsset ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={currentAsset.url}
-                alt={currentAsset.alt}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
+              <FramedImage asset={currentAsset} sizes="20rem" />
             ) : (
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_45%,rgba(0,0,0,0.45))]" />
             )}
@@ -658,7 +667,7 @@ export function InlineAssetUpload({
           </button>
         ) : null}
         <p className="text-[11px] text-white/42">
-          {helperText ?? `上传前会按前台比例 ${preset.ratioLabel} 裁剪`}
+          {helperText ?? `原图会完整保留，仅按前台比例 ${preset.ratioLabel} 选择显示区域`}
         </p>
         <p className="text-[11px] text-white/38">支持拖拽图片，或先点此区域后按 Ctrl / Cmd + V 直接粘贴上传</p>
         {message ? (
@@ -675,10 +684,10 @@ export function InlineAssetUpload({
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-accent)]">Crop Before Upload</p>
                 <h3 className="text-2xl text-[var(--foreground)]">
-                  按 {preset.cropTitle} 比例 {preset.ratioLabel} 裁剪
+                  按 {preset.cropTitle} 比例 {preset.ratioLabel} 取景
                 </h3>
                 <p className="max-w-2xl text-sm leading-7 ui-subtle">
-                  {preset.cropHint} 拖动画面调整取景，滑动缩放后再上传。
+                  {preset.cropHint} 拖动画面调整取景；原图不会被裁掉，之后可随时缩回。
                 </p>
               </div>
               <button
@@ -783,8 +792,8 @@ export function InlineAssetUpload({
 
                 <div className="grid gap-3 rounded-[1.2rem] border border-[var(--line-soft)] bg-white/80 p-4 text-sm ui-subtle">
                   <p>原图尺寸：{cropSession.width} × {cropSession.height}</p>
-                  <p>裁剪比例：{preset.ratioLabel}</p>
-                  <p>输出将自动匹配当前前台显示比例。</p>
+                  <p>显示比例：{preset.ratioLabel}</p>
+                  <p>只保存显示区域，完整原图仍会保留。</p>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
@@ -806,7 +815,7 @@ export function InlineAssetUpload({
                     disabled={isBusy || !cropBox}
                     className="rounded-full bg-[var(--color-accent)] px-5 py-2.5 text-sm uppercase tracking-[0.2em] text-black disabled:opacity-50"
                   >
-                    {pending ? "上传中..." : "确认裁剪并上传"}
+                    {pending ? "保存中..." : cropSession.existingAsset ? "保存显示区域" : "确认取景并上传"}
                   </button>
                 </div>
               </div>

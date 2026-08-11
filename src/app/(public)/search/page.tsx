@@ -48,7 +48,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
             <input
               name="q"
               defaultValue={q}
-              placeholder="输入达人昵称、活动名、城市、标签或别名"
+              placeholder="输入达人昵称、活动名、城市或别名"
               className="ui-input rounded-full"
             />
             <button className="ui-button-primary text-sm">搜索</button>
@@ -79,7 +79,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         {!q ? (
           <EmptyState
             title="先输入一个关键词"
-            description="你可以从昵称、活动名、城市、标签、别名或阵容信息开始。"
+            description="你可以从昵称、活动名、城市、别名或阵容信息开始。"
           />
         ) : scope === "talents" ? (
           <section className="surface rounded-[1.9rem] p-6">

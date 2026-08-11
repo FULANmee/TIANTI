@@ -228,7 +228,6 @@ describe("domain queries", () => {
       mcn: "",
       aliases: [],
       searchKeywords: ["雁锦"],
-      tags: ["cosplay"],
       coverAssetId: null,
       links: [],
       representations: [],

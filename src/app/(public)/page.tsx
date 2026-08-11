@@ -58,17 +58,6 @@ export default async function HomePage() {
                   </div>
                 </div>
               </div>
-              <div className="surface rounded-[1.7rem] p-5">
-                <p className="ui-kicker">热门标签</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {homepage.tagSpotlights.map((spotlight) => (
-                    <Link key={spotlight.tag} href={spotlight.href} className="ui-pill px-4 py-2 text-sm">
-                      {spotlight.tag}
-                      <span className="ui-muted">{spotlight.count}</span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
             </div>
           }
         />

@@ -11,7 +11,7 @@ from app.provider import F2ProfileProvider, ScraperProviderError
 from app.security import require_internal_auth
 
 
-app = FastAPI(title="TIANTI Douyin Scraper", version="5.0.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="TIANTI Douyin Scraper", version="5.1.0", docs_url=None, redoc_url=None)
 
 
 @lru_cache(maxsize=1)
@@ -27,7 +27,7 @@ async def handle_provider_error(_request, error: ScraperProviderError):
 
 @app.get("/healthz")
 async def healthz():
-    return {"ok": True, "version": "5.0.0"}
+    return {"ok": True, "version": "5.1.0"}
 
 
 @app.post(
@@ -49,4 +49,3 @@ async def fetch_profile(
             status_code=500,
             detail={"code": "INTERNAL_ERROR", "message": "Unexpected scraper error.", "retryable": True},
         ) from error
-

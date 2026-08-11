@@ -27,7 +27,8 @@ export async function createUploadSignature(fileName: string, contentType: strin
     return {
       mode: "mock" as const,
       uploadUrl: null,
-      publicUrl: null
+      publicUrl: null,
+      objectKey: null
     };
   }
 
@@ -42,7 +43,8 @@ export async function createUploadSignature(fileName: string, contentType: strin
   return {
     mode: "r2" as const,
     uploadUrl: await getSignedUrl(getR2Client(), command, { expiresIn: 60 * 5 }),
-    publicUrl: `${config.publicBaseUrl}/${objectKey}`
+    publicUrl: `${config.publicBaseUrl}/${objectKey}`,
+    objectKey
   };
 }
 

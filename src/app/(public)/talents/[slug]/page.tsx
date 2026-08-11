@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import { FramedImage } from "@/components/ui/framed-image";
 import { notFound } from "next/navigation";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HorizontalCardRail } from "@/components/ui/horizontal-card-rail";
@@ -107,7 +107,11 @@ export default async function TalentDetailPage({
       : null
   ].filter(Boolean) as Array<{ label: string; value: string }>;
   const hasDouyinDetails =
-    douyinProfile && (douyinProfile.itineraryBlocks.length > 0 || douyinProfile.relatedAccounts.length > 0);
+    douyinProfile && (
+      douyinProfile.itineraryBlocks.length > 0 ||
+      douyinProfile.relatedAccounts.length > 0 ||
+      Boolean(douyinProfile.latestWorkUrl)
+    );
 
   return (
     <PageShell>
@@ -117,12 +121,9 @@ export default async function TalentDetailPage({
             <div className="relative overflow-hidden rounded-[1.8rem] bg-transparent">
               <div className="relative" style={{ aspectRatio: coverDisplayPreset.aspectStyle }}>
                 {detail.cover ? (
-                  <Image
-                    src={detail.cover.url}
-                    alt={detail.cover.alt}
-                    fill
+                  <FramedImage
+                    asset={detail.cover}
                     sizes="(min-width: 1024px) 36vw, 100vw"
-                    className="object-cover"
                   />
                 ) : (
                   <div className="absolute inset-0 bg-transparent" />
@@ -141,21 +142,24 @@ export default async function TalentDetailPage({
                 </p>
               </div>
 
-              {detail.talent.tags.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {detail.talent.tags.map((tag) => (
-                    <span key={tag} className="ui-pill px-4 py-2 text-sm">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-
               {douyinProfile && hasDouyinDetails ? (
                 <div
                   className="grid gap-4 md:grid-cols-[1.35fr_0.65fr]"
                   data-testid="douyin-profile-summary"
                 >
+                  {douyinProfile.latestWorkUrl ? (
+                    <section className="surface-strong rounded-[1.4rem] p-4 md:col-span-2" data-testid="douyin-latest-work">
+                      <p className="text-sm ui-muted">最新作品</p>
+                      <a
+                        href={douyinProfile.latestWorkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-flex text-sm leading-7 text-[var(--foreground)] underline decoration-[var(--line-soft)] underline-offset-4"
+                      >
+                        {douyinProfile.latestWorkCaption?.trim() || "查看最新作品"}
+                      </a>
+                    </section>
+                  ) : null}
                   {douyinProfile.itineraryBlocks.length > 0 ? (
                     <section
                       className={
@@ -373,12 +377,9 @@ export default async function TalentDetailPage({
                       }}
                     >
                       {representation.asset ? (
-                        <Image
-                          src={representation.asset.url}
-                          alt={representation.asset.alt}
-                          fill
+                        <FramedImage
+                          asset={representation.asset}
                           sizes="(min-width: 1280px) 28vw, (min-width: 768px) 42vw, 100vw"
-                          className="object-cover"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-transparent" />
@@ -424,12 +425,9 @@ export default async function TalentDetailPage({
                       }}
                     >
                       {record.asset ? (
-                        <Image
-                          src={record.asset.url}
-                          alt={record.asset.alt}
-                          fill
+                        <FramedImage
+                          asset={record.asset}
                           sizes="(min-width: 1280px) 28vw, (min-width: 768px) 42vw, 100vw"
-                          className="object-cover"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-transparent" />

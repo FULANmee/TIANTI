@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { FramedImage } from "@/components/ui/framed-image";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
 import { SectionFrame } from "@/components/ui/section-frame";
@@ -126,26 +126,13 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                             style={{ aspectRatio: getAssetDisplayPreset("talent_cover", cover).aspectStyle }}
                           >
                             {cover ? (
-                              <Image
-                                src={cover.url}
-                                alt={cover.alt}
-                                fill
+                              <FramedImage
+                                asset={cover}
                                 sizes="(min-width: 1536px) 14vw, (min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw"
-                                className="object-cover"
                               />
                             ) : (
                               <div className="absolute inset-0 bg-transparent" />
                             )}
-                            <div className="absolute left-4 top-4 flex flex-wrap gap-2 origin-top-left 2xl:left-3 2xl:top-3 2xl:scale-[0.72]">
-                              {talent.tags.slice(0, 2).map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="rounded-full bg-[rgba(248,251,255,0.76)] px-3 py-1 text-[11px] tracking-[0.16em] text-[var(--foreground)]"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
                           </div>
                           <div className="space-y-2 p-4">
                             <p className="text-lg tracking-[-0.03em] text-[var(--foreground)]">{talent.nickname}</p>

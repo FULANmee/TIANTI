@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { FramedImage } from "@/components/ui/framed-image";
 import { getAssetDisplayPreset } from "@/lib/asset-display";
 import { getTalentPath } from "@/lib/public-path";
 import type { TalentSummary } from "@/modules/domain/types";
@@ -21,26 +21,17 @@ export function TalentCard({ eagerImage = false, talent }: TalentCardProps) {
       <div className="relative overflow-hidden" style={{ aspectRatio: coverDisplayPreset.aspectStyle }}>
         {talent.cover ? (
           <>
-            <Image
-              src={talent.cover.url}
-              alt={talent.cover.alt}
-              fill
-              loading={eagerImage ? "eager" : undefined}
+            <FramedImage
+              asset={talent.cover}
+              eager={eagerImage}
               sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, 100vw"
-              className="object-cover transition duration-700 group-hover:scale-[1.04]"
+              className="transition duration-700 group-hover:scale-[1.04]"
             />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(24,33,47,0)_48%,rgba(24,33,47,0.28))]" />
           </>
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(43,109,246,0.12),rgba(255,255,255,0.05)_40%,rgba(24,33,47,0.08))]" />
         )}
-        <div className="absolute left-5 top-5 flex flex-wrap gap-2">
-          {talent.tags.slice(0, 2).map((tag) => (
-            <span key={tag} className="rounded-full bg-[rgba(248,251,255,0.76)] px-3 py-1 text-[11px] tracking-[0.16em] text-[var(--foreground)]">
-              {tag}
-            </span>
-          ))}
-        </div>
       </div>
       <div className="space-y-3 px-5 py-5">
         <div className="space-y-2">

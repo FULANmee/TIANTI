@@ -287,6 +287,10 @@ function buildProfile(
   config: DouyinSyncConfig,
   now: Date
 ): TalentDouyinProfile {
+  const latestWork = snapshot.response.latestWork;
+  const preserveLatestWork =
+    !snapshot.response.diagnostics.latestWorkStatus ||
+    snapshot.response.diagnostics.latestWorkStatus === "unavailable";
   return {
     talentId: snapshot.talent.id,
     profileUrl: snapshot.response.account.canonicalUrl,
@@ -301,7 +305,12 @@ function buildProfile(
     manualSyncAvailableAt: isManualTrigger(trigger)
       ? addMinutes(now, config.cooldownMinutes)
       : existingProfile?.manualSyncAvailableAt ?? null,
-    parserVersion: snapshot.parsed.parserVersion
+    parserVersion: snapshot.parsed.parserVersion,
+    latestWorkUrl: preserveLatestWork ? existingProfile?.latestWorkUrl ?? null : latestWork?.url ?? null,
+    latestWorkCaption: preserveLatestWork ? existingProfile?.latestWorkCaption ?? null : latestWork?.caption ?? null,
+    latestWorkPublishedAt: preserveLatestWork
+      ? existingProfile?.latestWorkPublishedAt ?? null
+      : latestWork?.publishedAt ?? null
   };
 }
 
@@ -1073,7 +1082,14 @@ export async function runDouyinSync(options: RunDouyinSyncOptions): Promise<Douy
       eventMergeRules: reconciliation.eventMergeRules,
       deleteSyncEventIds: reconciliation.deleteSyncEventIds,
       syncRun: finishedRun,
-      syncResults: results
+      syncResults: results,
+      mcnUpdates: snapshots.flatMap((snapshot) => {
+        const mcn = snapshot.response.profile.mcn?.trim();
+        const current = currentTalentById.get(snapshot.talent.id);
+        return mcn && current && (!current.mcn.trim() || current.mcnSource === "douyin")
+          ? [{ talentId: current.id, mcn }]
+          : [];
+      })
     });
     return { run: finishedRun, results };
   } catch (error) {

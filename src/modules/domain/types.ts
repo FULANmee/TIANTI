@@ -13,15 +13,8 @@ export type AssetKind =
   | "event_scene"
   | "shared_photo";
 
-export type TalentTag =
-  | "国风"
-  | "cosplay"
-  | "汉服"
-  | "舞台"
-  | "写真"
-  | "嘉宾"
-  | "原创"
-  | "游戏";
+export type TalentMcnSource = "manual" | "douyin";
+export type AssetCleanupRunStatus = "running" | "completed" | "completed_with_errors" | "failed";
 
 export interface EditorProfile {
   id: string;
@@ -47,6 +40,12 @@ export interface Asset {
   objectKey?: string | null;
   width: number;
   height: number;
+  cropX?: number;
+  cropY?: number;
+  cropWidth?: number;
+  cropHeight?: number;
+  displayAspectWidth?: number;
+  displayAspectHeight?: number;
   createdAt?: string;
 }
 
@@ -68,9 +67,9 @@ export interface Talent {
   nickname: string;
   bio: string;
   mcn: string;
+  mcnSource?: TalentMcnSource;
   aliases: string[];
   searchKeywords: string[];
-  tags: TalentTag[];
   coverAssetId?: string | null;
   links: TalentLink[];
   representations: TalentRepresentation[];
@@ -177,6 +176,29 @@ export interface TalentDouyinProfile {
   linkExtractionStatus: DouyinLinkExtractionStatus;
   manualSyncAvailableAt?: string | null;
   parserVersion: string;
+  latestWorkUrl?: string | null;
+  latestWorkCaption?: string | null;
+  latestWorkPublishedAt?: string | null;
+}
+
+export interface AssetObjectDeletionJob {
+  objectKey: string;
+  assetId: string;
+  attempts: number;
+  lastError?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetCleanupRun {
+  id: string;
+  status: AssetCleanupRunStatus;
+  startedAt: string;
+  finishedAt?: string | null;
+  scannedAssetCount: number;
+  eligibleAssetCount: number;
+  deletedAssetCount: number;
+  errorCount: number;
 }
 
 export interface TalentDouyinRelatedAccount {
@@ -249,6 +271,8 @@ export interface ContentState {
   douyinScheduleEntries: TalentDouyinScheduleEntry[];
   douyinSyncRuns: DouyinSyncRun[];
   douyinSyncResults: DouyinSyncResult[];
+  assetObjectDeletionJobs: AssetObjectDeletionJob[];
+  assetCleanupRuns: AssetCleanupRun[];
 }
 
 export interface RepositoryState extends Omit<ContentState, "editors"> {
@@ -262,7 +286,6 @@ export interface TalentSummary {
   bio: string;
   bioPreviewLine: string | null;
   aliases: string[];
-  tags: TalentTag[];
   cover: Asset | null;
   recentHint: string | null;
   futureLocationHint: string | null;
@@ -341,6 +364,9 @@ export interface TalentDetail {
   relatedEvents: RelatedEventSummary[];
   douyinProfile: {
     followerCount: number | null;
+    latestWorkUrl: string | null;
+    latestWorkCaption: string | null;
+    latestWorkPublishedAt: string | null;
     itineraryBlocks: string[];
     relatedAccounts: TalentDouyinRelatedAccount[];
   } | null;
@@ -386,11 +412,6 @@ export interface HomepageDiscovery {
   featuredTalents: TalentSummary[];
   futureEvents: EventSummary[];
   recentTalents: TalentSummary[];
-  tagSpotlights: Array<{
-    tag: TalentTag;
-    count: number;
-    href: string;
-  }>;
   editorSpotlights: Array<{
     editor: EditorProfile;
     href: string;

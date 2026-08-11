@@ -29,6 +29,13 @@ class Account(ApiModel):
 class Profile(ApiModel):
     signature_raw: str = Field(max_length=5_000)
     follower_count: int = Field(ge=0)
+    mcn: str | None = Field(default=None, max_length=256)
+
+
+class LatestWork(ApiModel):
+    url: HttpUrl
+    caption: str = Field(max_length=5_000)
+    published_at: datetime
 
 
 class RelatedAccount(ApiModel):
@@ -40,14 +47,16 @@ class RelatedAccount(ApiModel):
 class Diagnostics(ApiModel):
     profile_source: Literal["f2-user-detail"] = "f2-user-detail"
     link_source: Literal["structured", "rendered", "unavailable"]
+    latest_work_status: Literal["available", "empty", "unavailable"] = "unavailable"
 
 
 class ProfileFetchResponse(ApiModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     fetched_at: datetime
     account: Account
     profile: Profile
     related_accounts: list[RelatedAccount] = Field(max_length=100)
+    latest_work: LatestWork | None = None
     diagnostics: Diagnostics
 
 

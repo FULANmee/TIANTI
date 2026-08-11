@@ -30,6 +30,12 @@ describe("asset cleanup", () => {
 
     expect(result.deletedAssetIds).toContain(asset.id);
     expect(getMockState().assets.some((item) => item.id === asset.id)).toBe(false);
+    expect(getMockState().assetCleanupRuns.at(-1)).toMatchObject({
+      status: "completed",
+      deletedAssetCount: 1,
+      errorCount: 0
+    });
+    expect(getMockState().assetObjectDeletionJobs).toHaveLength(0);
   });
 
   it("keeps orphaned assets that are still inside the grace window", async () => {
@@ -66,7 +72,6 @@ describe("asset cleanup", () => {
       mcn: "",
       aliases: [],
       coverAssetId: asset.id,
-      tags: [],
       links: [],
       representations: []
     });

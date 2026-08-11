@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDouyinSyncConfig } from "@/lib/env";
 
 const responseSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   fetchedAt: z.string().datetime(),
   account: z.object({
     secUserId: z.string().min(1).max(512),
@@ -13,7 +13,8 @@ const responseSchema = z.object({
   }),
   profile: z.object({
     signatureRaw: z.string().max(5_000),
-    followerCount: z.number().int().nonnegative()
+    followerCount: z.number().int().nonnegative(),
+    mcn: z.string().max(256).nullable().optional()
   }),
   relatedAccounts: z.array(
     z.object({
@@ -22,9 +23,15 @@ const responseSchema = z.object({
       url: z.string().url()
     })
   ).max(100),
+  latestWork: z.object({
+    url: z.string().url(),
+    caption: z.string().max(5_000),
+    publishedAt: z.string().datetime()
+  }).nullable().optional(),
   diagnostics: z.object({
     profileSource: z.literal("f2-user-detail"),
-    linkSource: z.enum(["structured", "rendered", "unavailable"])
+    linkSource: z.enum(["structured", "rendered", "unavailable"]),
+    latestWorkStatus: z.enum(["available", "empty", "unavailable"]).optional()
   })
 });
 

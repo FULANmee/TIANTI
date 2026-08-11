@@ -6,7 +6,13 @@ import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes
 import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
 import { normalizeTalentDraft, splitCommaValues } from "@/components/admin/talent-manager-utils";
 import { compareByPinyin } from "@/lib/pinyin";
-import type { DouyinSyncResponse, TalentBulkResponse } from "@/modules/admin/types";
+import { extractDouyinProfileUrl, getPrimaryDouyinProfileLink } from "@/modules/douyin/profile-link";
+import type {
+  DouyinProfileCandidate,
+  DouyinProfileCandidatesResponse,
+  DouyinSyncResponse,
+  TalentBulkResponse
+} from "@/modules/admin/types";
 import type {
   Asset,
   DouyinSyncResult,
@@ -40,7 +46,7 @@ interface TalentDraft {
   nickname: string;
   bio: string;
   mcn: string;
-  tags: string;
+  douyinProfileUrl: string;
   aliases: string;
   coverAssetId: string;
   links: LinkDraft[];
@@ -96,7 +102,7 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
       nickname: "",
       bio: "",
       mcn: "",
-      tags: "",
+      douyinProfileUrl: "",
       aliases: "",
       coverAssetId: "",
       links: [],
@@ -104,15 +110,16 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
     };
   }
 
+  const primaryDouyin = getPrimaryDouyinProfileLink(talent).link;
   return {
     id: talent.id,
     nickname: talent.nickname,
     bio: talent.bio,
     mcn: talent.mcn,
-    tags: toCommaText(talent.tags),
+    douyinProfileUrl: primaryDouyin?.url ?? "",
     aliases: toCommaText(talent.aliases),
     coverAssetId: talent.coverAssetId ?? "",
-    links: talent.links.map((link) => ({
+    links: talent.links.filter((link) => link.id !== primaryDouyin?.id).map((link) => ({
       id: link.id,
       label: link.label,
       url: link.url
@@ -149,6 +156,9 @@ export function TalentManager({
   const [lastSyncResults, setLastSyncResults] = useState(initialLastSyncResults);
   const [draggingRepresentationId, setDraggingRepresentationId] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [douyinCandidates, setDouyinCandidates] = useState<DouyinProfileCandidate[]>([]);
+  const [douyinDiscoveryPending, setDouyinDiscoveryPending] = useState(false);
+  const [douyinDiscoveryMessage, setDouyinDiscoveryMessage] = useState<string | null>(null);
 
   const selectedTalent = liveTalents.find((talent) => talent.id === selectedId) ?? null;
   const selectedDouyinStatus = liveDouyinStatuses.find((status) => status.talentId === selectedId) ?? null;
@@ -177,7 +187,7 @@ export function TalentManager({
   const filteredTalents = useMemo(
     () =>
       liveTalents.filter((talent) =>
-        `${talent.nickname} ${talent.aliases.join(" ")} ${talent.bio} ${talent.tags.join(" ")} ${talent.searchKeywords.join(" ")} ${talent.mcn}`
+        `${talent.nickname} ${talent.aliases.join(" ")} ${talent.bio} ${talent.searchKeywords.join(" ")} ${talent.mcn}`
           .toLowerCase()
           .includes(deferredQuery.toLowerCase())
       ),
@@ -207,6 +217,8 @@ export function TalentManager({
     setDraft(createTalentDraft(nextTalent));
     setCleanupCandidateAssetIds([]);
     setDraggingRepresentationId(null);
+    setDouyinCandidates([]);
+    setDouyinDiscoveryMessage(null);
     setMessage(null);
     setIsEditorOpen(true);
   }
@@ -217,7 +229,49 @@ export function TalentManager({
     setDraft(createTalentDraft(nextTalent));
     setCleanupCandidateAssetIds([]);
     setDraggingRepresentationId(null);
+    setDouyinCandidates([]);
+    setDouyinDiscoveryMessage(null);
     setIsEditorOpen(false);
+  }
+
+  async function handleDiscoverDouyinProfiles() {
+    const nickname = draft.nickname.trim();
+    if (!nickname) {
+      setDouyinDiscoveryMessage("请先填写达人昵称。");
+      return;
+    }
+
+    setDouyinDiscoveryPending(true);
+    setDouyinCandidates([]);
+    setDouyinDiscoveryMessage(null);
+    try {
+      const response = await fetch("/api/admin/douyin-profile-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname })
+      });
+      const data = (await response.json().catch(() => null)) as DouyinProfileCandidatesResponse | null;
+      if (!response.ok || !data?.candidates) {
+        setDouyinDiscoveryMessage(data?.error ?? "暂时无法查找抖音账号，请稍后重试。");
+        return;
+      }
+
+      setDouyinCandidates(data.candidates);
+      setDouyinDiscoveryMessage(
+        data.candidates.length > 0
+          ? "请选择正确账号；同名达人可能有多个，建议先打开主页核对。"
+          : "没有查到可靠候选，可修改昵称重试或在下方手动填写主页链接。"
+      );
+    } catch {
+      setDouyinDiscoveryMessage("暂时无法查找抖音账号，请稍后重试或手动填写主页链接。");
+    } finally {
+      setDouyinDiscoveryPending(false);
+    }
+  }
+
+  function selectDouyinCandidate(candidate: DouyinProfileCandidate) {
+    setDraft((current) => ({ ...current, douyinProfileUrl: candidate.profileUrl }));
+    setDouyinDiscoveryMessage(`已选择“${candidate.nickname}”，保存后会自动校验并抓取最新作品与 MCN。`);
   }
 
   function toggleSelectedTalent(id: string, checked: boolean) {
@@ -427,6 +481,13 @@ export function TalentManager({
     }
 
     setMessage(null);
+    const normalizedDouyinProfileUrl = draft.douyinProfileUrl.trim()
+      ? extractDouyinProfileUrl(draft.douyinProfileUrl)
+      : null;
+    if (draft.douyinProfileUrl.trim() && !normalizedDouyinProfileUrl) {
+      setMessage("没有识别到有效的抖音达人主页，请粘贴主页链接或完整分享文案。");
+      return;
+    }
 
     const payload = {
       id: draft.id,
@@ -436,14 +497,18 @@ export function TalentManager({
       aliases: splitCommaValues(draft.aliases),
       coverAssetId: draft.coverAssetId || null,
       cleanupCandidateAssetIds,
-      tags: splitCommaValues(draft.tags),
-      links: draft.links
+      links: [
+        ...(normalizedDouyinProfileUrl
+          ? [{ id: crypto.randomUUID(), label: "抖音主页", url: normalizedDouyinProfileUrl }]
+          : []),
+        ...draft.links
         .map((link) => ({
           id: link.id,
           label: link.label.trim(),
           url: link.url.trim()
         }))
-        .filter((link) => link.label || link.url),
+        .filter((link) => link.label || link.url)
+      ],
       representations: draft.representations
         .map((item) => ({
           id: item.id,
@@ -479,7 +544,20 @@ export function TalentManager({
       setDraft(createTalentDraft(data.talent));
       setCleanupCandidateAssetIds([]);
       setIsEditorOpen(false);
-      setMessage(`已保存达人「${data.talent.nickname}」。`);
+      if (normalizedDouyinProfileUrl) {
+        const syncResponse = await fetch(`/api/admin/talents/${data.talent.id}/douyin-sync`, { method: "POST" });
+        const syncData = (await syncResponse.json().catch(() => null)) as DouyinSyncResponse | null;
+        if (syncResponse.ok && syncData?.run && syncData.results) {
+          setLastSyncRun(syncData.run);
+          setLastSyncResults(syncData.results);
+          if (syncData.statuses) setLiveDouyinStatuses(syncData.statuses);
+          setMessage(`已保存达人「${data.talent.nickname}」，并完成抖音主页校验与同步。`);
+        } else {
+          setMessage(`已保存达人「${data.talent.nickname}」，但抖音同步暂未完成：${syncData?.error ?? "请稍后重试"}。`);
+        }
+      } else {
+        setMessage(`已保存达人「${data.talent.nickname}」。`);
+      }
     });
   }
 
@@ -635,9 +713,7 @@ export function TalentManager({
                 />
                 <button type="button" onClick={() => openTalentEditor(talent.id)} className="flex-1 text-left">
                   <p className="text-lg text-white">{talent.nickname}</p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/40">
-                    {talent.tags.join(" · ") || "未设置标签"}
-                  </p>
+                  <p className="mt-2 text-xs text-white/40">{talent.mcn || "未设置 MCN"}</p>
                 </button>
               </div>
             );
@@ -694,9 +770,7 @@ export function TalentManager({
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-lg text-white">{selectedTalent.nickname}</p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/40">
-                    {selectedTalent.tags.join(" · ") || "未设置标签"}
-                  </p>
+                  <p className="mt-2 text-xs text-white/40">{selectedTalent.mcn || "未设置 MCN"}</p>
                   <p className="mt-2 text-xs text-white/45">
                     抖音上次成功：{formatAdminSyncTime(selectedDouyinStatus?.lastSuccessAt)}
                     {selectedDouyinStatus?.lastErrorCode
@@ -745,7 +819,7 @@ export function TalentManager({
           description="只有昵称必填；保存成功后弹窗会自动关闭，并同步左侧列表。"
           onClose={closeTalentEditor}
           size="xl"
-          footer={<span className="text-xs leading-6 ui-muted">标签和别名支持中英文逗号分隔。</span>}
+          footer={<span className="text-xs leading-6 ui-muted">别名支持中英文逗号分隔。</span>}
         >
           <section className="space-y-6">
             <div className="space-y-5">
@@ -772,7 +846,11 @@ export function TalentManager({
               <input
                 name="nickname"
                 value={draft.nickname}
-                onChange={(event) => setDraft((current) => ({ ...current, nickname: event.target.value }))}
+                onChange={(event) => {
+                  setDraft((current) => ({ ...current, nickname: event.target.value }));
+                  setDouyinCandidates([]);
+                  setDouyinDiscoveryMessage(null);
+                }}
                 placeholder="昵称"
                 className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
               />
@@ -790,6 +868,76 @@ export function TalentManager({
               />
             </div>
 
+            <div className="space-y-3 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-white">抖音主页</p>
+                  <p className="mt-1 text-xs text-white/45">按昵称查找后点选正确账号，无需再打开抖音复制链接。</p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="discover-douyin-profile"
+                  onClick={handleDiscoverDouyinProfiles}
+                  disabled={!draft.nickname.trim() || douyinDiscoveryPending}
+                  className="rounded-full border border-white/12 px-3 py-2 text-xs text-white/72 disabled:opacity-40"
+                >
+                  {douyinDiscoveryPending ? "查找中..." : "自动查找抖音账号"}
+                </button>
+              </div>
+              {douyinCandidates.length > 0 ? (
+                <div data-testid="douyin-profile-candidates" className="grid gap-3 md:grid-cols-2">
+                  {douyinCandidates.map((candidate) => {
+                    const selected = draft.douyinProfileUrl === candidate.profileUrl;
+                    return (
+                      <div
+                        key={candidate.profileUrl}
+                        className={`rounded-[1.1rem] border p-3 ${
+                          selected ? "border-[var(--color-accent)] bg-white/10" : "border-white/10 bg-black/20"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-white">{candidate.nickname}</p>
+                            <p className="mt-1 text-xs text-white/40">
+                              {candidate.exactNickname ? "昵称完全匹配" : "可能是同名或相近账号"}
+                            </p>
+                          </div>
+                          <a
+                            href={candidate.profileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-xs text-white/65 underline underline-offset-4"
+                          >
+                            打开核对
+                          </a>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => selectDouyinCandidate(candidate)}
+                          className="mt-3 w-full rounded-full border border-white/12 px-3 py-2 text-xs text-white/75"
+                        >
+                          {selected ? "已选择" : "选择这个账号"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {douyinDiscoveryMessage ? (
+                <p data-testid="douyin-discovery-message" className="text-xs leading-6 text-white/55">
+                  {douyinDiscoveryMessage}
+                </p>
+              ) : null}
+              <textarea
+                name="douyinProfileUrl"
+                value={draft.douyinProfileUrl}
+                onChange={(event) => setDraft((current) => ({ ...current, douyinProfileUrl: event.target.value }))}
+                placeholder="自动查找结果会填到这里；也可粘贴主页链接或完整分享文案"
+                rows={2}
+                className="w-full rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+              />
+            </div>
+
             <textarea
               name="bio"
               value={draft.bio}
@@ -800,13 +948,6 @@ export function TalentManager({
             />
 
             <div className="grid gap-4 md:grid-cols-2">
-              <input
-                name="tags"
-                value={draft.tags}
-                onChange={(event) => setDraft((current) => ({ ...current, tags: event.target.value }))}
-                placeholder="标签，支持中英文逗号分隔"
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
               <input
                 name="aliases"
                 value={draft.aliases}
@@ -973,7 +1114,7 @@ export function TalentManager({
             {message ? <p className="text-sm text-[#5f3d00]">{message}</p> : null}
             <div className="flex items-center justify-between gap-4">
               <p className="text-xs leading-6 text-white/45">
-                只有昵称必填，其他字段都可以留空；标签和别名支持中英文逗号分隔。
+                只有昵称必填，其他字段都可以留空；别名支持中英文逗号分隔。
               </p>
               <button
                 type="button"

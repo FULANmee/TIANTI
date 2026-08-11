@@ -10,7 +10,7 @@ from typing import Any, Literal
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from app.config import Settings
-from app.models import Account, Diagnostics, Profile, ProfileFetchResponse, RelatedAccount
+from app.models import Account, Diagnostics, LatestWork, Profile, ProfileFetchResponse, RelatedAccount
 
 
 SEC_USER_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
@@ -21,6 +21,21 @@ ALLOWED_HOSTS = {"www.douyin.com", "douyin.com", "v.douyin.com"}
 MAX_SEC_USER_ID_LENGTH = 512
 MAX_NICKNAME_LENGTH = 256
 MAX_RELATED_ACCOUNTS = 100
+
+
+def extract_structured_mcn(raw_user: dict[str, Any]) -> str | None:
+    candidates = [
+        raw_user.get("mcn_name"),
+        raw_user.get("agency_name"),
+        (raw_user.get("mcn") or {}).get("name") if isinstance(raw_user.get("mcn"), dict) else None,
+        (raw_user.get("agency") or {}).get("name") if isinstance(raw_user.get("agency"), dict) else None,
+        (raw_user.get("enterprise_user_info") or {}).get("enterprise_name")
+        if isinstance(raw_user.get("enterprise_user_info"), dict) else None,
+    ]
+    for value in candidates:
+        if isinstance(value, str) and 0 < len(value.strip()) <= 256:
+            return value.strip()
+    return None
 
 
 def _is_safe_sec_user_id(value: Any) -> bool:
@@ -322,6 +337,53 @@ class F2ProfileProvider:
         except Exception as error:
             raise ScraperProviderError("UPSTREAM_EMPTY_RESPONSE", "Douyin returned no usable profile.", True) from error
 
+    async def _fetch_latest_work(self, sec_user_id: str) -> tuple[LatestWork | None, str]:
+        try:
+            from f2.apps.douyin.handler import DouyinHandler
+
+            cookie = await self._get_cookie()
+            kwargs = {
+                "headers": {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                    "Referer": "https://www.douyin.com/",
+                },
+                "proxies": {"http://": None, "https://": None},
+                "cookie": cookie,
+                "timeout": self.settings.request_timeout_seconds,
+                "max_retries": 1,
+                "max_connections": 1,
+            }
+
+            async def first_page():
+                async for page in DouyinHandler(kwargs).fetch_user_post_videos(sec_user_id, page_counts=20, max_counts=20):
+                    return page
+                return None
+
+            page = await asyncio.wait_for(first_page(), timeout=self.settings.request_timeout_seconds + 4)
+            if page is None:
+                return None, "empty"
+            raw = page._to_raw()
+            works = raw.get("aweme_list") if isinstance(raw, dict) else None
+            if not isinstance(works, list) or not works:
+                return None, "empty"
+
+            valid = [work for work in works if isinstance(work, dict) and str(work.get("aweme_id", "")).isdigit()]
+            valid = [work for work in valid if isinstance(work.get("create_time"), int) and not isinstance(work.get("create_time"), bool)]
+            if not valid:
+                return None, "empty"
+            work = max(valid, key=lambda item: item["create_time"])
+            aweme_id = str(work["aweme_id"])
+            is_note = bool(work.get("images"))
+            path = "note" if is_note else "video"
+            caption = work.get("desc") if isinstance(work.get("desc"), str) else ""
+            return LatestWork(
+                url=f"https://www.douyin.com/{path}/{aweme_id}",
+                caption=caption[:5_000],
+                published_at=datetime.fromtimestamp(work["create_time"], timezone.utc),
+            ), "available"
+        except Exception:
+            return None, "unavailable"
+
     async def fetch_profile(self, profile_url: str) -> ProfileFetchResponse:
         validated_url = validate_profile_url(profile_url)
         sec_user_id = await self._resolve_sec_user_id(validated_url)
@@ -354,6 +416,7 @@ class F2ProfileProvider:
             sec_user_id,
             signature_raw,
         )
+        latest_work_task = asyncio.create_task(self._fetch_latest_work(sec_user_id))
         extraction = RelatedAccountExtraction(structured_accounts, "structured")
         if not structured_accounts and "@" in signature_raw and self.settings.enable_browser_links:
             rendered_accounts = await extract_rendered_related_accounts(
@@ -369,6 +432,8 @@ class F2ProfileProvider:
         elif not structured_accounts:
             extraction = RelatedAccountExtraction([], "unavailable")
 
+        latest_work, latest_work_status = await latest_work_task
+
         return ProfileFetchResponse(
             fetched_at=datetime.now(timezone.utc),
             account=Account(
@@ -376,7 +441,12 @@ class F2ProfileProvider:
                 nickname=user.nickname_raw,
                 canonical_url=canonical_user_url(sec_user_id),
             ),
-            profile=Profile(signature_raw=signature_raw, follower_count=follower_count),
+            profile=Profile(
+                signature_raw=signature_raw,
+                follower_count=follower_count,
+                mcn=extract_structured_mcn(raw_user),
+            ),
             related_accounts=extraction.accounts,
-            diagnostics=Diagnostics(link_source=extraction.source),
+            latest_work=latest_work,
+            diagnostics=Diagnostics(link_source=extraction.source, latest_work_status=latest_work_status),
         )

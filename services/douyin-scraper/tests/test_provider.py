@@ -1,4 +1,10 @@
-from app.provider import extract_structured_related_accounts
+from app.provider import extract_structured_mcn, extract_structured_related_accounts
+
+
+def test_extracts_only_explicit_structured_mcn_fields():
+    assert extract_structured_mcn({"mcn_name": " 星河机构 "}) == "星河机构"
+    assert extract_structured_mcn({"enterprise_user_info": {"enterprise_name": "企业账号"}}) == "企业账号"
+    assert extract_structured_mcn({"signature": "简介里自称某机构旗下"}) is None
 
 
 def _span(signature: str, mention: str) -> tuple[int, int]:
