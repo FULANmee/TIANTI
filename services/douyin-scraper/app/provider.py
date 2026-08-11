@@ -21,6 +21,10 @@ ALLOWED_HOSTS = {"www.douyin.com", "douyin.com", "v.douyin.com"}
 MAX_SEC_USER_ID_LENGTH = 512
 MAX_NICKNAME_LENGTH = 256
 MAX_RELATED_ACCOUNTS = 100
+LATEST_WORK_PAGE_SIZE = 20
+LATEST_WORK_MAX_PAGES = 3
+
+
 def _is_safe_sec_user_id(value: Any) -> bool:
     return (
         isinstance(value, str)
@@ -250,6 +254,35 @@ async def extract_rendered_related_accounts(
         return []
 
 
+def select_latest_work(pages: list[dict[str, Any]]) -> tuple[LatestWork | None, str]:
+    works: list[dict[str, Any]] = []
+    for page in pages:
+        page_works = page.get("aweme_list")
+        if isinstance(page_works, list):
+            works.extend(work for work in page_works if isinstance(work, dict))
+
+    valid = [
+        work
+        for work in works
+        if str(work.get("aweme_id", "")).isdigit()
+        and isinstance(work.get("create_time"), int)
+        and not isinstance(work.get("create_time"), bool)
+    ]
+    if not valid:
+        return None, "empty"
+
+    work = max(valid, key=lambda item: item["create_time"])
+    aweme_id = str(work["aweme_id"])
+    is_note = bool(work.get("images"))
+    path = "note" if is_note else "video"
+    caption = work.get("desc") if isinstance(work.get("desc"), str) else ""
+    return LatestWork(
+        url=f"https://www.douyin.com/{path}/{aweme_id}",
+        caption=caption[:5_000],
+        published_at=datetime.fromtimestamp(work["create_time"], timezone.utc),
+    ), "available"
+
+
 class F2ProfileProvider:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -325,38 +358,44 @@ class F2ProfileProvider:
 
     async def _fetch_latest_work(self, sec_user_id: str) -> tuple[LatestWork | None, str]:
         try:
-            from f2.apps.douyin.handler import DouyinHandler
+            from f2.apps.douyin.crawler import DouyinCrawler
+            from f2.apps.douyin.model import UserPost
 
+            _silence_f2_logging()
             cookie = await self._get_cookie()
             kwargs = self._request_kwargs(cookie)
+            pages: list[dict[str, Any]] = []
+            max_cursor = 0
+            async with DouyinCrawler(kwargs) as crawler:
+                for _ in range(LATEST_WORK_MAX_PAGES):
+                    response = await asyncio.wait_for(
+                        crawler.fetch_user_post(
+                            UserPost(
+                                max_cursor=max_cursor,
+                                count=LATEST_WORK_PAGE_SIZE,
+                                sec_user_id=sec_user_id,
+                            )
+                        ),
+                        timeout=self.settings.request_timeout_seconds + 4,
+                    )
+                    if not isinstance(response, dict):
+                        break
+                    pages.append(response)
 
-            async def first_page():
-                async for page in DouyinHandler(kwargs).fetch_user_post_videos(sec_user_id, page_counts=20, max_counts=20):
-                    return page
-                return None
+                    next_cursor_value = response.get("max_cursor")
+                    if isinstance(next_cursor_value, bool):
+                        break
+                    if isinstance(next_cursor_value, int):
+                        next_cursor = next_cursor_value
+                    elif isinstance(next_cursor_value, str) and next_cursor_value.isdigit():
+                        next_cursor = int(next_cursor_value)
+                    else:
+                        break
+                    if response.get("has_more") in {False, 0, "0"} or next_cursor == max_cursor:
+                        break
+                    max_cursor = next_cursor
 
-            page = await asyncio.wait_for(first_page(), timeout=self.settings.request_timeout_seconds + 4)
-            if page is None:
-                return None, "empty"
-            raw = page._to_raw()
-            works = raw.get("aweme_list") if isinstance(raw, dict) else None
-            if not isinstance(works, list) or not works:
-                return None, "empty"
-
-            valid = [work for work in works if isinstance(work, dict) and str(work.get("aweme_id", "")).isdigit()]
-            valid = [work for work in valid if isinstance(work.get("create_time"), int) and not isinstance(work.get("create_time"), bool)]
-            if not valid:
-                return None, "empty"
-            work = max(valid, key=lambda item: item["create_time"])
-            aweme_id = str(work["aweme_id"])
-            is_note = bool(work.get("images"))
-            path = "note" if is_note else "video"
-            caption = work.get("desc") if isinstance(work.get("desc"), str) else ""
-            return LatestWork(
-                url=f"https://www.douyin.com/{path}/{aweme_id}",
-                caption=caption[:5_000],
-                published_at=datetime.fromtimestamp(work["create_time"], timezone.utc),
-            ), "available"
+            return select_latest_work(pages)
         except Exception:
             return None, "unavailable"
 
