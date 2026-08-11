@@ -1,5 +1,12 @@
 # 开发日志
 
+## 2026-08-11 — 修复移动端主页 MCN 卡片同步
+
+- Goal：让同步读取抖音手机端主页独立展示的 MCN 卡片。
+- Changed：桌面资料未提供 MCN 时，使用现有 F2 签名能力以 Android 参数请求补充资料接口，读取 `card_entries` 等明确的机构字段；不从昵称或简介文本推测，也不把橱窗、小程序等其他卡片误当成 MCN。
+- Verified：抖音公开账号接口实测可返回移动端差异化卡片；Python 20 项测试、前端 152 项测试及 ESLint 全部通过。
+- Specs：更新 [达人与素材行为](./docs/spec/talents-and-assets.md) 与 [术语表](./docs/spec/glossary.md)。
+
 ## 2026-08-11 — 开启 codex/5.1 Preview 抖音同步
 
 - 为 `codex/5.1` 的 Vercel Preview 环境生成并配置分支专用 `SCRAPER_SHARED_SECRET`，不记录密钥值。

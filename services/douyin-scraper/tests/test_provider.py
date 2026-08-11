@@ -1,10 +1,110 @@
+from types import SimpleNamespace
+
 from app.provider import extract_structured_mcn, extract_structured_related_accounts
+from app.provider import F2ProfileProvider
+from app.config import Settings
 
 
 def test_extracts_only_explicit_structured_mcn_fields():
     assert extract_structured_mcn({"mcn_name": " 星河机构 "}) == "星河机构"
+    assert extract_structured_mcn({"mcn": {"name": " 星河机构 "}}) == "星河机构"
     assert extract_structured_mcn({"enterprise_user_info": {"enterprise_name": "企业账号"}}) == "企业账号"
     assert extract_structured_mcn({"signature": "简介里自称某机构旗下"}) is None
+
+
+def test_extracts_mcn_from_mobile_profile_card():
+    assert (
+        extract_structured_mcn(
+            {
+                "card_entries": [
+                    {"title": "所属MCN机构", "sub_title": "星河机构", "type": 42},
+                ]
+            }
+        )
+        == "星河机构"
+    )
+
+
+def test_extracts_mcn_from_json_encoded_structured_card_data():
+    assert extract_structured_mcn({"mcn_info": '{"mcn_name":"星河机构"}'}) == "星河机构"
+    assert extract_structured_mcn({"enterprise_user_info": '{"mcn_name":"星河机构"}'}) == "星河机构"
+    assert (
+        extract_structured_mcn(
+            {
+                "card_entries": [
+                    {
+                        "title": "达人资料",
+                        "card_data": '{"mcn_name":"星河机构"}',
+                    }
+                ]
+            }
+        )
+        == "星河机构"
+    )
+
+
+def test_ignores_unrelated_profile_cards_and_mcn_text_in_bio():
+    assert (
+        extract_structured_mcn(
+            {
+                "signature": "MCN机构：星河机构",
+                "card_entries": [{"title": "进入橱窗", "sub_title": "148件好物", "type": 35}],
+            }
+        )
+        is None
+    )
+    assert (
+        extract_structured_mcn(
+            {
+                "card_entries": [
+                    {"mcn_id": "123", "title": "达人资料", "sub_title": "更多信息"},
+                ]
+            }
+        )
+        is None
+    )
+
+
+def test_profile_fetch_falls_back_to_mobile_profile_card_for_mcn(monkeypatch):
+    provider = F2ProfileProvider(
+        Settings(
+            shared_secret="test",
+            configured_cookie=None,
+            enable_browser_links=False,
+            request_timeout_seconds=1,
+            browser_timeout_seconds=1,
+        )
+    )
+    sec_user_id = "MS4wLjABAAAA-primary"
+    desktop_user = SimpleNamespace(
+        nickname_raw="测试达人",
+        signature_raw="简介",
+        follower_count=100,
+        _to_raw=lambda: {
+            "user": {
+                "nickname": "测试达人",
+                "signature": "简介",
+            }
+        },
+    )
+
+    async def fake_fetch_user(_sec_user_id):
+        return desktop_user
+
+    async def fake_mobile_profile(_sec_user_id):
+        return {"card_entries": [{"title": "所属MCN机构", "sub_title": "星河机构"}]}
+
+    async def fake_latest_work(_sec_user_id):
+        return None, "empty"
+
+    monkeypatch.setattr(provider, "_fetch_user", fake_fetch_user)
+    monkeypatch.setattr(provider, "_fetch_mobile_profile_raw", fake_mobile_profile)
+    monkeypatch.setattr(provider, "_fetch_latest_work", fake_latest_work)
+
+    import asyncio
+
+    response = asyncio.run(provider.fetch_profile(f"https://www.douyin.com/user/{sec_user_id}"))
+    assert response.profile.mcn == "星河机构"
 
 
 def _span(signature: str, mention: str) -> tuple[int, int]:

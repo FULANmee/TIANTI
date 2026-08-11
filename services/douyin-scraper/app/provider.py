@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 import logging
 import re
 import unicodedata
@@ -21,20 +22,194 @@ ALLOWED_HOSTS = {"www.douyin.com", "douyin.com", "v.douyin.com"}
 MAX_SEC_USER_ID_LENGTH = 512
 MAX_NICKNAME_LENGTH = 256
 MAX_RELATED_ACCOUNTS = 100
+MAX_MCN_LENGTH = 256
+MOBILE_PROFILE_ENDPOINT = "https://www.douyin.com/aweme/v1/user/profile/other/"
+MOBILE_PROFILE_USER_AGENT = (
+    "com.ss.android.ugc.aweme/290100 (Linux; U; Android 13; zh_CN; "
+    "22081212C; Build/TP1A.220624.014)"
+)
+
+_MCN_KEY_MARKERS = (
+    "mcn",
+    "agency",
+    "institution",
+    "organization",
+    "organisation",
+    "affiliation",
+    "机构",
+    "经纪",
+)
+_MCN_VALUE_KEYS = (
+    "mcn_name",
+    "mcnname",
+    "agency_name",
+    "agencyname",
+    "institution_name",
+    "institutionname",
+    "organization_name",
+    "organizationname",
+    "organisation_name",
+    "organisationname",
+    "affiliated_mcn_name",
+    "affiliatedmcnname",
+)
+_MCN_GENERIC_VALUES = {
+    "mcn",
+    "agency",
+    "institution",
+    "organization",
+    "organisation",
+    "affiliation",
+    "机构",
+    "机构名称",
+    "所属机构",
+    "所属mcn",
+    "所属mcn机构",
+    "mcn机构",
+}
+
+
+def _decode_json_value(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text or len(text) > 100_000 or text[0] not in "[{":
+        return value
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError):
+        return value
+
+
+def _clean_mcn_value(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split()).strip()
+    if not text or len(text) > MAX_MCN_LENGTH:
+        return None
+    if text.casefold() in _MCN_GENERIC_VALUES:
+        return None
+    return text
+
+
+def _marker_in_key(key: Any) -> bool:
+    normalized = str(key).casefold().replace("-", "_")
+    return any(marker in normalized for marker in _MCN_KEY_MARKERS)
+
+
+def _explicit_mcn_value(value: Any, allow_plain_name: bool = False) -> str | None:
+    value = _decode_json_value(value)
+    if isinstance(value, dict):
+        if allow_plain_name:
+            for key in ("name", "title", "sub_title", "subtitle", "value", "label"):
+                candidate = _clean_mcn_value(value.get(key))
+                if candidate:
+                    return candidate
+        for key, child in value.items():
+            normalized = str(key).casefold().replace("-", "_")
+            if normalized in _MCN_VALUE_KEYS or normalized.endswith("_mcn_name"):
+                candidate = _clean_mcn_value(child)
+                if candidate:
+                    return candidate
+        for key, child in value.items():
+            if _marker_in_key(key):
+                candidate = _explicit_mcn_value(child, allow_plain_name=True)
+                if candidate:
+                    return candidate
+        return None
+    if isinstance(value, list):
+        for child in value:
+            candidate = _explicit_mcn_value(child)
+            if candidate:
+                return candidate
+        return None
+    return _clean_mcn_value(value)
+
+
+def _extract_mcn_card(card: Any) -> str | None:
+    card = _decode_json_value(card)
+    if not isinstance(card, dict):
+        return None
+
+    # The mobile profile card is a structured object. Only inspect cards whose
+    # own metadata explicitly mentions MCN/agency/institution; unrelated cards
+    # (for example, shop and mini-program cards) must never become an MCN.
+    metadata_marked = any(
+        isinstance(card.get(key), str)
+        and any(marker in card[key].casefold() for marker in _MCN_KEY_MARKERS)
+        for key in ("title", "sub_title", "subtitle", "label", "text")
+    )
+    explicit_key_marked = any(
+        _marker_in_key(key) for key in card if key not in {"card_data", "data"}
+    )
+    marked = metadata_marked or explicit_key_marked
+    card_data = _decode_json_value(card.get("card_data") or card.get("data"))
+    if not marked and isinstance(card_data, (dict, list)):
+        marked = _contains_mcn_marker(card_data)
+    if not marked:
+        return None
+
+    candidate = _explicit_mcn_value(card_data)
+    if candidate:
+        return candidate
+    for key in ("mcn_name", "agency_name", "institution_name", "organization_name"):
+        candidate = _clean_mcn_value(card.get(key))
+        if candidate:
+            return candidate
+
+    title = _clean_mcn_value(card.get("title"))
+    subtitle = _clean_mcn_value(card.get("sub_title") or card.get("subtitle"))
+    # Card labels commonly read “所属 MCN 机构”, with the actual name in the
+    # subtitle. If the label itself is the only text, fail closed.
+    if not metadata_marked:
+        return None
+    if subtitle and subtitle.casefold() not in _MCN_GENERIC_VALUES:
+        return subtitle
+    if title and not any(marker in title.casefold() for marker in _MCN_KEY_MARKERS):
+        return title
+    return None
+
+
+def _contains_mcn_marker(value: Any) -> bool:
+    value = _decode_json_value(value)
+    if isinstance(value, dict):
+        return any(
+            _marker_in_key(key)
+            or (isinstance(child, str) and any(marker in child.casefold() for marker in _MCN_KEY_MARKERS))
+            or _contains_mcn_marker(child)
+            for key, child in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_mcn_marker(child) for child in value)
+    return isinstance(value, str) and any(marker in value.casefold() for marker in _MCN_KEY_MARKERS)
 
 
 def extract_structured_mcn(raw_user: dict[str, Any]) -> str | None:
-    candidates = [
-        raw_user.get("mcn_name"),
-        raw_user.get("agency_name"),
-        (raw_user.get("mcn") or {}).get("name") if isinstance(raw_user.get("mcn"), dict) else None,
-        (raw_user.get("agency") or {}).get("name") if isinstance(raw_user.get("agency"), dict) else None,
-        (raw_user.get("enterprise_user_info") or {}).get("enterprise_name")
-        if isinstance(raw_user.get("enterprise_user_info"), dict) else None,
-    ]
-    for value in candidates:
-        if isinstance(value, str) and 0 < len(value.strip()) <= 256:
-            return value.strip()
+    # Keep compatibility with explicit top-level fields while avoiding any
+    # inference from nickname/signature text.
+    for key in ("mcn_name", "agency_name", "mcn", "agency", "mcn_info", "agency_info"):
+        candidate = _explicit_mcn_value(raw_user.get(key), allow_plain_name=True)
+        if candidate:
+            return candidate
+
+    enterprise_info = raw_user.get("enterprise_user_info")
+    if isinstance(enterprise_info, dict):
+        candidate = _clean_mcn_value(enterprise_info.get("enterprise_name"))
+        if candidate:
+            return candidate
+    decoded_enterprise_info = _decode_json_value(enterprise_info)
+    if isinstance(decoded_enterprise_info, dict):
+        candidate = _explicit_mcn_value(decoded_enterprise_info)
+        if candidate:
+            return candidate
+
+    for key in ("card_entries", "card_entries_not_display"):
+        cards = _decode_json_value(raw_user.get(key))
+        if isinstance(cards, list):
+            for card in cards:
+                candidate = _extract_mcn_card(card)
+                if candidate:
+                    return candidate
     return None
 
 
@@ -309,23 +484,26 @@ class F2ProfileProvider:
             self._visitor_cookie = f"ttwid={ttwid}"
             return self._visitor_cookie
 
+    def _request_kwargs(self, cookie: str) -> dict[str, Any]:
+        return {
+            "headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                "Referer": "https://www.douyin.com/",
+            },
+            "proxies": {"http://": None, "https://": None},
+            "cookie": cookie,
+            "timeout": self.settings.request_timeout_seconds,
+            "max_retries": 1,
+            "max_connections": 1,
+        }
+
     async def _fetch_user(self, sec_user_id: str, refresh_cookie: bool = False):
         try:
             from f2.apps.douyin.handler import DouyinHandler
 
             _silence_f2_logging()
             cookie = await self._get_cookie(refresh=refresh_cookie)
-            kwargs = {
-                "headers": {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                    "Referer": "https://www.douyin.com/",
-                },
-                "proxies": {"http://": None, "https://": None},
-                "cookie": cookie,
-                "timeout": self.settings.request_timeout_seconds,
-                "max_retries": 1,
-                "max_connections": 1,
-            }
+            kwargs = self._request_kwargs(cookie)
             return await asyncio.wait_for(
                 DouyinHandler(kwargs).fetch_user_profile(sec_user_id),
                 timeout=self.settings.request_timeout_seconds + 4,
@@ -342,17 +520,7 @@ class F2ProfileProvider:
             from f2.apps.douyin.handler import DouyinHandler
 
             cookie = await self._get_cookie()
-            kwargs = {
-                "headers": {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                    "Referer": "https://www.douyin.com/",
-                },
-                "proxies": {"http://": None, "https://": None},
-                "cookie": cookie,
-                "timeout": self.settings.request_timeout_seconds,
-                "max_retries": 1,
-                "max_connections": 1,
-            }
+            kwargs = self._request_kwargs(cookie)
 
             async def first_page():
                 async for page in DouyinHandler(kwargs).fetch_user_post_videos(sec_user_id, page_counts=20, max_counts=20):
@@ -383,6 +551,61 @@ class F2ProfileProvider:
             ), "available"
         except Exception:
             return None, "unavailable"
+
+    async def _fetch_mobile_profile_raw(self, sec_user_id: str) -> dict[str, Any] | None:
+        """Best-effort enrichment from the profile card endpoint used by mobile.
+
+        The normal F2 profile endpoint is the desktop web endpoint and often
+        omits the standalone MCN card. Douyin exposes a richer profile response
+        at the same route without the ``web`` path segment; it accepts the same
+        X-Bogus/A-Bogus signing that F2 already maintains. This call is
+        intentionally optional: a missing card or an upstream failure must not
+        make an otherwise valid profile unusable.
+        """
+        try:
+            from f2.apps.douyin.model import UserProfile
+            from f2.apps.douyin.crawler import DouyinCrawler
+
+            _silence_f2_logging()
+            cookie = await self._get_cookie()
+            kwargs = self._request_kwargs(cookie)
+            kwargs["headers"]["User-Agent"] = MOBILE_PROFILE_USER_AGENT
+            params = UserProfile(sec_user_id=sec_user_id).model_dump()
+            params.update(
+                {
+                    "aid": "1128",
+                    "app_name": "aweme",
+                    "device_platform": "android",
+                    "channel": "update",
+                    "os_api": "33",
+                    "os_version": "13",
+                    "manifest_version_code": "290100",
+                    "update_version_code": "290100",
+                    "app_type": "normal",
+                    "is_android_pad": "0",
+                    "from": 0,
+                    "source": "UserProfileFragment_initUserData",
+                    "card_partition": 0,
+                    "card_style": 0,
+                    "hit_ab_test": 0,
+                    "btn_in_value": 0,
+                    "land_to": 1,
+                }
+            )
+            async with DouyinCrawler(kwargs) as crawler:
+                endpoint = crawler.bogus_manager.model_2_endpoint(
+                    kwargs["headers"]["User-Agent"],
+                    MOBILE_PROFILE_ENDPOINT,
+                    params,
+                )
+                response = await asyncio.wait_for(
+                    crawler._fetch_get_json(endpoint),
+                    timeout=self.settings.request_timeout_seconds + 4,
+                )
+            raw_user = response.get("user") if isinstance(response, dict) else None
+            return raw_user if isinstance(raw_user, dict) else None
+        except Exception:
+            return None
 
     async def fetch_profile(self, profile_url: str) -> ProfileFetchResponse:
         validated_url = validate_profile_url(profile_url)
@@ -417,6 +640,12 @@ class F2ProfileProvider:
             signature_raw,
         )
         latest_work_task = asyncio.create_task(self._fetch_latest_work(sec_user_id))
+        mcn = extract_structured_mcn(raw_user)
+        mobile_profile_task = (
+            asyncio.create_task(self._fetch_mobile_profile_raw(sec_user_id))
+            if mcn is None
+            else None
+        )
         extraction = RelatedAccountExtraction(structured_accounts, "structured")
         if not structured_accounts and "@" in signature_raw and self.settings.enable_browser_links:
             rendered_accounts = await extract_rendered_related_accounts(
@@ -433,6 +662,10 @@ class F2ProfileProvider:
             extraction = RelatedAccountExtraction([], "unavailable")
 
         latest_work, latest_work_status = await latest_work_task
+        if mobile_profile_task is not None:
+            mobile_raw_user = await mobile_profile_task
+            if mobile_raw_user is not None:
+                mcn = extract_structured_mcn(mobile_raw_user)
 
         return ProfileFetchResponse(
             fetched_at=datetime.now(timezone.utc),
@@ -444,7 +677,7 @@ class F2ProfileProvider:
             profile=Profile(
                 signature_raw=signature_raw,
                 follower_count=follower_count,
-                mcn=extract_structured_mcn(raw_user),
+                mcn=mcn,
             ),
             related_accounts=extraction.accounts,
             latest_work=latest_work,
