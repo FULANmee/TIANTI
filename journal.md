@@ -4,7 +4,7 @@
 
 - Goal：修复点击同步后最新作品偶尔落后一两个视频的问题。
 - Changed：抖音抓取改为直接请求最多 3 页主页作品，并跨页按 `create_time` 选择最新作品；避免 f2 生成器页间等待。
-- Verified：Python 抓取服务测试 16 项通过；前端 Vitest 152 项、ESLint 和 Next 构建均通过；待 Preview 构建后复测真实同步链路。
+- Verified：Python 抓取服务测试 16 项通过；前端 Vitest 152 项、ESLint 和 Next 构建均通过；Preview 构建成功，前端首页和抓取健康检查均返回 200。
 
 ## 2026-08-11 — 移除 MCN 功能
 
