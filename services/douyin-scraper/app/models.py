@@ -43,7 +43,7 @@ class Diagnostics(ApiModel):
 
 
 class ProfileFetchResponse(ApiModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     fetched_at: datetime
     account: Account
     profile: Profile

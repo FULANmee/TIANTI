@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 
 import { getOrphanAssetCleanupConfig, getR2StorageConfig, isMockStorageMode } from "@/lib/env";
 import type { Asset, ContentState } from "@/modules/domain/types";
@@ -124,26 +125,25 @@ async function cleanupAssetsByIds(candidateIds: string[]): Promise<AssetCleanupR
       continue;
     }
 
-    const deleted = await repository.deleteAssetIfUnreferenced(assetId);
+    const objectKey = getAssetObjectKey(asset);
+    const deleted = await repository.deleteAssetIfUnreferenced(assetId, objectKey);
     if (!deleted) {
       skippedReferencedAssetIds.push(assetId);
       continue;
     }
 
-    const objectKey = getAssetObjectKey(asset);
-    if (objectKey) {
-      try {
-        await deleteObjectFromR2(objectKey);
-      } catch (error) {
-        objectDeleteErrors.push({
-          assetId,
-          message: error instanceof Error ? error.message : "Failed to delete object from R2.",
-          objectKey
-        });
-      }
-    }
-
     deletedAssetIds.push(assetId);
+  }
+
+  for (const job of await repository.listAssetObjectDeletionJobs(Math.max(100, attemptedAssetIds.length))) {
+    try {
+      await deleteObjectFromR2(job.objectKey);
+      await repository.completeAssetObjectDeletionJob(job.objectKey);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete object from R2.";
+      await repository.failAssetObjectDeletionJob(job.objectKey, message);
+      objectDeleteErrors.push({ assetId: job.assetId, message, objectKey: job.objectKey });
+    }
   }
 
   return {
@@ -179,14 +179,38 @@ export async function cleanupOrphanedAssets(): Promise<OrphanAssetCleanupResult>
     });
 
   const attemptedAssetIds = orphanAssets.slice(0, limit).map((asset) => asset.id);
-  const cleanupResult = await cleanupAssetsByIds(attemptedAssetIds);
+  const run = {
+    id: randomUUID(),
+    status: "running" as const,
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    scannedAssetCount: state.assets.length,
+    eligibleAssetCount: orphanAssets.length,
+    deletedAssetCount: 0,
+    errorCount: 0
+  };
+  await repository.saveAssetCleanupRun(run);
 
-  return {
+  try {
+    const cleanupResult = await cleanupAssetsByIds(attemptedAssetIds);
+    await repository.saveAssetCleanupRun({
+      ...run,
+      status: cleanupResult.objectDeleteErrors.length > 0 ? "completed_with_errors" : "completed",
+      finishedAt: new Date().toISOString(),
+      deletedAssetCount: cleanupResult.deletedAssetIds.length,
+      errorCount: cleanupResult.objectDeleteErrors.length
+    });
+
+    return {
     ...cleanupResult,
     cutoffIso: new Date(cutoffTime).toISOString(),
     eligibleAssetCount: orphanAssets.length,
     graceMinutes,
     limit,
     scannedAssetCount: state.assets.length
-  };
+    };
+  } catch (error) {
+    await repository.saveAssetCleanupRun({ ...run, status: "failed", finishedAt: new Date().toISOString(), errorCount: 1 });
+    throw error;
+  }
 }

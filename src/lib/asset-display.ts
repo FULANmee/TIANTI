@@ -11,7 +11,7 @@ export interface AssetDisplayPreset {
 }
 
 type AssetDisplayCopy = Pick<AssetDisplayPreset, "cropTitle" | "cropHint">;
-type AssetDisplayDimensions = Pick<Asset, "width" | "height">;
+type AssetDisplayDimensions = Pick<Asset, "width" | "height" | "displayAspectWidth" | "displayAspectHeight">;
 
 const MAX_ASPECT_RATIO_DELTA = 0.03;
 
@@ -41,6 +41,13 @@ function getClosestDisplayPreset(
 ) {
   if (!asset || asset.width <= 0 || asset.height <= 0) {
     return null;
+  }
+
+  if (asset.displayAspectWidth && asset.displayAspectHeight) {
+    const exact = presets.find((preset) =>
+      preset.aspectWidth === asset.displayAspectWidth && preset.aspectHeight === asset.displayAspectHeight
+    );
+    if (exact) return exact;
   }
 
   const assetAspectRatio = asset.width / asset.height;

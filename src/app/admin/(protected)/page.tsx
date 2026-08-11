@@ -9,6 +9,9 @@ export default async function AdminDashboardPage() {
   const editor = await requireAuthenticatedEditor();
   const [data, state] = await Promise.all([getAdminDashboard(editor.id), getContentState()]);
   const eventMap = new Map(state.events.map((event) => [event.id, event]));
+  const latestCleanupRun = [...state.assetCleanupRuns].sort(
+    (left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt)
+  )[0] ?? null;
 
   return (
     <div className="space-y-6">
@@ -91,6 +94,21 @@ export default async function AdminDashboardPage() {
           </div>
         </AdminPanel>
       </div>
+
+      <AdminPanel
+        eyebrow="Asset Cleanup"
+        title="未占用图片自动清理"
+        description={latestCleanupRun ? `最近运行：${formatDate(latestCleanupRun.finishedAt ?? latestCleanupRun.startedAt)}` : "定时任务已配置，但目前还没有持久化的运行记录。"}
+      >
+        {latestCleanupRun ? (
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="ui-stat"><p className="text-sm ui-muted">状态</p><p className="mt-2 text-lg text-[var(--foreground)]">{latestCleanupRun.status}</p></div>
+            <div className="ui-stat"><p className="text-sm ui-muted">扫描</p><p className="mt-2 text-3xl text-[var(--foreground)]">{latestCleanupRun.scannedAssetCount}</p></div>
+            <div className="ui-stat"><p className="text-sm ui-muted">已删除</p><p className="mt-2 text-3xl text-[var(--foreground)]">{latestCleanupRun.deletedAssetCount}</p></div>
+            <div className="ui-stat"><p className="text-sm ui-muted">错误</p><p className="mt-2 text-3xl text-[var(--foreground)]">{latestCleanupRun.errorCount}</p></div>
+          </div>
+        ) : null}
+      </AdminPanel>
 
       <AdminPanel
         eyebrow="Profile"

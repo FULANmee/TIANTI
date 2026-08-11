@@ -5,6 +5,8 @@ import { and, desc, eq, inArray, like, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   archiveEntries,
+  assetCleanupRuns,
+  assetObjectDeletionJobs,
   assets,
   douyinSyncResults,
   douyinSyncRuns,
@@ -23,7 +25,6 @@ import {
   talentDouyinRelatedAccounts,
   talentDouyinScheduleEntries,
   talentLinks,
-  talentTags,
   talents
 } from "@/db/schema";
 import type {
@@ -64,7 +65,6 @@ async function loadState(): Promise<ContentState> {
     sessionRows,
     assetRows,
     talentRows,
-    tagRows,
     linkRows,
     talentAssetRows,
     eventRows,
@@ -80,13 +80,14 @@ async function loadState(): Promise<ContentState> {
     douyinRelatedAccountRows,
     douyinScheduleEntryRows,
     douyinSyncRunRows,
-    douyinSyncResultRows
+    douyinSyncResultRows,
+    assetObjectDeletionJobRows,
+    assetCleanupRunRows
   ] = await Promise.all([
     db.select().from(editors),
     db.select().from(sessions),
     db.select().from(assets),
     db.select().from(talents),
-    db.select().from(talentTags),
     db.select().from(talentLinks),
     db.select().from(talentAssets),
     db.select().from(events),
@@ -102,7 +103,9 @@ async function loadState(): Promise<ContentState> {
     db.select().from(talentDouyinRelatedAccounts),
     db.select().from(talentDouyinScheduleEntries),
     db.select().from(douyinSyncRuns),
-    db.select().from(douyinSyncResults)
+    db.select().from(douyinSyncResults),
+    db.select().from(assetObjectDeletionJobs),
+    db.select().from(assetCleanupRuns)
   ]);
 
   const fallbackLineupDateByEventId = new Map(
@@ -144,6 +147,12 @@ async function loadState(): Promise<ContentState> {
       objectKey: row.objectKey ?? null,
       width: row.width,
       height: row.height,
+      cropX: row.cropX,
+      cropY: row.cropY,
+      cropWidth: row.cropWidth,
+      cropHeight: row.cropHeight,
+      displayAspectWidth: row.displayAspectWidth,
+      displayAspectHeight: row.displayAspectHeight,
       createdAt: row.createdAt.toISOString()
     })),
       talents: talentRows.map((row) => ({
@@ -151,14 +160,10 @@ async function loadState(): Promise<ContentState> {
         slug: row.slug,
         nickname: row.nickname,
         bio: row.bio,
-        mcn: row.mcn,
         aliases: row.aliases,
         searchKeywords: row.searchKeywords,
         coverAssetId: row.coverAssetId ?? null,
         updatedAt: row.updatedAt.toISOString(),
-      tags: tagRows
-        .filter((item) => item.talentId === row.id)
-        .map((item) => item.tag) as Talent["tags"],
       links: linkRows
         .filter((item) => item.talentId === row.id)
         .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -318,6 +323,24 @@ async function loadState(): Promise<ContentState> {
       code: row.code,
       message: row.message,
       createdAt: row.createdAt.toISOString()
+    })),
+    assetObjectDeletionJobs: assetObjectDeletionJobRows.map((row) => ({
+      objectKey: row.objectKey,
+      assetId: row.assetId,
+      attempts: row.attempts,
+      lastError: row.lastError,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString()
+    })),
+    assetCleanupRuns: assetCleanupRunRows.map((row) => ({
+      id: row.id,
+      status: row.status as ContentState["assetCleanupRuns"][number]["status"],
+      startedAt: row.startedAt.toISOString(),
+      finishedAt: row.finishedAt?.toISOString() ?? null,
+      scannedAssetCount: row.scannedAssetCount,
+      eligibleAssetCount: row.eligibleAssetCount,
+      deletedAssetCount: row.deletedAssetCount,
+      errorCount: row.errorCount
     }))
   };
 }
@@ -325,19 +348,8 @@ async function loadState(): Promise<ContentState> {
 async function upsertTalentRelations(talent: Talent) {
   const db = getDb();
 
-  await db.delete(talentTags).where(eq(talentTags.talentId, talent.id));
   await db.delete(talentLinks).where(eq(talentLinks.talentId, talent.id));
   await db.delete(talentAssets).where(eq(talentAssets.talentId, talent.id));
-
-  if (talent.tags.length > 0) {
-    await db.insert(talentTags).values(
-      talent.tags.map((tag) => ({
-        id: randomUUID(),
-        talentId: talent.id,
-        tag
-      }))
-    );
-  }
 
   if (talent.links.length > 0) {
     await db.insert(talentLinks).values(
@@ -443,35 +455,94 @@ export const postgresRepository: ContentRepository = {
       objectKey: asset.objectKey ?? null,
       width: asset.width,
       height: asset.height,
+      cropX: asset.cropX ?? 0,
+      cropY: asset.cropY ?? 0,
+      cropWidth: asset.cropWidth ?? 1,
+      cropHeight: asset.cropHeight ?? 1,
+      displayAspectWidth: asset.displayAspectWidth ?? (asset.width >= asset.height ? 4 : 3),
+      displayAspectHeight: asset.displayAspectHeight ?? (asset.width >= asset.height ? 3 : 4),
       createdAt: asset.createdAt ? new Date(asset.createdAt) : new Date()
     });
     return asset;
   },
-  async deleteAssetIfUnreferenced(id) {
+  async updateAssetFraming(id, framing) {
     const db = getDb();
-    const result = await db.execute(sql`
-      delete from ${assets}
-      where ${assets.id} = ${id}
-        and not exists (
-          select 1
-          from ${talents}
-          where ${talents.coverAssetId} = ${assets.id}
-        )
-        and not exists (
-          select 1
-          from ${talentAssets}
-          where ${talentAssets.assetId} = ${assets.id}
-        )
-        and not exists (
-          select 1
-          from ${archiveEntries}
-          where ${archiveEntries.sceneAssetId} = ${assets.id}
-             or ${archiveEntries.sharedPhotoAssetId} = ${assets.id}
-        )
-      returning ${assets.id}
-    `);
-
-    return result.length > 0;
+    const rows = await db
+      .update(assets)
+      .set({
+        cropX: framing.cropX ?? 0,
+        cropY: framing.cropY ?? 0,
+        cropWidth: framing.cropWidth ?? 1,
+        cropHeight: framing.cropHeight ?? 1,
+        displayAspectWidth: framing.displayAspectWidth ?? 3,
+        displayAspectHeight: framing.displayAspectHeight ?? 4
+      })
+      .where(eq(assets.id, id))
+      .returning();
+    const row = rows[0];
+    if (!row) throw new Error("素材不存在。");
+    return {
+      id: row.id, kind: row.kind as Asset["kind"], title: row.title, alt: row.alt,
+      url: row.url, objectKey: row.objectKey, width: row.width, height: row.height,
+      cropX: row.cropX, cropY: row.cropY, cropWidth: row.cropWidth, cropHeight: row.cropHeight,
+      displayAspectWidth: row.displayAspectWidth, displayAspectHeight: row.displayAspectHeight,
+      createdAt: row.createdAt.toISOString()
+    };
+  },
+  async deleteAssetIfUnreferenced(id, objectKey) {
+    const db = getDb();
+    return db.transaction(async (tx) => {
+      const result = await tx.execute(sql`
+        delete from ${assets}
+        where ${assets.id} = ${id}
+          and not exists (select 1 from ${talents} where ${talents.coverAssetId} = ${assets.id})
+          and not exists (select 1 from ${talentAssets} where ${talentAssets.assetId} = ${assets.id})
+          and not exists (
+            select 1 from ${archiveEntries}
+            where ${archiveEntries.sceneAssetId} = ${assets.id}
+               or ${archiveEntries.sharedPhotoAssetId} = ${assets.id}
+          )
+        returning ${assets.id}
+      `);
+      if (result.length === 0) return false;
+      if (objectKey) {
+        await tx.insert(assetObjectDeletionJobs).values({ objectKey, assetId: id }).onConflictDoNothing();
+      }
+      return true;
+    });
+  },
+  async listAssetObjectDeletionJobs(limit) {
+    const db = getDb();
+    const rows = await db.select().from(assetObjectDeletionJobs).orderBy(assetObjectDeletionJobs.createdAt).limit(limit);
+    return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() }));
+  },
+  async completeAssetObjectDeletionJob(objectKey) {
+    const db = getDb();
+    await db.delete(assetObjectDeletionJobs).where(eq(assetObjectDeletionJobs.objectKey, objectKey));
+  },
+  async failAssetObjectDeletionJob(objectKey, message) {
+    const db = getDb();
+    await db.update(assetObjectDeletionJobs).set({
+      attempts: sql`${assetObjectDeletionJobs.attempts} + 1`, lastError: message, updatedAt: new Date()
+    }).where(eq(assetObjectDeletionJobs.objectKey, objectKey));
+  },
+  async saveAssetCleanupRun(run) {
+    const db = getDb();
+    await db.insert(assetCleanupRuns).values({
+      ...run,
+      startedAt: new Date(run.startedAt),
+      finishedAt: run.finishedAt ? new Date(run.finishedAt) : null
+    }).onConflictDoUpdate({
+      target: assetCleanupRuns.id,
+      set: {
+        status: run.status,
+        finishedAt: run.finishedAt ? new Date(run.finishedAt) : null,
+        scannedAssetCount: run.scannedAssetCount,
+        eligibleAssetCount: run.eligibleAssetCount,
+        deletedAssetCount: run.deletedAssetCount,
+        errorCount: run.errorCount
+      }
+    });
   },
   async upsertTalent(talent) {
     const db = getDb();
@@ -482,7 +553,6 @@ export const postgresRepository: ContentRepository = {
         slug: talent.slug,
         nickname: talent.nickname,
         bio: talent.bio,
-        mcn: talent.mcn,
         aliases: talent.aliases,
         searchKeywords: talent.searchKeywords,
         coverAssetId: talent.coverAssetId ?? null,
@@ -494,7 +564,6 @@ export const postgresRepository: ContentRepository = {
           slug: talent.slug,
           nickname: talent.nickname,
           bio: talent.bio,
-          mcn: talent.mcn,
           aliases: talent.aliases,
           searchKeywords: talent.searchKeywords,
           coverAssetId: talent.coverAssetId ?? null,

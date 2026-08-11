@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import { FramedImage } from "@/components/ui/framed-image";
 import { getAssetDisplayPreset } from "@/lib/asset-display";
 import { getTalentPath } from "@/lib/public-path";
 import type { Asset } from "@/modules/domain/types";
@@ -38,23 +38,18 @@ export function EventArchiveCard({
     <div className="surface overflow-hidden rounded-[1.6rem]">
       <div className="relative" style={{ aspectRatio: activeDisplayPreset.aspectStyle }}>
         {sceneAsset ? (
-          <Image
-            src={sceneAsset.url}
-            alt={sceneAsset.alt}
-            fill
+          <FramedImage
+            asset={sceneAsset}
             sizes="(min-width: 768px) 42vw, 100vw"
-            className="object-cover"
           />
         ) : (
           <div className="absolute inset-0 bg-transparent" />
         )}
         {sharedPhotoAsset ? (
-          <Image
-            src={sharedPhotoAsset.url}
-            alt={sharedPhotoAsset.alt}
-            fill
+          <FramedImage
+            asset={sharedPhotoAsset}
             sizes="(min-width: 768px) 42vw, 100vw"
-            className={`object-cover transition duration-300 ${showSharedPhoto ? "opacity-100" : "opacity-0"}`}
+            className={`transition duration-300 ${showSharedPhoto ? "opacity-100" : "opacity-0"}`}
           />
         ) : null}
       </div>

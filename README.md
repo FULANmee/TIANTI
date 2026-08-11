@@ -132,6 +132,7 @@ npm run test:e2e
 
 ## 文档
 
+- [5.0 交接文档](docs/handoff-5.0.md)
 - [发布流程](docs/release-flow.md)
 - [后端开发规范](.trellis/spec/backend/index.md)
 - [前端开发规范](.trellis/spec/frontend/index.md)

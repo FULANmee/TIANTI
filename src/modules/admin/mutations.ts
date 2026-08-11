@@ -24,8 +24,7 @@ import type {
   Event,
   EventLineup,
   EventMergeRule,
-  EventMergeRuleMember,
-  Talent
+  EventMergeRuleMember
 } from "@/modules/domain/types";
 import { normalizeDouyinEventName } from "@/modules/douyin/itinerary";
 import { getContentRepository } from "@/modules/repository";
@@ -36,11 +35,9 @@ const talentSchema = z.object({
   nickname: z.string().trim().min(1, "达人昵称不能为空。"),
   slug: z.string().nullable().optional(),
   bio: z.string().optional().default(""),
-  mcn: z.string().optional().default(""),
   aliases: z.array(z.string()).optional(),
   searchKeywords: z.array(z.string()).optional(),
   coverAssetId: z.string().nullable().optional(),
-  tags: z.array(z.string()).default([]),
   links: z
     .array(
       z.object({
@@ -149,13 +146,24 @@ const assetSchema = z.object({
   url: z.string().url(),
   objectKey: z.string().nullable().optional(),
   width: z.number().int().positive(),
-  height: z.number().int().positive()
+  height: z.number().int().positive(),
+  cropX: z.number().min(0).max(1).default(0),
+  cropY: z.number().min(0).max(1).default(0),
+  cropWidth: z.number().positive().max(1).default(1),
+  cropHeight: z.number().positive().max(1).default(1),
+  displayAspectWidth: z.union([z.literal(3), z.literal(4)]).optional(),
+  displayAspectHeight: z.union([z.literal(3), z.literal(4)]).optional()
+}).refine((value) => value.cropX + value.cropWidth <= 1.000001 && value.cropY + value.cropHeight <= 1.000001, {
+  message: "图片取景范围无效。"
+}).refine((value) =>
+  (!value.displayAspectWidth && !value.displayAspectHeight) ||
+  value.displayAspectWidth !== value.displayAspectHeight, {
+  message: "图片比例仅支持 3:4 或 4:3。"
 });
 
 const talentBulkSchema = z.object({
-  action: z.enum(["add_tags", "remove_tags", "delete"]),
-  ids: z.array(z.string()).min(1),
-  tags: z.array(z.string()).optional()
+  action: z.literal("delete"),
+  ids: z.array(z.string()).min(1)
 });
 
 const eventBulkSchema = z.object({
@@ -321,10 +329,11 @@ function normalizeRepresentations(
 export async function saveAsset(payload: unknown) {
   const repository = getContentRepository();
   const input = assetSchema.parse(payload);
-
-  if (!isSupportedAssetDisplayRatio(input.kind, input)) {
+  if ((!input.displayAspectWidth || !input.displayAspectHeight) && !isSupportedAssetDisplayRatio(input.kind, input)) {
     throw new Error("图片比例仅支持 3:4 或 4:3。");
   }
+  const displayAspectWidth = input.displayAspectWidth ?? (input.width >= input.height ? 4 : 3);
+  const displayAspectHeight = input.displayAspectHeight ?? (input.width >= input.height ? 3 : 4);
 
   return repository.createAsset({
     id: randomUUID(),
@@ -335,6 +344,12 @@ export async function saveAsset(payload: unknown) {
     objectKey: input.objectKey ?? null,
     width: input.width,
     height: input.height,
+    cropX: input.cropX,
+    cropY: input.cropY,
+    cropWidth: input.cropWidth,
+    cropHeight: input.cropHeight,
+    displayAspectWidth,
+    displayAspectHeight,
     createdAt: new Date().toISOString()
   });
 }
@@ -367,11 +382,9 @@ export async function saveTalent(payload: unknown) {
     slug,
     nickname,
     bio: input.bio.trim(),
-    mcn: input.mcn.trim(),
     aliases,
     searchKeywords,
     coverAssetId: input.coverAssetId?.trim() || null,
-    tags: input.tags as Talent["tags"],
     links: normalizeTalentLinks(input.links),
     representations: normalizeRepresentations(input.representations, assetTitleMap),
     updatedAt: new Date().toISOString()
@@ -844,39 +857,7 @@ export async function saveTalentBulk(payload: unknown): Promise<TalentBulkRespon
     };
   }
 
-  const tags = dedupeIds((input.tags ?? []).map((tag) => tag.trim()).filter(Boolean));
-  if (tags.length === 0) {
-    throw new Error("请至少填写一个标签。");
-  }
-
-  const updatedTalents: Talent[] = [];
-
-  for (const id of ids) {
-    const talent = talentMap.get(id);
-    if (!talent) {
-      blocked.push({ id, reason: formatMissingReason("达人") });
-      continue;
-    }
-
-    const nextTags =
-      input.action === "add_tags"
-        ? [...new Set([...talent.tags, ...tags])]
-        : talent.tags.filter((tag) => !tags.includes(tag));
-
-    const updatedTalent = await repository.upsertTalent({
-      ...talent,
-      tags: nextTags as Talent["tags"],
-      updatedAt: new Date().toISOString()
-    });
-
-    updatedTalents.push(updatedTalent);
-  }
-
-  return {
-    succeededIds: updatedTalents.map((talent) => talent.id),
-    blocked,
-    talents: updatedTalents
-  };
+  return { succeededIds: [], blocked };
 }
 
 export async function saveEventBulk(payload: unknown): Promise<BulkActionResult> {

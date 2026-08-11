@@ -1,5 +1,7 @@
 import type {
   Asset,
+  AssetCleanupRun,
+  AssetObjectDeletionJob,
   ContentState,
   EditorAccount,
   EditorProfile,
@@ -47,7 +49,12 @@ export interface ContentRepository {
   getSessionByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<void>;
   createAsset(asset: Asset): Promise<Asset>;
-  deleteAssetIfUnreferenced(id: string): Promise<boolean>;
+  updateAssetFraming(id: string, framing: Pick<Asset, "cropX" | "cropY" | "cropWidth" | "cropHeight" | "displayAspectWidth" | "displayAspectHeight">): Promise<Asset>;
+  deleteAssetIfUnreferenced(id: string, objectKey?: string | null): Promise<boolean>;
+  listAssetObjectDeletionJobs(limit: number): Promise<AssetObjectDeletionJob[]>;
+  completeAssetObjectDeletionJob(objectKey: string): Promise<void>;
+  failAssetObjectDeletionJob(objectKey: string, message: string): Promise<void>;
+  saveAssetCleanupRun(run: AssetCleanupRun): Promise<void>;
   upsertTalent(talent: Talent): Promise<Talent>;
   deleteTalent(id: string): Promise<void>;
   upsertEvent(event: Event): Promise<Event>;

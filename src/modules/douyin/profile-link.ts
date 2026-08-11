@@ -4,7 +4,7 @@ const DOUYIN_HOSTS = new Set(["douyin.com", "www.douyin.com", "v.douyin.com"]);
 const DIRECT_PROFILE_PATH = /^\/user\/[A-Za-z0-9_-]{1,512}\/?$/u;
 const SHORT_PROFILE_PATH = /^\/[A-Za-z0-9_-]{1,512}\/?$/u;
 
-function normalizeDouyinProfileUrl(value: string) {
+export function normalizeDouyinProfileUrl(value: string) {
   try {
     const url = new URL(value);
     const validPath =
@@ -28,6 +28,15 @@ function normalizeDouyinProfileUrl(value: string) {
   } catch {
     return null;
   }
+}
+
+export function extractDouyinProfileUrl(value: string) {
+  const candidates = value.match(/https:\/\/[^\s，。；;）)]+/gu) ?? [];
+  for (const candidate of candidates) {
+    const normalized = normalizeDouyinProfileUrl(candidate);
+    if (normalized) return normalized;
+  }
+  return normalizeDouyinProfileUrl(value.trim());
 }
 
 function isPrimaryLabel(value: string) {

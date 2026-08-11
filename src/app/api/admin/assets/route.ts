@@ -11,7 +11,13 @@ const assetSchema = z.object({
   title: z.string().trim().min(1),
   alt: z.string().trim().min(1),
   width: z.coerce.number().int().positive(),
-  height: z.coerce.number().int().positive()
+  height: z.coerce.number().int().positive(),
+  cropX: z.coerce.number().min(0).max(1),
+  cropY: z.coerce.number().min(0).max(1),
+  cropWidth: z.coerce.number().positive().max(1),
+  cropHeight: z.coerce.number().positive().max(1),
+  displayAspectWidth: z.coerce.number().int(),
+  displayAspectHeight: z.coerce.number().int()
 });
 
 const assetFetchSchema = z.object({
@@ -66,6 +72,11 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (request.headers.get("content-type")?.includes("application/json")) {
+      const input = assetSchema.extend({ url: z.string().url(), objectKey: z.string().min(1) }).parse(await request.json());
+      const asset = await saveAsset(input);
+      return NextResponse.json({ asset });
+    }
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -78,7 +89,13 @@ export async function POST(request: Request) {
       title: formData.get("title"),
       alt: formData.get("alt"),
       width: formData.get("width"),
-      height: formData.get("height")
+      height: formData.get("height"),
+      cropX: formData.get("cropX"),
+      cropY: formData.get("cropY"),
+      cropWidth: formData.get("cropWidth"),
+      cropHeight: formData.get("cropHeight"),
+      displayAspectWidth: formData.get("displayAspectWidth"),
+      displayAspectHeight: formData.get("displayAspectHeight")
     });
 
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -101,5 +118,23 @@ export async function POST(request: Request) {
       { error: error instanceof Error ? error.message : "素材保存失败。" },
       { status: 400 }
     );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const editor = await getAuthenticatedEditor();
+  if (!editor) return NextResponse.json({ error: "未登录。" }, { status: 401 });
+  try {
+    const input = assetFetchSchema.extend({
+      cropX: z.number().min(0).max(1), cropY: z.number().min(0).max(1),
+      cropWidth: z.number().positive().max(1), cropHeight: z.number().positive().max(1),
+      displayAspectWidth: z.union([z.literal(3), z.literal(4)]),
+      displayAspectHeight: z.union([z.literal(3), z.literal(4)])
+    }).parse(await request.json());
+    const { assetId, ...framing } = input;
+    const asset = await getContentRepository().updateAssetFraming(assetId, framing);
+    return NextResponse.json({ asset });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "保存取景失败。" }, { status: 400 });
   }
 }

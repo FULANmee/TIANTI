@@ -90,6 +90,16 @@ describe("env helpers", () => {
     ]);
   });
 
+  it("defaults to database mode when a database URL is configured", async () => {
+    const { appEnv, isMockContentMode } = await loadEnvModule({
+      TIANTI_CONTENT_MODE: undefined,
+      DATABASE_URL: "postgres://preview.example.test/tianti"
+    });
+
+    expect(appEnv.contentMode).toBe("database");
+    expect(isMockContentMode()).toBe(false);
+  });
+
   it("requires HTTPS for the deployed Douyin scraper", async () => {
     const { getDouyinSyncConfig } = await loadEnvModule({
       NODE_ENV: "production",

@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   pgTable,
@@ -50,6 +51,12 @@ export const assets = pgTable("assets", {
   objectKey: text("object_key"),
   width: integer("width").notNull(),
   height: integer("height").notNull(),
+  cropX: doublePrecision("crop_x").notNull().default(0),
+  cropY: doublePrecision("crop_y").notNull().default(0),
+  cropWidth: doublePrecision("crop_width").notNull().default(1),
+  cropHeight: doublePrecision("crop_height").notNull().default(1),
+  displayAspectWidth: integer("display_aspect_width").notNull().default(3),
+  displayAspectHeight: integer("display_aspect_height").notNull().default(4),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
 });
 
@@ -60,7 +67,6 @@ export const talents = pgTable(
     slug: text("slug"),
     nickname: text("nickname").notNull(),
     bio: text("bio").notNull(),
-    mcn: text("mcn").notNull(),
     aliases: text("aliases")
       .array()
       .notNull()
@@ -76,14 +82,6 @@ export const talents = pgTable(
     slugIdx: uniqueIndex("talents_slug_idx").on(table.slug)
   })
 );
-
-export const talentTags = pgTable("talent_tags", {
-  id: uuid("id").primaryKey(),
-  talentId: uuid("talent_id")
-    .notNull()
-    .references(() => talents.id, { onDelete: "cascade" }),
-  tag: text("tag").notNull()
-});
 
 export const talentLinks = pgTable("talent_links", {
   id: uuid("id").primaryKey(),
@@ -214,6 +212,30 @@ export const talentDouyinProfiles = pgTable(
     secUserIdIdx: uniqueIndex("talent_douyin_profiles_sec_user_id_idx").on(table.secUserId),
     lastSuccessIdx: index("talent_douyin_profiles_last_success_idx").on(table.lastSuccessAt)
   })
+);
+
+export const assetObjectDeletionJobs = pgTable("asset_object_deletion_jobs", {
+  objectKey: text("object_key").primaryKey(),
+  assetId: uuid("asset_id").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+});
+
+export const assetCleanupRuns = pgTable(
+  "asset_cleanup_runs",
+  {
+    id: uuid("id").primaryKey(),
+    status: text("status").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    scannedAssetCount: integer("scanned_asset_count").notNull().default(0),
+    eligibleAssetCount: integer("eligible_asset_count").notNull().default(0),
+    deletedAssetCount: integer("deleted_asset_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0)
+  },
+  (table) => ({ startedAtIdx: index("asset_cleanup_runs_started_at_idx").on(table.startedAt) })
 );
 
 export const talentDouyinRelatedAccounts = pgTable(

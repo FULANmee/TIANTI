@@ -93,7 +93,18 @@ export const mockRepository: ContentRepository = {
     });
     return asset;
   },
-  async deleteAssetIfUnreferenced(id) {
+  async updateAssetFraming(id, framing) {
+    let updated = null as RepositoryState["assets"][number] | null;
+    replaceState((state) => {
+      const index = state.assets.findIndex((item) => item.id === id);
+      if (index < 0) throw new Error("素材不存在。");
+      state.assets[index] = { ...state.assets[index], ...framing };
+      updated = state.assets[index];
+      return state;
+    });
+    return structuredClone(updated!);
+  },
+  async deleteAssetIfUnreferenced(id, objectKey) {
     if (isAssetReferenced(getMockState(), id)) {
       return false;
     }
@@ -104,10 +115,39 @@ export const mockRepository: ContentRepository = {
       }
 
       state.assets = state.assets.filter((item) => item.id !== id);
+      if (objectKey && !state.assetObjectDeletionJobs.some((job) => job.objectKey === objectKey)) {
+        const now = new Date().toISOString();
+        state.assetObjectDeletionJobs.push({ objectKey, assetId: id, attempts: 0, lastError: null, createdAt: now, updatedAt: now });
+      }
       return state;
     });
 
     return !getMockState().assets.some((asset) => asset.id === id);
+  },
+  async listAssetObjectDeletionJobs(limit) {
+    return structuredClone(getMockState().assetObjectDeletionJobs.slice(0, limit));
+  },
+  async completeAssetObjectDeletionJob(objectKey) {
+    replaceState((state) => {
+      state.assetObjectDeletionJobs = state.assetObjectDeletionJobs.filter((job) => job.objectKey !== objectKey);
+      return state;
+    });
+  },
+  async failAssetObjectDeletionJob(objectKey, message) {
+    replaceState((state) => {
+      state.assetObjectDeletionJobs = state.assetObjectDeletionJobs.map((job) => job.objectKey === objectKey
+        ? { ...job, attempts: job.attempts + 1, lastError: message, updatedAt: new Date().toISOString() }
+        : job);
+      return state;
+    });
+  },
+  async saveAssetCleanupRun(run) {
+    replaceState((state) => {
+      const index = state.assetCleanupRuns.findIndex((item) => item.id === run.id);
+      if (index >= 0) state.assetCleanupRuns[index] = run;
+      else state.assetCleanupRuns.push(run);
+      return state;
+    });
   },
   async upsertTalent(talent) {
     replaceState((state) => {

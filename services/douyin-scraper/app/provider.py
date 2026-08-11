@@ -294,23 +294,26 @@ class F2ProfileProvider:
             self._visitor_cookie = f"ttwid={ttwid}"
             return self._visitor_cookie
 
+    def _request_kwargs(self, cookie: str) -> dict[str, Any]:
+        return {
+            "headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                "Referer": "https://www.douyin.com/",
+            },
+            "proxies": {"http://": None, "https://": None},
+            "cookie": cookie,
+            "timeout": self.settings.request_timeout_seconds,
+            "max_retries": 1,
+            "max_connections": 1,
+        }
+
     async def _fetch_user(self, sec_user_id: str, refresh_cookie: bool = False):
         try:
             from f2.apps.douyin.handler import DouyinHandler
 
             _silence_f2_logging()
             cookie = await self._get_cookie(refresh=refresh_cookie)
-            kwargs = {
-                "headers": {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                    "Referer": "https://www.douyin.com/",
-                },
-                "proxies": {"http://": None, "https://": None},
-                "cookie": cookie,
-                "timeout": self.settings.request_timeout_seconds,
-                "max_retries": 1,
-                "max_connections": 1,
-            }
+            kwargs = self._request_kwargs(cookie)
             return await asyncio.wait_for(
                 DouyinHandler(kwargs).fetch_user_profile(sec_user_id),
                 timeout=self.settings.request_timeout_seconds + 4,
@@ -376,7 +379,10 @@ class F2ProfileProvider:
                 nickname=user.nickname_raw,
                 canonical_url=canonical_user_url(sec_user_id),
             ),
-            profile=Profile(signature_raw=signature_raw, follower_count=follower_count),
+            profile=Profile(
+                signature_raw=signature_raw,
+                follower_count=follower_count,
+            ),
             related_accounts=extraction.accounts,
             diagnostics=Diagnostics(link_source=extraction.source),
         )

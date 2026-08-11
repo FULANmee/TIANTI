@@ -23,7 +23,6 @@ import {
   talentDouyinRelatedAccounts,
   talentDouyinScheduleEntries,
   talentLinks,
-  talentTags,
   talents
 } from "@/db/schema";
 
@@ -172,7 +171,6 @@ async function main() {
   await db.delete(events);
   await db.delete(talentAssets);
   await db.delete(talentLinks);
-  await db.delete(talentTags);
   await db.delete(talents);
   await db.delete(assets);
   await db.delete(editors);
@@ -190,21 +188,11 @@ async function main() {
       slug: talent.slug,
       nickname: talent.nickname,
       bio: talent.bio,
-      mcn: talent.mcn,
       aliases: talent.aliases,
       searchKeywords: talent.searchKeywords,
       coverAssetId: talent.coverAssetId,
       updatedAt: new Date(talent.updatedAt)
     }))
-  );
-  await db.insert(talentTags).values(
-    state.talents.flatMap((talent) =>
-      talent.tags.map((tag, index) => ({
-        id: toStableUuid("talent-tag", `${talent.id}:${index}`),
-        talentId: talent.id,
-        tag
-      }))
-    )
   );
   await db.insert(talentLinks).values(
     state.talents.flatMap((talent) =>

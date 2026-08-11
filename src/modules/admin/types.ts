@@ -5,8 +5,7 @@ import type {
   Event,
   EventLineup,
   Talent,
-  TalentDouyinAdminStatus,
-  TalentTag
+  TalentDouyinAdminStatus
 } from "@/modules/domain/types";
 
 export interface BlockedBulkAction {
@@ -23,9 +22,8 @@ export interface BulkActionResult {
 }
 
 export interface TalentBulkPayload {
-  action: "add_tags" | "remove_tags" | "delete";
+  action: "delete";
   ids: string[];
-  tags?: TalentTag[];
 }
 
 export interface EventBulkPayload {

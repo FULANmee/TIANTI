@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDouyinSyncConfig } from "@/lib/env";
 
 const responseSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   fetchedAt: z.string().datetime(),
   account: z.object({
     secUserId: z.string().min(1).max(512),

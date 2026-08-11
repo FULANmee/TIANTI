@@ -506,15 +506,10 @@ export function ArchiveManager({
       selected: false,
       note: ""
     }));
-    const firstAvailableDate = dateRows.find((row) => !isLineupDateTaken(talentId, row.date))?.date;
-
     return {
       talentId,
       note: "",
-      dates: dateRows.map((row) => ({
-        ...row,
-        selected: row.date === firstAvailableDate
-      }))
+      dates: dateRows
     };
   }
 

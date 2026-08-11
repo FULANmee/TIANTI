@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import { FramedImage } from "@/components/ui/framed-image";
 import { notFound } from "next/navigation";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HorizontalCardRail } from "@/components/ui/horizontal-card-rail";
@@ -101,13 +101,15 @@ export default async function TalentDetailPage({
 
   const publicInfoRows = [
     detail.talent.aliases.length > 0 ? { label: "别名", value: detail.talent.aliases.join(" / ") } : null,
-    detail.talent.mcn ? { label: "所属机构", value: detail.talent.mcn } : null,
     detail.douyinProfile?.followerCount != null
       ? { label: "抖音粉丝", value: formatDouyinFollowerCount(detail.douyinProfile.followerCount) }
       : null
   ].filter(Boolean) as Array<{ label: string; value: string }>;
   const hasDouyinDetails =
-    douyinProfile && (douyinProfile.itineraryBlocks.length > 0 || douyinProfile.relatedAccounts.length > 0);
+    douyinProfile && (
+      douyinProfile.itineraryBlocks.length > 0 ||
+      douyinProfile.relatedAccounts.length > 0
+    );
 
   return (
     <PageShell>
@@ -117,12 +119,9 @@ export default async function TalentDetailPage({
             <div className="relative overflow-hidden rounded-[1.8rem] bg-transparent">
               <div className="relative" style={{ aspectRatio: coverDisplayPreset.aspectStyle }}>
                 {detail.cover ? (
-                  <Image
-                    src={detail.cover.url}
-                    alt={detail.cover.alt}
-                    fill
+                  <FramedImage
+                    asset={detail.cover}
                     sizes="(min-width: 1024px) 36vw, 100vw"
-                    className="object-cover"
                   />
                 ) : (
                   <div className="absolute inset-0 bg-transparent" />
@@ -140,16 +139,6 @@ export default async function TalentDetailPage({
                   {detail.talent.bio || "当前公开页以结构化资料为主，后续内容会继续补齐。"}
                 </p>
               </div>
-
-              {detail.talent.tags.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {detail.talent.tags.map((tag) => (
-                    <span key={tag} className="ui-pill px-4 py-2 text-sm">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
 
               {douyinProfile && hasDouyinDetails ? (
                 <div
@@ -373,12 +362,9 @@ export default async function TalentDetailPage({
                       }}
                     >
                       {representation.asset ? (
-                        <Image
-                          src={representation.asset.url}
-                          alt={representation.asset.alt}
-                          fill
+                        <FramedImage
+                          asset={representation.asset}
                           sizes="(min-width: 1280px) 28vw, (min-width: 768px) 42vw, 100vw"
-                          className="object-cover"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-transparent" />
@@ -424,12 +410,9 @@ export default async function TalentDetailPage({
                       }}
                     >
                       {record.asset ? (
-                        <Image
-                          src={record.asset.url}
-                          alt={record.asset.alt}
-                          fill
+                        <FramedImage
+                          asset={record.asset}
                           sizes="(min-width: 1280px) 28vw, (min-width: 768px) 42vw, 100vw"
-                          className="object-cover"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-transparent" />

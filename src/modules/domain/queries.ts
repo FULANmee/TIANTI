@@ -193,11 +193,9 @@ function matchesEventDate(event: Event, date?: string) {
 
 export interface TalentFilters {
   query?: string;
-  tag?: string;
   editorId?: string;
   tierId?: string;
   hasSchedule?: boolean;
-  mcn?: string;
   sort?: "alphabetical" | "recent" | "relevance";
 }
 
@@ -279,7 +277,6 @@ function buildTalentSummary(state: ContentState, talent: Talent, relevanceScore?
     bio: talent.bio,
     bioPreviewLine: getBioPreviewLine(talent.bio),
     aliases: talent.aliases,
-    tags: talent.tags,
     cover: talent.coverAssetId ? assetMap.get(talent.coverAssetId) ?? null : null,
     recentHint: recentHint || null,
     futureLocationHint: futureLocationHint || null,
@@ -298,10 +295,8 @@ function getTalentRelevanceScore(state: ContentState, talent: Talent, terms: str
   return (
     scoreTerms(talent.nickname, terms, 8) +
     scoreTerms(talent.aliases.join(" "), terms, 6) +
-    scoreTerms(talent.tags.join(" "), terms, 4) +
     scoreTerms(talent.searchKeywords.join(" "), terms, 3) +
     scoreTerms(talent.bio, terms, 2) +
-    scoreTerms(talent.mcn, terms, 2) +
     scoreTerms(
       lineupEvents.map((event) => `${event.name} ${event.city} ${event.venue}`).join(" "),
       terms,
@@ -326,7 +321,7 @@ function getEventRelevanceScore(state: ContentState, event: Event, terms: string
     scoreTerms(event.searchKeywords.join(" "), terms, 3) +
     scoreTerms(event.note, terms, 2) +
     scoreTerms(
-      lineupTalents.map((talent) => `${talent.nickname} ${talent.aliases.join(" ")} ${talent.tags.join(" ")}`).join(" "),
+      lineupTalents.map((talent) => `${talent.nickname} ${talent.aliases.join(" ")}`).join(" "),
       terms,
       2
     )
@@ -524,24 +519,6 @@ function buildEventSummary(state: ContentState, event: Event, relevanceScore?: n
   };
 }
 
-function buildTagSpotlights(state: ContentState): HomepageDiscovery["tagSpotlights"] {
-  const counts = new Map<string, number>();
-  for (const talent of state.talents) {
-    for (const tag of talent.tags) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-  }
-
-  return [...counts.entries()]
-    .sort((left, right) => right[1] - left[1] || compareByPinyin(left[0], right[0]))
-    .slice(0, 6)
-    .map(([tag, count]) => ({
-      tag: tag as Talent["tags"][number],
-      count,
-      href: `/talents?tag=${encodeURIComponent(tag)}`
-    }));
-}
-
 function countRecentUpdatedTalents(state: ContentState, now: Date) {
   const thresholdDateKey = getDateKeyDaysAgo(now, 7);
   return state.talents.filter((talent) => {
@@ -576,7 +553,6 @@ export function getHomepageCollections(state: ContentState, now = new Date()): H
     featuredTalents: recentTalents.slice(0, 4),
     futureEvents: futureEvents.slice(0, 2),
     recentTalents: recentTalents.slice(0, 6),
-    tagSpotlights: buildTagSpotlights(state),
     editorSpotlights: state.editors.map((editor) => ({
       editor,
       href: `/ladder?editor=${editor.slug}`,
@@ -609,14 +585,10 @@ export function listTalents(state: ContentState, filters: TalentFilters = {}): T
       const haystacks = [
         talent.nickname,
         talent.aliases.join(" "),
-        talent.tags.join(" "),
         talent.searchKeywords.join(" "),
-        talent.bio,
-        talent.mcn
+        talent.bio
       ];
       const matchesQuery = queryTerms.length === 0 || (relevanceScore > 0 && includesEveryTerm(haystacks, queryTerms));
-      const matchesTag = !filters.tag || talent.tags.includes(filters.tag as Talent["tags"][number]);
-      const matchesMcn = !filters.mcn || talent.mcn === filters.mcn;
       const matchesSchedule =
         !filters.hasSchedule ||
         state.lineups
@@ -637,7 +609,7 @@ export function listTalents(state: ContentState, filters: TalentFilters = {}): T
         }
       }
 
-      return matchesQuery && matchesTag && matchesMcn && matchesSchedule && matchesLadder;
+      return matchesQuery && matchesSchedule && matchesLadder;
     });
 
   const sort = filters.sort ?? "alphabetical";
@@ -679,7 +651,7 @@ export function listEventSummaries(state: ContentState, filters: EventFilters = 
         .map((lineup) => {
           const talent = state.talents.find((item) => item.id === lineup.talentId);
           return talent
-            ? `${talent.nickname} ${talent.aliases.join(" ")} ${talent.tags.join(" ")} ${talent.searchKeywords.join(" ")}`
+            ? `${talent.nickname} ${talent.aliases.join(" ")} ${talent.searchKeywords.join(" ")}`
             : "";
         })
         .join(" ");

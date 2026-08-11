@@ -1,4 +1,4 @@
-import { getPrimaryDouyinProfileLink, isSafeDouyinRelatedAccountUrl } from "@/modules/douyin/profile-link";
+import { extractDouyinProfileUrl, getPrimaryDouyinProfileLink, isSafeDouyinRelatedAccountUrl } from "@/modules/douyin/profile-link";
 import type { Talent } from "@/modules/domain/types";
 
 function talentWithUrl(url: string): Talent {
@@ -7,10 +7,8 @@ function talentWithUrl(url: string): Talent {
     slug: null,
     nickname: "测试达人",
     bio: "",
-    mcn: "",
     aliases: [],
     searchKeywords: [],
-    tags: [],
     coverAssetId: null,
     links: [{ id: "douyin-link", label: "抖音", url }],
     representations: [],
@@ -19,6 +17,12 @@ function talentWithUrl(url: string): Talent {
 }
 
 describe("Douyin profile URL selection", () => {
+  it("extracts and normalizes a profile URL from full share text", () => {
+    expect(extractDouyinProfileUrl("复制此消息，打开抖音 https://v.douyin.com/AbC_123/ 一起看看"))
+      .toBe("https://v.douyin.com/AbC_123/");
+    expect(extractDouyinProfileUrl("这里没有主页链接")).toBeNull();
+  });
+
   it("accepts only exact HTTPS profile and share-link shapes", () => {
     expect(
       getPrimaryDouyinProfileLink(

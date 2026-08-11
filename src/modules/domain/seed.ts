@@ -125,10 +125,8 @@ export const demoSeedState: RepositoryState = {
       slug: null,
       nickname: "青鸾",
       bio: "以古典角色重构和高完成度发型妆面见长，现场镜头表现稳定。",
-      mcn: "霁月企划",
       aliases: ["青鸾", "Qingluan"],
       searchKeywords: ["国风", "汉服", "古典角色", "现场摄影"],
-      tags: ["国风", "汉服", "写真"],
       coverAssetId: "asset-cover-qingluan",
       links: [
         { id: "ql-xhs", label: "小红书", url: "https://example.com/qingluan" },
@@ -145,10 +143,8 @@ export const demoSeedState: RepositoryState = {
       slug: null,
       nickname: "云墨",
       bio: "偏原创国风与轻舞台改编，动作表达和服饰层次都很完整。",
-      mcn: "山海妆造社",
       aliases: ["云墨", "Yunmo"],
       searchKeywords: ["原创国风", "舞台改编", "灯市夜游"],
-      tags: ["国风", "原创", "舞台"],
       coverAssetId: "asset-cover-yunmo",
       links: [{ id: "ym-bili", label: "Bilibili", url: "https://example.com/yunmo" }],
       representations: [{ id: "ym-rep-1", title: "《灯市夜游》", assetId: "asset-rep-3" }],
@@ -159,10 +155,8 @@ export const demoSeedState: RepositoryState = {
       slug: null,
       nickname: "昭映",
       bio: "以大型游戏角色 cosplay 为主，擅长冷色系造型和锐利镜头表达。",
-      mcn: "未签约",
       aliases: ["昭映", "Zhaoying"],
       searchKeywords: ["游戏角色", "冷色造型", "明昼"],
-      tags: ["cosplay", "游戏", "嘉宾"],
       coverAssetId: "asset-cover-zhaoying",
       links: [{ id: "zy-dy", label: "抖音", url: "https://example.com/zhaoying" }],
       representations: [{ id: "zy-rep-1", title: "《明昼》", assetId: "asset-rep-2" }],
@@ -173,10 +167,8 @@ export const demoSeedState: RepositoryState = {
       slug: null,
       nickname: "雁锦",
       bio: "主打古偶与舞台混搭，线下活动密度高，互动反馈很好。",
-      mcn: "浮光社",
       aliases: ["雁锦", "Yanjin"],
       searchKeywords: ["舞台返场", "高频出勤", "夜锦"],
-      tags: ["cosplay", "舞台", "嘉宾"],
       coverAssetId: "asset-cover-yanjin",
       links: [{ id: "yj-weibo", label: "微博", url: "https://example.com/yanjin" }],
       representations: [
@@ -358,5 +350,7 @@ export const demoSeedState: RepositoryState = {
   douyinRelatedAccounts: [],
   douyinScheduleEntries: [],
   douyinSyncRuns: [],
-  douyinSyncResults: []
+  douyinSyncResults: [],
+  assetObjectDeletionJobs: [],
+  assetCleanupRuns: []
 };
