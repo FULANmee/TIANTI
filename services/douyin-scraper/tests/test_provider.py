@@ -1,32 +1,9 @@
-from app.provider import extract_structured_related_accounts, select_latest_work
+from app.provider import extract_structured_related_accounts
 
 
 def _span(signature: str, mention: str) -> tuple[int, int]:
     start = signature.index(mention)
     return start, start + len(mention)
-
-
-def test_selects_latest_work_across_multiple_pages_by_publish_time():
-    latest, status = select_latest_work(
-        [
-            {
-                "aweme_list": [
-                    {"aweme_id": "100", "create_time": 100, "desc": "置顶"},
-                    {"aweme_id": "200", "create_time": 200, "desc": "较早"},
-                ]
-            },
-            {
-                "aweme_list": [
-                    {"aweme_id": "300", "create_time": 300, "desc": "最新文案"},
-                ]
-            },
-        ]
-    )
-
-    assert status == "available"
-    assert latest is not None
-    assert str(latest.url) == "https://www.douyin.com/video/300"
-    assert latest.caption == "最新文案"
 
 
 def test_extracts_signature_extra_account_name_from_signature_offsets():

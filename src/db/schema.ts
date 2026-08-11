@@ -206,10 +206,7 @@ export const talentDouyinProfiles = pgTable(
     lastErrorCode: text("last_error_code"),
     linkExtractionStatus: text("link_extraction_status").notNull().default("unavailable"),
     manualSyncAvailableAt: timestamp("manual_sync_available_at", { withTimezone: true }),
-    parserVersion: text("parser_version").notNull().default("1"),
-    latestWorkUrl: text("latest_work_url"),
-    latestWorkCaption: text("latest_work_caption"),
-    latestWorkPublishedAt: timestamp("latest_work_published_at", { withTimezone: true })
+    parserVersion: text("parser_version").notNull().default("1")
   },
   (table) => ({
     secUserIdIdx: uniqueIndex("talent_douyin_profiles_sec_user_id_idx").on(table.secUserId),

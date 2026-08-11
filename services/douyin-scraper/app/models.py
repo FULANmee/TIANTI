@@ -31,12 +31,6 @@ class Profile(ApiModel):
     follower_count: int = Field(ge=0)
 
 
-class LatestWork(ApiModel):
-    url: HttpUrl
-    caption: str = Field(max_length=5_000)
-    published_at: datetime
-
-
 class RelatedAccount(ApiModel):
     nickname: str = Field(max_length=256)
     sec_user_id: str = Field(min_length=1, max_length=512)
@@ -46,7 +40,6 @@ class RelatedAccount(ApiModel):
 class Diagnostics(ApiModel):
     profile_source: Literal["f2-user-detail"] = "f2-user-detail"
     link_source: Literal["structured", "rendered", "unavailable"]
-    latest_work_status: Literal["available", "empty", "unavailable"] = "unavailable"
 
 
 class ProfileFetchResponse(ApiModel):
@@ -55,7 +48,6 @@ class ProfileFetchResponse(ApiModel):
     account: Account
     profile: Profile
     related_accounts: list[RelatedAccount] = Field(max_length=100)
-    latest_work: LatestWork | None = None
     diagnostics: Diagnostics
 
 

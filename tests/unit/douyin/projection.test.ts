@@ -14,9 +14,6 @@ describe("Douyin public projection", () => {
       signatureRaw: "8.8深圳金铲铲",
       itineraryText: "8.8深圳金铲铲\n8.9上海闪魂绝区零",
       followerCount: 126_438,
-      latestWorkUrl: null,
-      latestWorkCaption: null,
-      latestWorkPublishedAt: null,
       fetchedAt: "2026-08-04T04:00:00.000Z",
       lastSuccessAt: "2026-08-04T04:00:00.000Z",
       lastErrorCode: null,
@@ -45,9 +42,6 @@ describe("Douyin public projection", () => {
 
     expect(getTalentDetail(state, talent.id)?.douyinProfile).toEqual({
       followerCount: 126_438,
-      latestWorkUrl: null,
-      latestWorkCaption: null,
-      latestWorkPublishedAt: null,
       itineraryBlocks: ["8.8深圳金铲铲", "8.9上海闪魂绝区零"],
       relatedAccounts: [expect.objectContaining({ id: "related-valid", nickname: "理想型账号" })]
     });

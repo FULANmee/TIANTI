@@ -22,15 +22,9 @@ const responseSchema = z.object({
       url: z.string().url()
     })
   ).max(100),
-  latestWork: z.object({
-    url: z.string().url(),
-    caption: z.string().max(5_000),
-    publishedAt: z.string().datetime()
-  }).nullable().optional(),
   diagnostics: z.object({
     profileSource: z.literal("f2-user-detail"),
-    linkSource: z.enum(["structured", "rendered", "unavailable"]),
-    latestWorkStatus: z.enum(["available", "empty", "unavailable"]).optional()
+    linkSource: z.enum(["structured", "rendered", "unavailable"])
   })
 });
 

@@ -276,10 +276,7 @@ async function loadState(): Promise<ContentState> {
       lastErrorCode: row.lastErrorCode,
       linkExtractionStatus: row.linkExtractionStatus as ContentState["douyinProfiles"][number]["linkExtractionStatus"],
       manualSyncAvailableAt: row.manualSyncAvailableAt?.toISOString() ?? null,
-      parserVersion: row.parserVersion,
-      latestWorkUrl: row.latestWorkUrl,
-      latestWorkCaption: row.latestWorkCaption,
-      latestWorkPublishedAt: row.latestWorkPublishedAt?.toISOString() ?? null
+      parserVersion: row.parserVersion
     })),
     douyinRelatedAccounts: douyinRelatedAccountRows
       .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -871,10 +868,7 @@ export const postgresRepository: ContentRepository = {
             manualSyncAvailableAt: profile.manualSyncAvailableAt
               ? new Date(profile.manualSyncAvailableAt)
               : null,
-            parserVersion: profile.parserVersion,
-            latestWorkUrl: profile.latestWorkUrl ?? null,
-            latestWorkCaption: profile.latestWorkCaption ?? null,
-            latestWorkPublishedAt: profile.latestWorkPublishedAt ? new Date(profile.latestWorkPublishedAt) : null
+            parserVersion: profile.parserVersion
           })
           .onConflictDoUpdate({
             target: talentDouyinProfiles.talentId,
@@ -891,10 +885,7 @@ export const postgresRepository: ContentRepository = {
               manualSyncAvailableAt: profile.manualSyncAvailableAt
                 ? new Date(profile.manualSyncAvailableAt)
                 : null,
-              parserVersion: profile.parserVersion,
-              latestWorkUrl: profile.latestWorkUrl ?? null,
-              latestWorkCaption: profile.latestWorkCaption ?? null,
-              latestWorkPublishedAt: profile.latestWorkPublishedAt ? new Date(profile.latestWorkPublishedAt) : null
+              parserVersion: profile.parserVersion
             }
           });
       }

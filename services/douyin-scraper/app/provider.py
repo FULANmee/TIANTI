@@ -10,7 +10,7 @@ from typing import Any, Literal
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from app.config import Settings
-from app.models import Account, Diagnostics, LatestWork, Profile, ProfileFetchResponse, RelatedAccount
+from app.models import Account, Diagnostics, Profile, ProfileFetchResponse, RelatedAccount
 
 
 SEC_USER_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
@@ -21,8 +21,6 @@ ALLOWED_HOSTS = {"www.douyin.com", "douyin.com", "v.douyin.com"}
 MAX_SEC_USER_ID_LENGTH = 512
 MAX_NICKNAME_LENGTH = 256
 MAX_RELATED_ACCOUNTS = 100
-LATEST_WORK_PAGE_SIZE = 20
-LATEST_WORK_MAX_PAGES = 3
 
 
 def _is_safe_sec_user_id(value: Any) -> bool:
@@ -254,35 +252,6 @@ async def extract_rendered_related_accounts(
         return []
 
 
-def select_latest_work(pages: list[dict[str, Any]]) -> tuple[LatestWork | None, str]:
-    works: list[dict[str, Any]] = []
-    for page in pages:
-        page_works = page.get("aweme_list")
-        if isinstance(page_works, list):
-            works.extend(work for work in page_works if isinstance(work, dict))
-
-    valid = [
-        work
-        for work in works
-        if str(work.get("aweme_id", "")).isdigit()
-        and isinstance(work.get("create_time"), int)
-        and not isinstance(work.get("create_time"), bool)
-    ]
-    if not valid:
-        return None, "empty"
-
-    work = max(valid, key=lambda item: item["create_time"])
-    aweme_id = str(work["aweme_id"])
-    is_note = bool(work.get("images"))
-    path = "note" if is_note else "video"
-    caption = work.get("desc") if isinstance(work.get("desc"), str) else ""
-    return LatestWork(
-        url=f"https://www.douyin.com/{path}/{aweme_id}",
-        caption=caption[:5_000],
-        published_at=datetime.fromtimestamp(work["create_time"], timezone.utc),
-    ), "available"
-
-
 class F2ProfileProvider:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -356,49 +325,6 @@ class F2ProfileProvider:
         except Exception as error:
             raise ScraperProviderError("UPSTREAM_EMPTY_RESPONSE", "Douyin returned no usable profile.", True) from error
 
-    async def _fetch_latest_work(self, sec_user_id: str) -> tuple[LatestWork | None, str]:
-        try:
-            from f2.apps.douyin.crawler import DouyinCrawler
-            from f2.apps.douyin.model import UserPost
-
-            _silence_f2_logging()
-            cookie = await self._get_cookie()
-            kwargs = self._request_kwargs(cookie)
-            pages: list[dict[str, Any]] = []
-            max_cursor = 0
-            async with DouyinCrawler(kwargs) as crawler:
-                for _ in range(LATEST_WORK_MAX_PAGES):
-                    response = await asyncio.wait_for(
-                        crawler.fetch_user_post(
-                            UserPost(
-                                max_cursor=max_cursor,
-                                count=LATEST_WORK_PAGE_SIZE,
-                                sec_user_id=sec_user_id,
-                            )
-                        ),
-                        timeout=self.settings.request_timeout_seconds + 4,
-                    )
-                    if not isinstance(response, dict):
-                        break
-                    pages.append(response)
-
-                    next_cursor_value = response.get("max_cursor")
-                    if isinstance(next_cursor_value, bool):
-                        break
-                    if isinstance(next_cursor_value, int):
-                        next_cursor = next_cursor_value
-                    elif isinstance(next_cursor_value, str) and next_cursor_value.isdigit():
-                        next_cursor = int(next_cursor_value)
-                    else:
-                        break
-                    if response.get("has_more") in {False, 0, "0"} or next_cursor == max_cursor:
-                        break
-                    max_cursor = next_cursor
-
-            return select_latest_work(pages)
-        except Exception:
-            return None, "unavailable"
-
     async def fetch_profile(self, profile_url: str) -> ProfileFetchResponse:
         validated_url = validate_profile_url(profile_url)
         sec_user_id = await self._resolve_sec_user_id(validated_url)
@@ -431,7 +357,6 @@ class F2ProfileProvider:
             sec_user_id,
             signature_raw,
         )
-        latest_work_task = asyncio.create_task(self._fetch_latest_work(sec_user_id))
         extraction = RelatedAccountExtraction(structured_accounts, "structured")
         if not structured_accounts and "@" in signature_raw and self.settings.enable_browser_links:
             rendered_accounts = await extract_rendered_related_accounts(
@@ -447,8 +372,6 @@ class F2ProfileProvider:
         elif not structured_accounts:
             extraction = RelatedAccountExtraction([], "unavailable")
 
-        latest_work, latest_work_status = await latest_work_task
-
         return ProfileFetchResponse(
             fetched_at=datetime.now(timezone.utc),
             account=Account(
@@ -461,6 +384,5 @@ class F2ProfileProvider:
                 follower_count=follower_count,
             ),
             related_accounts=extraction.accounts,
-            latest_work=latest_work,
-            diagnostics=Diagnostics(link_source=extraction.source, latest_work_status=latest_work_status),
+            diagnostics=Diagnostics(link_source=extraction.source),
         )

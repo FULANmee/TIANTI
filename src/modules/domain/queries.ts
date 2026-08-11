@@ -934,9 +934,6 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
     douyinProfile: douyinProfile
       ? {
           followerCount: douyinProfile.followerCount ?? null,
-          latestWorkUrl: douyinProfile.latestWorkUrl ?? null,
-          latestWorkCaption: douyinProfile.latestWorkCaption ?? null,
-          latestWorkPublishedAt: douyinProfile.latestWorkPublishedAt ?? null,
           itineraryBlocks: douyinProfile.itineraryText
             .split("\n")
             .map((block) => block.trim())

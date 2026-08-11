@@ -173,9 +173,6 @@ export interface TalentDouyinProfile {
   linkExtractionStatus: DouyinLinkExtractionStatus;
   manualSyncAvailableAt?: string | null;
   parserVersion: string;
-  latestWorkUrl?: string | null;
-  latestWorkCaption?: string | null;
-  latestWorkPublishedAt?: string | null;
 }
 
 export interface AssetObjectDeletionJob {
@@ -361,9 +358,6 @@ export interface TalentDetail {
   relatedEvents: RelatedEventSummary[];
   douyinProfile: {
     followerCount: number | null;
-    latestWorkUrl: string | null;
-    latestWorkCaption: string | null;
-    latestWorkPublishedAt: string | null;
     itineraryBlocks: string[];
     relatedAccounts: TalentDouyinRelatedAccount[];
   } | null;

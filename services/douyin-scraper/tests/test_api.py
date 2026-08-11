@@ -79,11 +79,9 @@ def test_profile_contract_and_authentication(monkeypatch):
                 "url": "https://www.douyin.com/user/MS4wLjABAAAA-alt",
             }
         ],
-        "latestWork": None,
         "diagnostics": {
             "profileSource": "f2-user-detail",
             "linkSource": "structured",
-            "latestWorkStatus": "unavailable",
         },
     }
 

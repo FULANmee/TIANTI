@@ -81,37 +81,6 @@ describe("Douyin profile synchronization", () => {
     prepareTalents();
   });
 
-  it("stores the newest work", async () => {
-    prepareTalents();
-
-    await runDouyinSync({
-      trigger: "cron",
-      repository: mockRepository,
-      config: CONFIG,
-      now: NOW,
-      fetchProfile: async (profileUrl) => ({
-        ...responseFor(profileUrl, ""),
-        schemaVersion: 2,
-        latestWork: {
-          url: "https://www.douyin.com/video/1234567890",
-          caption: "最新作品文案",
-          publishedAt: "2026-08-04T03:00:00.000Z"
-        },
-        diagnostics: {
-          ...responseFor(profileUrl, "").diagnostics,
-          latestWorkStatus: "available"
-        }
-      })
-    });
-
-    const after = getMockState();
-    expect(after.douyinProfiles[0]).toMatchObject({
-      latestWorkUrl: "https://www.douyin.com/video/1234567890",
-      latestWorkCaption: "最新作品文案",
-      latestWorkPublishedAt: "2026-08-04T03:00:00.000Z"
-    });
-  });
-
   it("merges only compatible future Shenzhen schedules and is idempotent", async () => {
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);

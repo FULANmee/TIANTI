@@ -287,10 +287,6 @@ function buildProfile(
   config: DouyinSyncConfig,
   now: Date
 ): TalentDouyinProfile {
-  const latestWork = snapshot.response.latestWork;
-  const preserveLatestWork =
-    !snapshot.response.diagnostics.latestWorkStatus ||
-    snapshot.response.diagnostics.latestWorkStatus === "unavailable";
   return {
     talentId: snapshot.talent.id,
     profileUrl: snapshot.response.account.canonicalUrl,
@@ -305,12 +301,7 @@ function buildProfile(
     manualSyncAvailableAt: isManualTrigger(trigger)
       ? addMinutes(now, config.cooldownMinutes)
       : existingProfile?.manualSyncAvailableAt ?? null,
-    parserVersion: snapshot.parsed.parserVersion,
-    latestWorkUrl: preserveLatestWork ? existingProfile?.latestWorkUrl ?? null : latestWork?.url ?? null,
-    latestWorkCaption: preserveLatestWork ? existingProfile?.latestWorkCaption ?? null : latestWork?.caption ?? null,
-    latestWorkPublishedAt: preserveLatestWork
-      ? existingProfile?.latestWorkPublishedAt ?? null
-      : latestWork?.publishedAt ?? null
+    parserVersion: snapshot.parsed.parserVersion
   };
 }
 

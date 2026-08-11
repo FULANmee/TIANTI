@@ -108,8 +108,7 @@ export default async function TalentDetailPage({
   const hasDouyinDetails =
     douyinProfile && (
       douyinProfile.itineraryBlocks.length > 0 ||
-      douyinProfile.relatedAccounts.length > 0 ||
-      Boolean(douyinProfile.latestWorkUrl)
+      douyinProfile.relatedAccounts.length > 0
     );
 
   return (
@@ -146,19 +145,6 @@ export default async function TalentDetailPage({
                   className="grid gap-4 md:grid-cols-[1.35fr_0.65fr]"
                   data-testid="douyin-profile-summary"
                 >
-                  {douyinProfile.latestWorkUrl ? (
-                    <section className="surface-strong rounded-[1.4rem] p-4 md:col-span-2" data-testid="douyin-latest-work">
-                      <p className="text-sm ui-muted">最新作品</p>
-                      <a
-                        href={douyinProfile.latestWorkUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 inline-flex text-sm leading-7 text-[var(--foreground)] underline decoration-[var(--line-soft)] underline-offset-4"
-                      >
-                        {douyinProfile.latestWorkCaption?.trim() || "查看最新作品"}
-                      </a>
-                    </section>
-                  ) : null}
                   {douyinProfile.itineraryBlocks.length > 0 ? (
                     <section
                       className={
