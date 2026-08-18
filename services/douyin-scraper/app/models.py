@@ -39,7 +39,6 @@ class RelatedAccount(ApiModel):
 
 class Diagnostics(ApiModel):
     profile_source: Literal["f2-user-detail"] = "f2-user-detail"
-    link_source: Literal["structured", "rendered", "unavailable"]
 
 
 class ProfileFetchResponse(ApiModel):
@@ -47,7 +46,6 @@ class ProfileFetchResponse(ApiModel):
     fetched_at: datetime
     account: Account
     profile: Profile
-    related_accounts: list[RelatedAccount] = Field(max_length=100)
     diagnostics: Diagnostics
 
 

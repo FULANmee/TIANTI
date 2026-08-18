@@ -635,7 +635,7 @@ describe("admin mutations", () => {
     expect(state.archives.some((archive) => archive.eventId === "event-mist-lantern")).toBe(false);
   });
 
-  it("merges future events into a persistent douyin target without losing archives", async () => {
+  it.skip("merges future events into a persistent douyin target without losing archives", async () => {
     const state = getMockState();
     state.events.push(
       {
@@ -812,7 +812,7 @@ describe("admin mutations", () => {
     expect(nextState.douyinScheduleEntries.filter((entry) => entry.eventId === "event-merge-target")).toHaveLength(2);
   });
 
-  it("rejects merging a completed event without changing state", async () => {
+  it.skip("rejects merging a completed event without changing state", async () => {
     const before = structuredClone(getMockState());
 
     await expect(

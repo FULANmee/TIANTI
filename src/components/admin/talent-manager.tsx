@@ -744,12 +744,11 @@ export function TalentManager({
               </div>
             </div>
 
-            <div className="grid gap-px bg-[var(--line-soft)] md:grid-cols-4">
+            <div className="grid gap-px bg-[var(--line-soft)] md:grid-cols-3">
               {[
                 ["同步状态", selectedSyncPresentation.label],
                 ["粉丝", formatFollowerCount(selectedDouyinStatus?.followerCount)],
-                ["未来行程", `${selectedDouyinStatus?.activeScheduleCount ?? 0} 条`],
-                ["关联账号", `${selectedDouyinStatus?.relatedAccounts.length ?? 0} 个`]
+                ["未来行程", `${selectedDouyinStatus?.activeScheduleCount ?? 0} 条`]
               ].map(([label, value]) => (
                 <div key={label} className="bg-[var(--surface-strong)] px-5 py-4">
                   <p className="text-xs ui-muted">{label}</p>
@@ -793,10 +792,6 @@ export function TalentManager({
                       })}
                     </ul>
                   ) : null}
-                </section>
-                <section className="rounded-[0.9rem] border border-[var(--line-soft)] p-4">
-                  <h3 className="font-semibold">关联账号</h3>
-                  {selectedDouyinStatus?.relatedAccounts.length ? <ul className="mt-3 space-y-2 text-sm">{selectedDouyinStatus.relatedAccounts.map((account) => <li key={account.url}><a href={account.url} target="_blank" rel="noreferrer" className="text-[var(--color-accent)] hover:underline">{account.nickname}</a></li>)}</ul> : <p className="mt-3 text-sm ui-muted">暂无关联账号。</p>}
                 </section>
               </div>
             </div>

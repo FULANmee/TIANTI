@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -390,5 +391,8 @@ export const archiveEntries = pgTable("archive_entries", {
     onDelete: "set null"
   }),
   cosplayTitle: text("cosplay_title").notNull(),
-  hasSharedPhoto: boolean("has_shared_photo").notNull().default(false)
-});
+  hasSharedPhoto: boolean("has_shared_photo").notNull().default(false),
+  beautyTier: integer("beauty_tier")
+}, (table) => ({
+  beautyTierCheck: check("archive_entries_beauty_tier_check", sql`${table.beautyTier} is null or (${table.beautyTier} >= 0 and ${table.beautyTier} <= 5)`)
+}));

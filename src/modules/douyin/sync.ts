@@ -14,7 +14,6 @@ import type {
   EventMergeRuleMember,
   Talent,
   TalentDouyinProfile,
-  TalentDouyinRelatedAccount,
   TalentDouyinScheduleEntry
 } from "@/modules/domain/types";
 import {
@@ -24,10 +23,7 @@ import {
   parseDouyinItinerary,
   type ParsedItineraryEntry
 } from "@/modules/douyin/itinerary";
-import {
-  getPrimaryDouyinProfileLink,
-  isSafeDouyinRelatedAccountUrl
-} from "@/modules/douyin/profile-link";
+import { getPrimaryDouyinProfileLink, isSafeDouyinRelatedAccountUrl } from "@/modules/douyin/profile-link";
 import {
   DouyinScraperError,
   fetchDouyinProfile,
@@ -297,60 +293,12 @@ function buildProfile(
     fetchedAt: snapshot.response.fetchedAt,
     lastSuccessAt: snapshot.response.fetchedAt,
     lastErrorCode: null,
-    linkExtractionStatus: snapshot.response.diagnostics.linkSource,
+    linkExtractionStatus: "unavailable",
     manualSyncAvailableAt: isManualTrigger(trigger)
       ? addMinutes(now, config.cooldownMinutes)
       : existingProfile?.manualSyncAvailableAt ?? null,
     parserVersion: snapshot.parsed.parserVersion
   };
-}
-
-function reconcileRelatedAccounts(
-  state: ContentState,
-  snapshots: SuccessfulTalentSnapshot[]
-): TalentDouyinRelatedAccount[] {
-  const successfulTalentIds = new Set(snapshots.map((snapshot) => snapshot.talent.id));
-  const nextAccounts = state.douyinRelatedAccounts.filter(
-    (account) => !successfulTalentIds.has(account.talentId)
-  );
-  const existingAccountIdByIdentity = new Map(
-    state.douyinRelatedAccounts.map((account) => [
-      `${account.talentId}:${account.secUserId}`,
-      account.id
-    ])
-  );
-
-  for (const snapshot of snapshots) {
-    if (snapshot.response.diagnostics.linkSource === "unavailable") {
-      nextAccounts.push(
-        ...state.douyinRelatedAccounts.filter((account) => account.talentId === snapshot.talent.id)
-      );
-      continue;
-    }
-
-    const seenSecUserIds = new Set<string>([snapshot.response.account.secUserId]);
-    for (const account of snapshot.response.relatedAccounts) {
-      if (
-        seenSecUserIds.has(account.secUserId) ||
-        !isSafeDouyinRelatedAccountUrl(account.url)
-      ) {
-        continue;
-      }
-      seenSecUserIds.add(account.secUserId);
-      nextAccounts.push({
-        id:
-          existingAccountIdByIdentity.get(`${snapshot.talent.id}:${account.secUserId}`) ??
-          randomUUID(),
-        talentId: snapshot.talent.id,
-        nickname: account.nickname,
-        secUserId: account.secUserId,
-        url: account.url,
-        sortOrder: seenSecUserIds.size - 2
-      });
-    }
-  }
-
-  return nextAccounts;
 }
 
 function isEntryPast(entry: TalentDouyinScheduleEntry, state: ContentState, now: Date) {
@@ -1055,23 +1003,29 @@ export async function runDouyinSync(options: RunDouyinSyncOptions): Promise<Douy
       );
     }
 
-    const scheduleEntries = reconcileScheduleEntries(reconciliationState, snapshots, now);
-    const reconciliation = reconcileEventsAndLineups(
-      reconciliationState,
-      scheduleEntries,
-      reconciliationState.eventMergeRules,
-      now
-    );
+    const scheduleEntries = reconcileScheduleEntries(reconciliationState, snapshots, now).map((entry) => ({
+      ...entry,
+      eventId: null
+    }));
+    const deleteSyncEventIds = reconciliationState.events
+      .filter((event) => event.origin === "douyin_sync" && deriveEventTemporalStatus(event.startsAt, event.endsAt) === "future")
+      .map((event) => event.id);
+    const preservedPastSourceLineups = reconciliationState.lineups.filter((lineup) => {
+      if (!lineup.source.startsWith("douyin:")) return false;
+      const event = reconciliationState.events.find((item) => item.id === lineup.eventId);
+      return Boolean(event && deriveEventTemporalStatus(event.startsAt, event.endsAt) !== "future");
+    });
+    void reconcileEventsAndLineups;
     const finishedRun = finalizeRun(run, results, new Date().toISOString());
 
     await repository.saveDouyinSyncState({
       profiles: [...profileMap.values()],
-      relatedAccounts: reconcileRelatedAccounts(reconciliationState, snapshots),
+      relatedAccounts: reconciliationState.douyinRelatedAccounts,
       scheduleEntries,
-      upsertEvents: reconciliation.upsertEvents,
-      sourceLineups: reconciliation.sourceLineups,
-      eventMergeRules: reconciliation.eventMergeRules,
-      deleteSyncEventIds: reconciliation.deleteSyncEventIds,
+      upsertEvents: [],
+      sourceLineups: preservedPastSourceLineups,
+      eventMergeRules: [],
+      deleteSyncEventIds,
       syncRun: finishedRun,
       syncResults: results
     });

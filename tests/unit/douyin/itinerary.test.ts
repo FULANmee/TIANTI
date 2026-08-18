@@ -36,6 +36,11 @@ describe("Douyin itinerary parsing", () => {
     ]);
   });
 
+  it("recognizes province names and cities outside the former shortlist", () => {
+    const parsed = parseDouyinItinerary("行程：8.8广东活动 / 8.9惠州见面会", NOW);
+    expect(parsed.entries.map((entry) => entry.city)).toEqual(["广东", "惠州"]);
+  });
+
   it("keeps labeled historical blocks visible without rolling them into the next year", () => {
     const parsed = parseDouyinItinerary(SAMPLE_TWO, NOW);
 

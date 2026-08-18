@@ -13,7 +13,9 @@ import {
 import { compareByPinyin } from "@/lib/pinyin";
 import { matchesPublicIdentifier } from "@/lib/public-path";
 import { getEventDisplayName } from "@/lib/event-display";
-import { getPrimaryDouyinProfileLink, isSafeDouyinRelatedAccountUrl } from "@/modules/douyin/profile-link";
+import { getPrimaryDouyinProfileLink } from "@/modules/douyin/profile-link";
+import { getProvinceForItineraryLocation, ITINERARY_PROVINCES } from "@/modules/douyin/geography";
+import { parseDouyinItinerary } from "@/modules/douyin/itinerary";
 import type {
   Asset,
   ArchiveEntry,
@@ -550,7 +552,7 @@ export function getHomepageCollections(state: ContentState, now = new Date()): H
       recentTalentCount: countRecentUpdatedTalents(state, now),
       recentEventCount: countHomepageRecentEvents(state, now)
     },
-    featuredTalents: recentTalents.slice(0, 4),
+    featuredTalents: recentTalents.slice(0, 6),
     futureEvents: futureEvents.slice(0, 2),
     recentTalents: recentTalents.slice(0, 6),
     editorSpotlights: state.editors.map((editor) => ({
@@ -919,6 +921,25 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
       getEventTemporalStatus(event) === "future" ? "该达人即将参与" : "该达人曾出现在活动档案中"
   );
 
+  const beautyTierSeries = state.editors.map((editor) => ({
+    editor,
+    points: state.archives
+      .filter((archive) => archive.editorId === editor.id)
+      .flatMap((archive) => {
+        const event = state.events.find((item) => item.id === archive.eventId);
+        if (!event) return [];
+        return archive.entries
+          .filter((entry) => entry.talentId === talent.id && entry.beautyTier != null)
+          .map((entry) => ({
+            id: entry.id,
+            date: getResolvedArchiveEntryDate(state, event, entry) ?? "",
+            eventName: getEventDisplayName(event),
+            beautyTier: entry.beautyTier!
+          }));
+      })
+      .sort((left, right) => left.date.localeCompare(right.date) || left.eventName.localeCompare(right.eventName, "zh-CN"))
+  }));
+
   return {
     talent,
     cover: talent.coverAssetId ? assetMap.get(talent.coverAssetId) ?? null : null,
@@ -939,26 +960,114 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
             .split("\n")
             .map((block) => block.trim())
             .filter(Boolean),
-          relatedAccounts: state.douyinRelatedAccounts
-            .filter(
-              (account) =>
-                account.talentId === talent.id &&
-                account.secUserId !== douyinProfile.secUserId &&
-                isSafeDouyinRelatedAccountUrl(account.url)
-            )
-            .sort((left, right) => left.sortOrder - right.sortOrder)
         }
       : null,
     editorSummaries: state.editors.map((editor) => {
       const ladder = state.ladders.find((item) => item.editorId === editor.id);
       const tierName = ladder?.tiers.find((tier) => tier.talentIds.includes(talent.id))?.name ?? null;
+      const tiers = beautyTierSeries
+        .find((series) => series.editor.id === editor.id)?.points.map((point) => point.beautyTier) ?? [];
 
       return {
         editor,
         tierName,
         seenCount: getEditorArchiveRecordCountForTalent(state, editor.id, talent.id),
-        sharedPhotoCount: getEditorSharedPhotoCountForTalent(state, editor.id, talent.id)
+        sharedPhotoCount: getEditorSharedPhotoCountForTalent(state, editor.id, talent.id),
+        averageBeautyTier: tiers.length ? tiers.reduce((sum, value) => sum + value, 0) / tiers.length : null
       };
+    }),
+    beautyTierSeries
+  };
+}
+
+function getAverageBeautyTier(state: ContentState, editorId: string, talentId: string) {
+  const values = state.archives
+    .filter((archive) => archive.editorId === editorId)
+    .flatMap((archive) => archive.entries)
+    .filter((entry) => entry.talentId === talentId && entry.beautyTier != null)
+    .map((entry) => entry.beautyTier!);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+export function getAutomaticLadder(state: ContentState, mode: "followers" | `average-${"lin" | "yu"}`) {
+  const assetMap = byId(state.assets);
+  const editorSlug = mode.startsWith("average-") ? mode.slice("average-".length) : null;
+  const editor = editorSlug ? state.editors.find((item) => item.slug === editorSlug) : undefined;
+  const rows = state.talents.map((talent) => {
+    const profile = state.douyinProfiles.find((item) => item.talentId === talent.id && item.lastSuccessAt);
+    const hasBoundProfile = Boolean(getPrimaryDouyinProfileLink(talent).link);
+    const value = mode === "followers"
+      ? (hasBoundProfile ? profile?.followerCount ?? null : null)
+      : (editor ? getAverageBeautyTier(state, editor.id, talent.id) : null);
+    return { talent, cover: talent.coverAssetId ? assetMap.get(talent.coverAssetId) ?? null : null, value };
+  });
+  const definitions = mode === "followers"
+    ? [
+        { id: "followers-500", name: "500万以上", accepts: (value: number) => value >= 5_000_000 },
+        { id: "followers-300", name: "300～500万", accepts: (value: number) => value >= 3_000_000 && value < 5_000_000 },
+        { id: "followers-200", name: "200～300万", accepts: (value: number) => value >= 2_000_000 && value < 3_000_000 },
+        { id: "followers-100", name: "100～200万", accepts: (value: number) => value >= 1_000_000 && value < 2_000_000 },
+        { id: "followers-under-100", name: "100万以下", accepts: (value: number) => value < 1_000_000 }
+      ]
+    : [
+        { id: `${mode}-4`, name: "4～5", accepts: (value: number) => value > 4 && value <= 5 },
+        { id: `${mode}-3`, name: "3～4", accepts: (value: number) => value > 3 && value <= 4 },
+        { id: `${mode}-2`, name: "2～3", accepts: (value: number) => value > 2 && value <= 3 },
+        { id: `${mode}-1`, name: "1～2", accepts: (value: number) => value > 1 && value <= 2 },
+        { id: `${mode}-0`, name: "0～1", accepts: (value: number) => value >= 0 && value <= 1 }
+      ];
+  const valueLabel = (value: number | null) => value == null
+    ? (mode === "followers" ? "粉丝数未知" : "暂无评分")
+    : mode === "followers" ? `${(value / 10_000).toFixed(value >= 100_000 ? 0 : 1)}万粉丝` : `平均 ${value.toFixed(1)}`;
+  const sortRows = (items: typeof rows) => [...items].sort((left, right) =>
+    (right.value ?? Number.NEGATIVE_INFINITY) - (left.value ?? Number.NEGATIVE_INFINITY) ||
+    compareByPinyin(left.talent.nickname, right.talent.nickname));
+  return {
+    mode,
+    title: mode === "followers" ? "粉丝量天梯" : `${editor?.name ?? "编辑人"}的平均梯度`,
+    subtitle: mode === "followers" ? "依据最近一次成功同步的抖音粉丝数自动计算。" : "依据该编辑人的全部已评分现场档案自动计算。",
+    editor,
+    tiers: [
+      ...definitions.map((definition) => ({
+        id: definition.id,
+        name: definition.name,
+        talents: sortRows(rows.filter((row) => row.value != null && definition.accepts(row.value))).map((row) => ({ ...row, valueLabel: valueLabel(row.value) }))
+      })),
+      {
+        id: `${mode}-unknown`,
+        name: mode === "followers" ? "粉丝数未知" : "暂无评分",
+        talents: sortRows(rows.filter((row) => row.value == null)).map((row) => ({ ...row, valueLabel: valueLabel(null) }))
+      }
+    ]
+  };
+}
+
+export function getLocationItineraryIndex(state: ContentState, now = new Date()) {
+  const today = getShanghaiDateKey(now);
+  return {
+    provinces: ITINERARY_PROVINCES,
+    talents: state.talents.flatMap((talent) => {
+      if (!getPrimaryDouyinProfileLink(talent).link) return [];
+      const profile = state.douyinProfiles.find((item) => item.talentId === talent.id && item.lastSuccessAt);
+      if (!profile) return [];
+      const parsed = parseDouyinItinerary(profile.signatureRaw, profile.fetchedAt ? new Date(profile.fetchedAt) : now);
+      const structuredEntries = parsed.entries.map((entry) => ({
+        rawText: entry.rawText,
+        date: entry.dateKey,
+        endDate: entry.endDateKey,
+        province: entry.city ? getProvinceForItineraryLocation(entry.city) : null,
+        city: entry.city,
+        isPast: entry.endDateKey < today
+      }));
+      const structuredTexts = new Set(structuredEntries.map((entry) => entry.rawText));
+      const entries = [
+        ...structuredEntries,
+        ...parsed.displayBlocks.filter((block) => ![...structuredTexts].some((text) => block.includes(text))).map((rawText) => ({
+          rawText, date: null, endDate: null, province: null, city: null, isPast: false
+        }))
+      ];
+      if (!entries.length && !parsed.displayBlocks.length) return [];
+      return [{ talent: buildTalentSummary(state, talent), entries }];
     })
   };
 }

@@ -1,5 +1,13 @@
 # 开发日志
 
+## 2026-08-18 — 主页行程、现场梯度与自动天梯
+
+- Goal: 精简首页，将抖音主页行程与正式活动解耦，并增加现场颜值梯度、趋势、地点行程浏览和自动天梯视角。
+- Changed: 首页近期达人改为 6 位并删除底部重复入口；停止关联小号提取及行程自动建活动，移除后台活动合并入口，抖音 Cron 保持 Hobby 套餐支持的每天一次；现场档案新增 0～5 梯度，达人详情显示双编辑曲线和各自平均值；活动页新增全国省市映射的地点行程弹窗；天梯新增粉丝量和两位编辑人平均梯度自动视角。新增 0012 迁移，安全清理未来抖音自动阵容/空活动并把既有合并活动转为人工活动。
+- Verified: ESLint、TypeScript、147 项 Vitest（另有 10 项已删除功能的历史测试跳过）、Python 15 项测试、Drizzle migration check、生产构建和 3 项 CI smoke 全部通过；完整 Playwright 28 项通过、1 项已删除的合并场景跳过，首页旧断言修正后相关 2 项定向复跑通过；新增 UI 已在桌面和 390×844 移动端完成视觉复查。
+- Specs: [颜值梯度与天梯](./docs/spec/ratings-and-ladders.md)、[达人与素材行为](./docs/spec/talents-and-assets.md)、[界面与交互规范](./docs/spec/ui-ux.md)、[ADR 0003](./docs/spec/adr/0003-decouple-douyin-itineraries-from-events.md)
+- Next: 尚未应用 0012 到远程数据库；功能分支和草稿 PR 已创建，等待 Preview 验收后合并 main。
+
 ## 2026-08-11 — 移除抖音最新作品功能
 
 - Goal：按验收反馈删除最新作品的抓取、同步和公开展示。

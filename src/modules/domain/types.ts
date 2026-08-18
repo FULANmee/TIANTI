@@ -141,6 +141,7 @@ export interface ArchiveEntry {
   sharedPhotoAssetId?: string | null;
   cosplayTitle: string;
   hasSharedPhoto: boolean;
+  beautyTier?: number | null;
 }
 
 export interface EditorArchive {
@@ -253,7 +254,6 @@ export interface TalentDouyinAdminStatus {
   lastSuccessAt: string | null;
   lastErrorCode: string | null;
   manualSyncAvailableAt: string | null;
-  relatedAccounts: Array<{ nickname: string; url: string }>;
   activeScheduleCount: number;
 }
 
@@ -366,13 +366,17 @@ export interface TalentDetail {
   douyinProfile: {
     followerCount: number | null;
     itineraryBlocks: string[];
-    relatedAccounts: TalentDouyinRelatedAccount[];
   } | null;
   editorSummaries: Array<{
     editor: EditorProfile;
     tierName: string | null;
     seenCount: number;
     sharedPhotoCount: number;
+    averageBeautyTier: number | null;
+  }>;
+  beautyTierSeries: Array<{
+    editor: EditorProfile;
+    points: Array<{ id: string; date: string; eventName: string; beautyTier: number }>;
   }>;
 }
 
@@ -420,6 +424,39 @@ export interface HomepageDiscovery {
     topTier: LadderTier;
     href: string;
   }>;
+}
+
+export interface AutomaticLadderTier {
+  id: string;
+  name: string;
+  talents: Array<{ talent: Talent; cover: Asset | null; value: number | null; valueLabel: string }>;
+}
+
+export interface AutomaticLadderPage {
+  mode: "followers" | `average-${EditorSlug}`;
+  title: string;
+  subtitle: string;
+  editor?: EditorProfile;
+  tiers: AutomaticLadderTier[];
+}
+
+export interface LocationItineraryEntry {
+  rawText: string;
+  date: string | null;
+  endDate: string | null;
+  province: string | null;
+  city: string | null;
+  isPast: boolean;
+}
+
+export interface LocationItineraryTalent {
+  talent: TalentSummary;
+  entries: LocationItineraryEntry[];
+}
+
+export interface LocationItineraryIndex {
+  provinces: Array<{ name: string; label: string; cities: Array<{ name: string; label: string }> }>;
+  talents: LocationItineraryTalent[];
 }
 
 export interface DashboardSummary {

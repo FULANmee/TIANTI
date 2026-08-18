@@ -7,6 +7,8 @@ import {
   getEventDetail,
   getHomepageCollections,
   getLadderByEditor,
+  getAutomaticLadder,
+  getLocationItineraryIndex,
   getLadders,
   getTalentDetail,
   listEventSummaries,
@@ -33,10 +35,6 @@ export async function getDouyinAdminStatuses() {
     lastSuccessAt: profile.lastSuccessAt ?? null,
     lastErrorCode: profile.lastErrorCode ?? null,
     manualSyncAvailableAt: profile.manualSyncAvailableAt ?? null,
-    relatedAccounts: state.douyinRelatedAccounts
-      .filter((account) => account.talentId === profile.talentId)
-      .sort((left, right) => left.sortOrder - right.sortOrder)
-      .map((account) => ({ nickname: account.nickname, url: account.url })),
     activeScheduleCount: state.douyinScheduleEntries.filter(
       (entry) => entry.talentId === profile.talentId && entry.state === "active"
     ).length
@@ -73,6 +71,14 @@ export async function getLadderIndex() {
 
 export async function getLadderPage(editorSlug: string) {
   return getLadderByEditor(await getContentState(), editorSlug);
+}
+
+export async function getAutomaticLadderPage(mode: "followers" | `average-${"lin" | "yu"}`) {
+  return getAutomaticLadder(await getContentState(), mode);
+}
+
+export async function getPublicLocationItineraries() {
+  return getLocationItineraryIndex(await getContentState());
 }
 
 export async function getSearchPage(query: string) {

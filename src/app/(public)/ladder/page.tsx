@@ -6,7 +6,7 @@ import { SectionFrame } from "@/components/ui/section-frame";
 import { getAssetDisplayPreset } from "@/lib/asset-display";
 import { getTalentPath } from "@/lib/public-path";
 import { buildMetadata } from "@/lib/site";
-import { getLadderPage, getSiteEditors } from "@/modules/content/service";
+import { getAutomaticLadderPage, getLadderPage, getSiteEditors } from "@/modules/content/service";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -33,11 +33,21 @@ export const metadata = buildMetadata({
 export default async function LadderPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const editors = await getSiteEditors();
+  const automaticModes = ["followers", "average-lin", "average-yu"] as const;
+  const automaticMode = typeof params.view === "string" && automaticModes.includes(params.view as typeof automaticModes[number])
+    ? params.view as typeof automaticModes[number]
+    : null;
   const editorSlug =
     typeof params.editor === "string" && editors.some((editor) => editor.slug === params.editor)
       ? params.editor
       : editors[0]?.slug;
-  const data = editorSlug ? await getLadderPage(editorSlug) : null;
+  const manualData = !automaticMode && editorSlug ? await getLadderPage(editorSlug) : null;
+  const automaticData = automaticMode ? await getAutomaticLadderPage(automaticMode) : null;
+  const data = automaticData ? {
+    ladder: { title: automaticData.title, subtitle: automaticData.subtitle },
+    editor: automaticData.editor ?? { name: "自动计算" },
+    tiers: automaticData.tiers
+  } : manualData;
 
   return (
     <PageShell>
@@ -52,7 +62,7 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
       <div className="mt-10 space-y-8">
         <div className="flex flex-wrap gap-2">
           {editors.map((editor) => {
-            const active = editor.slug === editorSlug;
+            const active = !automaticMode && editor.slug === editorSlug;
             return (
               <Link
                 key={editor.id}
@@ -65,6 +75,8 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
               </Link>
             );
           })}
+          <Link href="/ladder?view=followers" className={`ui-pill px-5 py-3 text-sm ${automaticMode === "followers" ? "border-[rgba(43,109,246,0.22)] bg-[rgba(43,109,246,0.08)] text-[var(--color-accent)]" : ""}`}>粉丝量</Link>
+          {editors.map((editor) => <Link key={`average-${editor.id}`} href={`/ladder?view=average-${editor.slug}`} className={`ui-pill px-5 py-3 text-sm ${automaticMode === `average-${editor.slug}` ? "border-[rgba(43,109,246,0.22)] bg-[rgba(43,109,246,0.08)] text-[var(--color-accent)]" : ""}`}>{editor.name}平均梯度</Link>)}
         </div>
 
         {data ? (
@@ -115,7 +127,10 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                   </div>
                   {tier.talents.length > 0 ? (
                     <div data-testid="ladder-tier-grid" className="mt-6 grid gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
-                      {tier.talents.map(({ talent, cover }, talentIndex) => (
+                      {tier.talents.map((talentItem, talentIndex) => {
+                        const { talent, cover } = talentItem;
+                        const valueLabel = "valueLabel" in talentItem ? talentItem.valueLabel : null;
+                        return (
                         <Link
                           key={talent.id}
                           href={getTalentPath(talent)}
@@ -139,9 +154,11 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                           <div className="space-y-2 p-4">
                             <p className="text-lg tracking-[-0.03em] text-[var(--foreground)]">{talent.nickname}</p>
                             <p className="line-clamp-1 text-sm ui-subtle">{getBioPreviewLine(talent.bio) || "公开资料"}</p>
+                            {valueLabel ? <p className="font-mono text-xs text-[var(--color-accent)]">{valueLabel}</p> : null}
                           </div>
                         </Link>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="mt-6 rounded-[1.4rem] border border-dashed border-[var(--line-strong)] px-4 py-8 text-sm ui-subtle">

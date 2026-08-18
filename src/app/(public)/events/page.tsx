@@ -1,12 +1,13 @@
 import { AutoFilterForm } from "@/components/site/auto-filter-form";
 import { EventCard } from "@/components/site/event-card";
+import { LocationItineraryDialog } from "@/components/site/location-itinerary-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { PageShell } from "@/components/ui/page-shell";
 import { SectionFrame } from "@/components/ui/section-frame";
 import { compareByPinyin } from "@/lib/pinyin";
 import { buildMetadata } from "@/lib/site";
-import { getContentState, getEventIndex } from "@/modules/content/service";
+import { getContentState, getEventIndex, getPublicLocationItineraries } from "@/modules/content/service";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -35,6 +36,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
       ? (requestedSort as "recent" | "upcoming" | "lineupSize")
       : undefined;
   const state = await getContentState();
+  const locationItineraries = await getPublicLocationItineraries();
   const cities = [...new Set(state.events.map((event) => event.city).filter(Boolean))].sort(compareByPinyin);
   const requestedCity = typeof params.city === "string" ? params.city : undefined;
   const city = requestedCity && cities.includes(requestedCity) ? requestedCity : undefined;
@@ -63,6 +65,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
         title="按时间和城市查找活动"
         description="查看即将开始的活动阵容，也可以翻阅已经结束的活动与现场记录。"
         titleTestId="events-page-title"
+        actions={<LocationItineraryDialog data={locationItineraries} />}
       />
 
       <div className="mt-10 space-y-8">

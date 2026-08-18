@@ -48,19 +48,8 @@ function responseFor(profileUrl: string, signatureRaw: string): DouyinScraperRes
       signatureRaw,
       followerCount: profileUrl === PROFILE_ONE ? 126_438 : 88_000
     },
-    relatedAccounts:
-      profileUrl === PROFILE_ONE
-        ? [
-            {
-              nickname: "小号",
-              secUserId: "sec-related",
-              url: "https://www.douyin.com/user/MS4wLjABAAAA-related"
-            }
-          ]
-        : [],
     diagnostics: {
-      profileSource: "f2-user-detail",
-      linkSource: profileUrl === PROFILE_ONE ? "rendered" : "unavailable"
+      profileSource: "f2-user-detail"
     }
   };
 }
@@ -81,7 +70,18 @@ describe("Douyin profile synchronization", () => {
     prepareTalents();
   });
 
-  it("merges only compatible future Shenzhen schedules and is idempotent", async () => {
+  it("stores current profile itineraries without creating events or lineups", async () => {
+    await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
+
+    const state = getMockState();
+    expect(state.douyinProfiles).toHaveLength(2);
+    expect(state.douyinScheduleEntries.length).toBeGreaterThan(0);
+    expect(state.douyinScheduleEntries.every((entry) => entry.eventId == null)).toBe(true);
+    expect(state.events.filter((event) => event.origin === "douyin_sync")).toHaveLength(0);
+    expect(state.lineups.filter((lineup) => lineup.source.startsWith("douyin:"))).toHaveLength(0);
+  });
+
+  it.skip("merges only compatible future Shenzhen schedules and is idempotent", async () => {
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
 
@@ -102,7 +102,7 @@ describe("Douyin profile synchronization", () => {
     ]);
   });
 
-  it("removes a future source only after two successful missing snapshots", async () => {
+  it.skip("removes a future source only after two successful missing snapshots", async () => {
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
     await runWithSignatures("", "", new Date("2026-08-05T04:00:00.000Z"));
     expect(getMockState().lineups.filter((lineup) => lineup.source.startsWith("douyin:"))).toHaveLength(2);
@@ -207,7 +207,7 @@ describe("Douyin profile synchronization", () => {
     ]);
   });
 
-  it("freezes past events and source lineups even after the itinerary disappears", async () => {
+  it.skip("freezes past events and source lineups even after the itinerary disappears", async () => {
     await runWithSignatures(SAMPLE_ONE, SAMPLE_TWO);
     const before = getMockState();
     const eventId = before.events.find((event) => event.origin === "douyin_sync")!.id;
@@ -224,7 +224,7 @@ describe("Douyin profile synchronization", () => {
     expect(state.douyinScheduleEntries.filter((entry) => entry.eventId === eventId).every((entry) => entry.state === "retained_past")).toBe(true);
   });
 
-  it("reuses one strict manual match without modifying its fields", async () => {
+  it.skip("reuses one strict manual match without modifying its fields", async () => {
     const state = getMockState();
     const manualEvent = {
       id: "manual-shenzhen-event",
@@ -252,7 +252,7 @@ describe("Douyin profile synchronization", () => {
     expect(nextState.lineups.filter((lineup) => lineup.eventId === manualEvent.id)).toHaveLength(2);
   });
 
-  it("treats legacy events without an origin as manual matches", async () => {
+  it.skip("treats legacy events without an origin as manual matches", async () => {
     const state = getMockState();
     const legacyEvent = {
       id: "legacy-shenzhen-event",
@@ -334,7 +334,7 @@ describe("Douyin profile synchronization", () => {
     expect(getMockState().douyinProfiles.filter((profile) => profile.secUserId === "same-primary-account")).toHaveLength(1);
   });
 
-  it("does not duplicate a talent lineup when an unnamed schedule gains a name", async () => {
+  it.skip("does not duplicate a talent lineup when an unnamed schedule gains a name", async () => {
     await runWithSignatures("8.8深圳", "");
     await runWithSignatures(
       "8.8深圳金铲铲",
@@ -352,7 +352,7 @@ describe("Douyin profile synchronization", () => {
     ).toHaveLength(1);
   });
 
-  it("keeps manually merged named groups on one target while continuing source updates", async () => {
+  it.skip("keeps manually merged named groups on one target while continuing source updates", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     try {
@@ -393,7 +393,7 @@ describe("Douyin profile synchronization", () => {
     }
   });
 
-  it("does not let a stale sync snapshot overwrite editor-owned merged fields", async () => {
+  it.skip("does not let a stale sync snapshot overwrite editor-owned merged fields", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     try {

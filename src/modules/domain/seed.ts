@@ -323,7 +323,8 @@ export const demoSeedState: RepositoryState = {
           sceneAssetId: "asset-scene-1",
           sharedPhotoAssetId: "asset-shared-1",
           cosplayTitle: "《花朝记》春庭版",
-          hasSharedPhoto: true
+          hasSharedPhoto: true,
+          beautyTier: 4
         }
       ]
     },
@@ -340,7 +341,8 @@ export const demoSeedState: RepositoryState = {
           sceneAssetId: "asset-scene-2",
           sharedPhotoAssetId: null,
           cosplayTitle: "《夜锦》活动舞台版",
-          hasSharedPhoto: false
+          hasSharedPhoto: false,
+          beautyTier: 3
         }
       ]
     }

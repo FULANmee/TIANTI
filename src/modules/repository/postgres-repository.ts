@@ -261,7 +261,8 @@ async function loadState(): Promise<ContentState> {
           sceneAssetId: entry.sceneAssetId ?? null,
           sharedPhotoAssetId: entry.sharedPhotoAssetId,
           cosplayTitle: entry.cosplayTitle,
-          hasSharedPhoto: entry.hasSharedPhoto
+          hasSharedPhoto: entry.hasSharedPhoto,
+          beautyTier: entry.beautyTier
         }))
     })),
     douyinProfiles: douyinProfileRows.map((row) => ({
@@ -1270,7 +1271,8 @@ export const postgresRepository: ContentRepository = {
           sceneAssetId: entry.sceneAssetId ?? null,
           sharedPhotoAssetId: entry.sharedPhotoAssetId ?? null,
           cosplayTitle: entry.cosplayTitle,
-          hasSharedPhoto: entry.hasSharedPhoto
+          hasSharedPhoto: entry.hasSharedPhoto,
+          beautyTier: entry.beautyTier ?? null
         }))
       );
     }

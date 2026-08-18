@@ -27,7 +27,7 @@ export interface TalentBulkPayload {
 }
 
 export interface EventBulkPayload {
-  action: "delete" | "merge";
+  action: "delete";
   ids: string[];
   targetId?: string;
 }

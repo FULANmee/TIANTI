@@ -5,7 +5,7 @@ import { PRODUCTION_NEON_BRANCH_ID } from "./apply-preview-v5-migrations";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
-function getTarget(environment: Environment) {
+export function getTarget(environment: Environment) {
   const preview = environment.TIANTI_PREVIEW_V5_1_MIGRATIONS === "1";
   const production = environment.TIANTI_PRODUCTION_V5_1_MIGRATIONS === "1";
   if (preview && production) throw new Error("5.1 migration flags cannot both be enabled.");
@@ -17,7 +17,7 @@ function getTarget(environment: Environment) {
     if (
       environment.VERCEL_ENV !== "preview" ||
       environment.VERCEL_TARGET_ENV !== "preview" ||
-      !["5.1", "codex/5.1"].includes(environment.VERCEL_GIT_COMMIT_REF ?? "")
+      !["5.1", "codex/5.1", "codex/5.3"].includes(environment.VERCEL_GIT_COMMIT_REF ?? "")
     ) throw new Error("5.1 Preview migration guard rejected this deployment context.");
     return "preview" as const;
   }
@@ -83,6 +83,15 @@ export async function main(environment: Environment = process.env) {
       if (mcnRows.length > 0) {
         const removal = await readFile(new URL("../drizzle/0011_remove_mcn.sql", import.meta.url), "utf8");
         await transaction.unsafe(removal, [], { prepare: false });
+      }
+
+      const beautyTierRows = await transaction<{ column_name: string }[]>`
+        select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = 'archive_entries' and column_name = 'beauty_tier'
+      `;
+      if (beautyTierRows.length === 0) {
+        const ratingMigration = await readFile(new URL("../drizzle/0012_redundant_wolfpack.sql", import.meta.url), "utf8");
+        await transaction.unsafe(ratingMigration, [], { prepare: false });
       }
     });
   } finally {

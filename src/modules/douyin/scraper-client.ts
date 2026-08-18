@@ -15,16 +15,8 @@ const responseSchema = z.object({
     signatureRaw: z.string().max(5_000),
     followerCount: z.number().int().nonnegative()
   }),
-  relatedAccounts: z.array(
-    z.object({
-      nickname: z.string().max(256),
-      secUserId: z.string().min(1).max(512),
-      url: z.string().url()
-    })
-  ).max(100),
   diagnostics: z.object({
-    profileSource: z.literal("f2-user-detail"),
-    linkSource: z.enum(["structured", "rendered", "unavailable"])
+    profileSource: z.literal("f2-user-detail")
   })
 });
 
