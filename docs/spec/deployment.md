@@ -16,5 +16,5 @@
 ## Preview 环境变量
 
 - 连接真实 Neon Preview 数据库的功能分支必须设置 `TIANTI_CONTENT_MODE=database`；若没有显式设置但存在 `DATABASE_URL`，应用也会默认使用数据库模式，避免 Serverless 实例间丢失 mock 会话。
-- `codex/5.1` 的 Vercel Preview 已配置 `TIANTI_CONTENT_MODE=database` 和 `TIANTI_PREVIEW_V5_1_MIGRATIONS=1`，两个变量均限定在该分支，不影响 Production。
+- `codex/5.1` 与 `codex/5.3` 的 Vercel Preview 使用分支限定的 `TIANTI_PREVIEW_V5_1_MIGRATIONS=1`；`codex/5.1` 另有分支限定的 `TIANTI_CONTENT_MODE=database`。这些变量不影响 Production。
 - 不要把 Production 数据库或 R2 密钥复制到临时 Preview；Preview migration gate 会校验 Neon 分支并拒绝 Production branch。
