@@ -15,7 +15,11 @@ const toneMap = {
 
 export function StatusNotice({ children, variant = "info", className }: StatusNoticeProps) {
   return (
-    <div className={cn("rounded-[1.2rem] border px-4 py-3 text-sm leading-6", toneMap[variant], className)}>
+    <div
+      role={variant === "error" ? "alert" : "status"}
+      aria-live={variant === "error" ? "assertive" : "polite"}
+      className={cn("rounded-[0.9rem] border px-4 py-3 text-sm leading-6", toneMap[variant], className)}
+    >
       {children}
     </div>
   );

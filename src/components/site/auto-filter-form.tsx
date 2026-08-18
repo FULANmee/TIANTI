@@ -71,8 +71,10 @@ export function AutoFilterForm({ children, className }: AutoFilterFormProps) {
         submitForm(form);
       }}
       data-pending={pending ? "true" : "false"}
+      aria-busy={pending}
     >
       {children}
+      <span className="sr-only" role="status" aria-live="polite">{pending ? "正在更新筛选结果" : ""}</span>
       <button type="submit" className="sr-only">
         Apply filters
       </button>

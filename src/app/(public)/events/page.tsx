@@ -58,15 +58,17 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
   return (
     <PageShell>
       <SectionFrame
-        eyebrow="Event Index"
-        title="让时间、城市与阵容更容易被扫描"
-        description="筛选区更像产品工具条，结果区则优先保留活动概览、阵容和进入详情页的路径。"
+        headingLevel="h1"
+        eyebrow="活动通告与档案"
+        title="按时间和城市查找活动"
+        description="查看即将开始的活动阵容，也可以翻阅已经结束的活动与现场记录。"
         titleTestId="events-page-title"
       />
 
       <div className="mt-10 space-y-8">
         <FilterBar>
-          <AutoFilterForm className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_0.85fr_0.85fr_0.95fr_1fr_0.95fr_0.85fr]">
+          <AutoFilterForm className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr]">
             <label className="sr-only" htmlFor="event-filter-search">
               搜索活动
             </label>
@@ -92,6 +94,10 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
               <option value="future">未来活动</option>
               <option value="past">已结束活动</option>
             </select>
+            </div>
+            <details className="group rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--foreground-soft)]">更多筛选条件</summary>
+              <div className="advanced-filters mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <label className="sr-only" htmlFor="event-filter-city">
               按城市筛选活动
             </label>
@@ -168,6 +174,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
               <option value="upcoming">按即将发生</option>
               <option value="lineupSize">按阵容规模</option>
             </select>
+              </div>
+            </details>
           </AutoFilterForm>
         </FilterBar>
 

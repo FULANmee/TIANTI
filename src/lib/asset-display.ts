@@ -79,7 +79,7 @@ const ASSET_DISPLAY_COPY: Record<AssetKind, AssetDisplayCopy> = {
   },
   talent_representation: {
     cropTitle: "代表图",
-    cropHint: "前台代表图会按所选比例同步显示。"
+    cropHint: "前台代表图统一使用竖版 3:4 取景，完整原图仍会保留。"
   },
   event_scene: {
     cropTitle: "现场图",
@@ -97,8 +97,7 @@ export const ASSET_UPLOAD_PRESET_OPTIONS: Record<AssetKind, AssetDisplayPreset[]
     attachDisplayCopy(LANDSCAPE_DISPLAY_PRESET, ASSET_DISPLAY_COPY.talent_cover)
   ],
   talent_representation: [
-    attachDisplayCopy(PORTRAIT_DISPLAY_PRESET, ASSET_DISPLAY_COPY.talent_representation),
-    attachDisplayCopy(LANDSCAPE_DISPLAY_PRESET, ASSET_DISPLAY_COPY.talent_representation)
+    attachDisplayCopy(PORTRAIT_DISPLAY_PRESET, ASSET_DISPLAY_COPY.talent_representation)
   ],
   event_scene: [
     attachDisplayCopy(PORTRAIT_DISPLAY_PRESET, ASSET_DISPLAY_COPY.event_scene),

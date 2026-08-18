@@ -43,10 +43,10 @@ export function LoginForm() {
         <p className="text-sm leading-7 ui-subtle">使用已有编辑账号进入后台。登录成功后会直接回到工作台总览。</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input name="email" type="email" placeholder="邮箱" className="ui-input" />
-        <input name="password" type="password" placeholder="密码" className="ui-input" />
-        {error ? <p className="text-sm text-[#992b35]">{error}</p> : null}
-        <button disabled={pending} className="ui-button-primary w-full rounded-[1rem] text-sm disabled:opacity-60">
+        <label className="ui-field-label"><span>邮箱</span><input name="email" type="email" autoComplete="email" className="ui-input" /></label>
+        <label className="ui-field-label"><span>密码</span><input name="password" type="password" autoComplete="current-password" className="ui-input" /></label>
+        {error ? <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p> : null}
+        <button disabled={pending} className="ui-button-primary w-full text-sm">
           {pending ? "登录中..." : "登录"}
         </button>
       </form>

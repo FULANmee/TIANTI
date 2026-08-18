@@ -9,7 +9,7 @@ export default async function AdminLadderPage() {
 
   if (!ladder) {
     return (
-      <div className="surface rounded-[1.8rem] p-6 text-white/70">
+      <div className="surface rounded-[var(--radius-panel)] p-6 ui-subtle">
         当前账号还没有自己的天梯榜。
       </div>
     );

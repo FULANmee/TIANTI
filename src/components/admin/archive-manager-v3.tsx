@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
+import { Combine, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
 import { AdminDialog } from "@/components/admin/admin-dialog";
 import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
 import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
@@ -308,7 +309,7 @@ export function ArchiveManager({
   const [liveArchives, setLiveArchives] = useState(archives);
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEventId);
-  const [isEventEditorOpen, setIsEventEditorOpen] = useState(false);
+  const [isEventEditorOpen, setIsEventEditorOpen] = useState(() => Boolean(initialEventId));
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
   const [isLineupDialogOpen, setIsLineupDialogOpen] = useState(false);
@@ -376,32 +377,22 @@ export function ArchiveManager({
     }
     return dateMap;
   }, [editableLineups]);
-  const savedLineupDateKeysByTalentId = useMemo(() => {
-    const dateMap = new Map<string, Set<string>>();
-    for (const lineup of persistedLineups) {
-      if (!lineup.talentId) continue;
-      const current = dateMap.get(lineup.talentId) ?? new Set<string>();
-      current.add(lineup.lineupDate || "");
-      dateMap.set(lineup.talentId, current);
-    }
-    return dateMap;
-  }, [persistedLineups]);
-  const savedLineupTalentIds = useMemo(
-    () => [...new Set(persistedLineups.map((lineup) => lineup.talentId).filter(Boolean))],
-    [persistedLineups]
+  const editableLineupTalentIds = useMemo(
+    () => [...new Set(editableLineups.map((lineup) => lineup.talentId).filter(Boolean))],
+    [editableLineups]
   );
-  const savedLineupTalentIdSet = useMemo(() => new Set(savedLineupTalentIds), [savedLineupTalentIds]);
+  const editableLineupTalentIdSet = useMemo(() => new Set(editableLineupTalentIds), [editableLineupTalentIds]);
   const lineupTalentOptions = useMemo(
     () =>
-      savedLineupTalentIds
+      editableLineupTalentIds
         .map((talentId) => talentMap.get(talentId))
         .filter((talent): talent is Talent => Boolean(talent)),
-    [savedLineupTalentIds, talentMap]
+    [editableLineupTalentIds, talentMap]
   );
   const defaultArchiveTalentId = useMemo(() => {
     const usedTalentIds = new Set(archiveDraft.entries.map((entry) => entry.talentId));
-    return savedLineupTalentIds.find((talentId) => !usedTalentIds.has(talentId)) ?? savedLineupTalentIds[0] ?? "";
-  }, [archiveDraft.entries, savedLineupTalentIds]);
+    return editableLineupTalentIds.find((talentId) => !usedTalentIds.has(talentId)) ?? editableLineupTalentIds[0] ?? "";
+  }, [archiveDraft.entries, editableLineupTalentIds]);
   const defaultLineupTalentId = useMemo(() => {
     if (isMultiDayEvent && lineupDateOptions.length > 0) {
       return (
@@ -471,8 +462,18 @@ export function ArchiveManager({
   function selectEvent(eventId: string | null) {
     if (eventId === selectedEventId) {
       setIsEventEditorOpen(true);
+      if (window.matchMedia("(max-width: 1023px)").matches) window.requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="admin-editor-workspace"]')?.scrollIntoView({ block: "start" }));
       return;
     }
+    if (!canLeaveCurrentWork()) return;
+    resetDrafts(eventId);
+    setMessage(null);
+    setIsEventEditorOpen(true);
+    if (window.matchMedia("(max-width: 1023px)").matches) window.requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="admin-editor-workspace"]')?.scrollIntoView({ block: "start" }));
+  }
+
+  function inspectEvent(eventId: string) {
+    if (eventId === selectedEventId) return;
     if (!canLeaveCurrentWork()) return;
     resetDrafts(eventId);
     setMessage(null);
@@ -489,6 +490,7 @@ export function ArchiveManager({
     updateBrowserSelection(null);
     setMessage(null);
     setIsEventEditorOpen(true);
+    if (window.matchMedia("(max-width: 1023px)").matches) window.requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="admin-editor-workspace"]')?.scrollIntoView({ block: "start" }));
   }
 
   function isLineupDateTaken(talentId: string, date: string) {
@@ -591,7 +593,7 @@ export function ArchiveManager({
   }
 
   function getArchiveDateOptionsForTalent(talentId: string) {
-    return [...(savedLineupDateKeysByTalentId.get(talentId) ?? new Set<string>())].filter(Boolean);
+    return [...(editableLineupDateKeysByTalentId.get(talentId) ?? new Set<string>())].filter(Boolean);
   }
 
   function getDefaultArchiveDateForTalent(talentId: string) {
@@ -669,11 +671,28 @@ export function ArchiveManager({
     setMessage(`已添加 ${nextEntries.length} 条现场记录。`);
   }
 
-  async function handleSaveEvent() {
+  async function handleSaveAll() {
     const validationError = validateEventDraft(eventDraft, editableLineups);
     if (validationError) {
       setMessage(validationError);
       return;
+    }
+
+    const shouldSaveArchive = Boolean(
+      eventDraft.id && (archiveDraft.id || archiveDraft.note.trim() || archiveDraft.entries.length > 0 || isArchiveDirty)
+    );
+    if (shouldSaveArchive) {
+      const archiveValidationError = validateArchiveDraft(
+        archiveDraft,
+        isMultiDayEvent,
+        validArchiveDateKeys,
+        editableLineupTalentIdSet,
+        editableLineupDateKeysByTalentId
+      );
+      if (archiveValidationError) {
+        setMessage(archiveValidationError);
+        return;
+      }
     }
 
     setMessage(null);
@@ -690,6 +709,7 @@ export function ArchiveManager({
     };
 
     setSavingEvent(true);
+    setSavingArchive(shouldSaveArchive);
     startTransition(async () => {
       try {
         const response = await fetch(eventDraft.id ? `/api/admin/events/${eventDraft.id}` : "/api/admin/events", {
@@ -723,71 +743,48 @@ export function ArchiveManager({
             }))
         ];
 
-        setLiveEvents(nextEvents);
-        setLiveLineups(nextLineups);
-        resetDrafts(nextEventId, nextEvents, nextLineups, liveArchives);
-        setIsEventEditorOpen(false);
-        setMessage(`活动「${data.event.name}」已保存。`);
-      } finally {
-        setSavingEvent(false);
-      }
-    });
-  }
-
-  async function handleSaveArchive() {
-    if (!eventDraft.id) {
-      setMessage("请先保存活动基础信息，再录入我的现场档案。");
-      return;
-    }
-    const eventId = eventDraft.id;
-
-    const validationError = validateArchiveDraft(
-      archiveDraft,
-      isMultiDayEvent,
-      validArchiveDateKeys,
-      savedLineupTalentIdSet,
-      savedLineupDateKeysByTalentId
-    );
-    if (validationError) {
-      setMessage(validationError);
-      return;
-    }
-
-    setMessage(null);
-
-    setSavingArchive(true);
-    startTransition(async () => {
-      try {
-        const response = await fetch("/api/admin/archives", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            id: archiveDraft.id || undefined,
-            eventId,
-            note: archiveDraft.note,
-            cleanupCandidateAssetIds,
-            entries: archiveDraft.entries
-          })
-        });
-
-        const data = (await response.json().catch(() => null)) as
-          | { error?: string; archive?: EditorArchive }
-          | null;
-        if (!response.ok || !data?.archive) {
-          setMessage(data?.error ?? "保存档案失败。");
-          return;
+        let nextArchives = liveArchives;
+        if (shouldSaveArchive) {
+          const archiveResponse = await fetch("/api/admin/archives", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: archiveDraft.id || undefined,
+              eventId: nextEventId,
+              note: archiveDraft.note,
+              cleanupCandidateAssetIds,
+              entries: archiveDraft.entries
+            })
+          });
+          const archiveData = (await archiveResponse.json().catch(() => null)) as
+            | { error?: string; archive?: EditorArchive }
+            | null;
+          if (!archiveResponse.ok || !archiveData?.archive) {
+            setLiveEvents(nextEvents);
+            setLiveLineups(nextLineups);
+            setSelectedEventId(nextEventId);
+            setEventDraft(createEventDraft(data.event));
+            setMessage(`活动与阵容已保存，但现场档案保存失败：${archiveData?.error ?? "请稍后重试"}`);
+            return;
+          }
+          nextArchives = liveArchives.some((archive) => archive.eventId === nextEventId)
+            ? liveArchives.map((archive) => (archive.eventId === nextEventId ? archiveData.archive! : archive))
+            : [...liveArchives, archiveData.archive];
         }
 
-        const nextArchives = liveArchives.some((archive) => archive.eventId === eventId)
-          ? liveArchives.map((archive) => (archive.eventId === eventId ? data.archive! : archive))
-          : [...liveArchives, data.archive];
-
+        setLiveEvents(nextEvents);
+        setLiveLineups(nextLineups);
         setLiveArchives(nextArchives);
-        resetDrafts(eventId, liveEvents, liveLineups, nextArchives);
-        setMessage(`我的档案已保存到「${selectedEvent ? getEventDisplayName(selectedEvent) : eventDraft.name}」。`);
+        resetDrafts(nextEventId, nextEvents, nextLineups, nextArchives);
+        setIsEventEditorOpen(true);
+        setCleanupCandidateAssetIds([]);
+        setMessage(
+          shouldSaveArchive
+            ? `活动「${data.event.name}」的活动信息、阵容和现场档案已保存。`
+            : `活动「${data.event.name}」已保存。`
+        );
       } finally {
+        setSavingEvent(false);
         setSavingArchive(false);
       }
     });
@@ -818,7 +815,7 @@ export function ArchiveManager({
       setLiveArchives(nextArchives);
       setSelectedEventIds((current) => current.filter((id) => id !== selectedEvent.id));
       resetDrafts(nextEvents[0]?.id ?? null, nextEvents, nextLineups, nextArchives);
-      setIsEventEditorOpen(false);
+      setIsEventEditorOpen(nextEvents.length > 0);
       setMessage(`活动「${getEventDisplayName(selectedEvent)}」已删除。`);
     });
   }
@@ -872,7 +869,7 @@ export function ArchiveManager({
       setSelectedEventIds((current) => current.filter((id) => !removedIds.has(id)));
       resetDrafts(nextSelectedEventId, nextEvents, nextLineups, nextArchives);
       if (removedIds.has(selectedEventId ?? "")) {
-        setIsEventEditorOpen(false);
+        setIsEventEditorOpen(Boolean(nextSelectedEventId));
       }
       setMessage(buildBulkSummary(data.result, "已批量删除活动"));
     });
@@ -978,7 +975,7 @@ export function ArchiveManager({
     }
 
     const existingTalentIds = new Set(archiveDraft.entries.map((entry) => entry.talentId));
-    const missingTalentIds = savedLineupTalentIds.filter((talentId) => !existingTalentIds.has(talentId));
+    const missingTalentIds = editableLineupTalentIds.filter((talentId) => !existingTalentIds.has(talentId));
 
     if (missingTalentIds.length === 0) {
       setMessage("当前阵容达人都已经在档案里了。");
@@ -1078,24 +1075,19 @@ export function ArchiveManager({
 
   return (
     <>
-    <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
-      <aside className="surface rounded-[1.8rem] p-5">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索活动"
-          className="w-full rounded-full border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-        />
-        <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/55">
+    <div className="admin-workspace grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <aside className="surface admin-scroll-region overflow-y-auto rounded-[var(--radius-panel)] p-4 lg:sticky lg:top-[5.25rem] lg:self-start">
+        <label className="ui-field-label"><span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索活动</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入活动、城市或场馆" className="ui-input text-sm" /></label>
+        <div className="mt-4 flex flex-wrap gap-3 text-xs ui-muted">
           <button
             type="button"
             data-testid="event-select-all"
             onClick={toggleAllFilteredEvents}
-            className="rounded-full border border-white/12 px-3 py-2 transition hover:border-white/25 hover:text-white"
+            className="ui-button-secondary min-h-9 px-3 py-1 text-xs"
           >
             {areAllFilteredEventsSelected ? "取消全选当前结果" : "全选当前结果"}
           </button>
-          <span className="rounded-full border border-white/8 px-3 py-2">
+          <span className="rounded-full border border-[var(--line-soft)] px-3 py-2">
             已选 {selectedEventIds.length} / {liveEvents.length}
           </span>
           {hasUnsavedChanges ? (
@@ -1104,16 +1096,17 @@ export function ArchiveManager({
             </span>
           ) : null}
         </div>
-        <div className="mt-4 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
-          <p className="text-xs uppercase tracking-[0.25em] text-white/45">Bulk Actions</p>
+        {selectedEventIds.length > 0 ? <div className="mt-4 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4">
+          <p className="text-xs font-semibold tracking-[0.12em] ui-muted">批量模式</p>
           <div className="mt-3 grid gap-3">
             <button
               type="button"
               data-testid="bulk-merge-events"
               onClick={openMergeDialog}
               disabled={pending || selectedEventIds.length < 2 || hasUnsavedChanges}
-              className="rounded-full border border-[#2d6c73]/45 px-4 py-2 text-sm text-[#174b52] disabled:opacity-50"
+              className="ui-button-secondary text-sm"
             >
+              <Combine aria-hidden="true" className="size-4" />
               合并活动
             </button>
             <button
@@ -1121,20 +1114,22 @@ export function ArchiveManager({
               data-testid="bulk-delete-events"
               onClick={handleBulkEventAction}
               disabled={pending || selectedEventIds.length === 0}
-              className="rounded-full border border-[#b13b45]/45 px-4 py-2 text-sm text-[#5f0f18] disabled:opacity-50"
+              className="ui-button-danger text-sm"
             >
+              <Trash2 aria-hidden="true" className="size-4" />
               批量删除活动
             </button>
           </div>
-        </div>
+        </div> : null}
         <div className="mt-5 space-y-3">
           <button
             type="button"
             data-testid="new-event-button"
             onClick={handleNewEvent}
-            className="w-full rounded-[1.2rem] border border-dashed border-white/15 px-4 py-4 text-left text-sm text-white/70 transition hover:border-white/30 hover:text-white"
+            className="ui-button-primary w-full text-sm"
           >
-            + 新建活动档案
+            <Plus aria-hidden="true" className="size-4" />
+            新建活动档案
           </button>
           {filteredEvents.map((event) => {
             const isChecked = selectedEventIds.includes(event.id);
@@ -1144,7 +1139,7 @@ export function ArchiveManager({
               <div
                 key={event.id}
                 className={`flex items-start gap-3 rounded-[1.2rem] px-3 py-3 transition ${
-                  selectedEventId === event.id ? "bg-white/10" : "bg-black/10 hover:bg-white/6"
+                  selectedEventId === event.id ? "bg-[var(--color-accent-soft)]" : "hover:bg-[var(--surface-tint)]"
                 }`}
               >
                 <input
@@ -1152,11 +1147,11 @@ export function ArchiveManager({
                   aria-label={`选择 ${getEventDisplayName(event)}`}
                   checked={isChecked}
                   onChange={(nextEvent) => toggleSelectedEvent(event.id, nextEvent.target.checked)}
-                  className="mt-1 size-4 rounded border-white/20 bg-black/30"
+                  className="mt-1 size-4 accent-[var(--color-accent)]"
                 />
-                <button type="button" onClick={() => selectEvent(event.id)} className="flex-1 text-left">
-                  <p className="text-lg text-white">{getEventDisplayName(event)}</p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/40">
+                <button type="button" onClick={() => inspectEvent(event.id)} aria-pressed={selectedEventId === event.id} className="flex-1 rounded-md text-left">
+                  <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(event)}</p>
+                  <p className="mt-2 text-xs tracking-[0.08em] ui-muted">
                     {[event.city || "城市待定", eventDateLabel].filter(Boolean).join(" · ")}
                   </p>
                 </button>
@@ -1166,40 +1161,36 @@ export function ArchiveManager({
         </div>
       </aside>
 
-      <section className="space-y-6">
+      <section className="space-y-5 lg:sticky lg:top-[5.25rem] lg:self-start">
         {message ? <StatusNotice variant="warning">{message}</StatusNotice> : null}
         {isEventEditorOpen ? (
           <AdminDialog
             title={selectedEvent ? `编辑 ${getEventDisplayName(selectedEvent)}` : "新建活动档案"}
-            description="活动基础信息和公开阵容在这里编辑；保存成功后弹窗会自动关闭。"
+            description="活动信息、公开阵容与现场档案在同一个右侧工作面连续维护。"
             onClose={closeEventEditor}
             size="xl"
-            footer={<span className="text-xs leading-6 ui-muted">活动信息与现场档案可分别保存。</span>}
+            presentation="workspace"
+            footer={
+              <>
+                <span className="mr-auto text-xs leading-6 ui-muted">一次保存活动信息、公开阵容与现场档案。</span>
+                <button type="button" onClick={handleSaveAll} disabled={pending || savingEvent || savingArchive} data-testid="save-activity" className="ui-button-primary text-sm"><Save aria-hidden="true" className="size-4" />{savingEvent || savingArchive ? "保存中..." : "保存活动档案"}</button>
+              </>
+            }
+            closable={false}
           >
             <section className="space-y-5">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">Archive Workspace</p>
-                {isEventDirty ? (
-                  <span className="rounded-full border border-[#c48b26]/45 px-3 py-1 text-[11px] text-[#5f3d00]">
-                    活动信息未保存
-                  </span>
-                ) : null}
-              </div>
-              <h2 className="mt-3 text-3xl text-white">
-                {selectedEvent ? `编辑 ${getEventDisplayName(selectedEvent)}` : "新建活动档案"}
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-white/60">
-                活动名称必填，其他信息都可以留空；现场档案也在这个弹窗里维护。
-              </p>
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm font-semibold">基本信息与阵容</p>
+              {isEventDirty ? <span className="rounded-full bg-[var(--color-warning-soft)] px-3 py-1 text-xs text-[var(--color-warning)]">尚未保存</span> : <span className="text-xs ui-muted">已保存</span>}
             </div>
             {selectedEvent ? (
               <button
                 type="button"
                 onClick={handleDeleteEvent}
-                className="rounded-full border border-[#b13b45]/55 px-4 py-2 text-sm text-[#5f0f18]"
+                className="ui-button-danger text-sm"
               >
+                <Trash2 aria-hidden="true" className="size-4" />
                 删除活动
               </button>
             ) : null}
@@ -1207,60 +1198,56 @@ export function ArchiveManager({
 
           <div className="space-y-5">
             <div className="grid gap-4">
-              <input
+              <label className="ui-field-label"><span>活动名称 <span className="text-[var(--color-danger)]">*</span></span><input
                 name="name"
                 value={eventDraft.name}
                 onChange={(event) => setEventDraft((current) => ({ ...current, name: event.target.value }))}
-                placeholder="活动名称"
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
+                className="ui-input"
+              /></label>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <input
+              <label className="ui-field-label"><span>开始日期</span><input
                 name="startsAt"
                 type="date"
                 value={eventDraft.startsAt}
                 onChange={(event) => setEventDraft((current) => ({ ...current, startsAt: event.target.value }))}
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
-              <input
+                className="ui-input"
+              /></label>
+              <label className="ui-field-label"><span>结束日期</span><input
                 name="endsAt"
                 type="date"
                 value={eventDraft.endsAt}
                 onChange={(event) => setEventDraft((current) => ({ ...current, endsAt: event.target.value }))}
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
+                className="ui-input"
+              /></label>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <input
+              <label className="ui-field-label"><span>城市</span><input
                 name="city"
                 value={eventDraft.city}
                 onChange={(event) => setEventDraft((current) => ({ ...current, city: event.target.value }))}
-                placeholder="城市"
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
-              <input
+                className="ui-input"
+              /></label>
+              <label className="ui-field-label"><span>场馆</span><input
                 name="venue"
                 value={eventDraft.venue}
                 onChange={(event) => setEventDraft((current) => ({ ...current, venue: event.target.value }))}
-                placeholder="场馆"
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
+                className="ui-input"
+              /></label>
             </div>
-            <textarea
+            <label className="ui-field-label"><span>活动说明或备注</span><textarea
               name="note"
               value={eventDraft.note}
               onChange={(event) => setEventDraft((current) => ({ ...current, note: event.target.value }))}
               rows={4}
               data-testid="event-note"
-              placeholder="活动说明或备注"
-              className="w-full rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-            />
-            <div className="space-y-4 rounded-[1.5rem] border border-white/10 bg-black/15 p-4">
+              className="ui-textarea"
+            /></label>
+            <div className="space-y-4 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-lg text-white">达人阵容</h3>
-                  <p className="mt-2 text-xs leading-6 text-white/45">
+                  <h3 className="text-lg text-[var(--foreground)]">达人阵容</h3>
+                  <p className="mt-2 text-xs leading-6 ui-muted">
                     {isMultiDayEvent
                       ? "当前活动跨多天，阵容会按日期分组；每条达人阵容都需要选择所属日期。"
                       : "单日活动保持轻量录入体验，阵容不额外按日期拆分。"}
@@ -1270,14 +1257,15 @@ export function ArchiveManager({
                   type="button"
                   data-testid="add-lineup"
                   onClick={openLineupDialog}
-                  className="rounded-full border border-white/12 px-4 py-2 text-sm text-white/70"
+                  className="ui-button-secondary text-sm"
                 >
-                  + 添加达人
+                  <Plus aria-hidden="true" className="size-4" />
+                  添加达人
                 </button>
               </div>
 
               {editableLineups.length === 0 ? (
-                <div className="rounded-[1.2rem] border border-dashed border-white/10 px-4 py-5 text-sm text-white/55">
+                <div className="rounded-[0.9rem] border border-dashed border-[var(--line-strong)] px-4 py-5 text-sm ui-muted">
                   还没有阵容达人，可以先添加一位。
                 </div>
               ) : null}
@@ -1288,12 +1276,12 @@ export function ArchiveManager({
                     {group.label ? (
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm uppercase tracking-[0.18em] text-[var(--color-accent)]">{group.label}</p>
-                        <span className="text-xs text-white/45">{group.items.length} 位达人</span>
+                        <span className="text-xs ui-muted">{group.items.length} 位达人</span>
                       </div>
                     ) : null}
 
                     {group.items.length === 0 ? (
-                      <div className="rounded-[1.2rem] border border-dashed border-white/10 px-4 py-5 text-sm text-white/52">
+                      <div className="rounded-[0.9rem] border border-dashed border-[var(--line-strong)] px-4 py-5 text-sm ui-muted">
                         本日还没有阵容达人。
                       </div>
                     ) : null}
@@ -1307,13 +1295,13 @@ export function ArchiveManager({
                         <div
                           key={lineup.id}
                           data-testid="lineup-item"
-                          className={`grid gap-3 rounded-[1.2rem] border border-white/8 p-4 ${gridClass}`}
+                          className={`grid gap-3 rounded-[0.9rem] border border-[var(--line-soft)] p-4 ${gridClass}`}
                         >
                           <select
                             data-testid={`lineup-talent-${index}`}
                             value={lineup.talentId}
                             onChange={(event) => updateLineup(index, { talentId: event.target.value })}
-                            className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
+                            className="ui-select text-sm"
                           >
                             <option value="">暂不选择达人</option>
                             {sortedTalents.map((talent) => (
@@ -1327,7 +1315,7 @@ export function ArchiveManager({
                               data-testid={`lineup-date-${index}`}
                               value={lineup.lineupDate}
                               onChange={(event) => updateLineup(index, { lineupDate: event.target.value })}
-                              className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
+                              className="ui-select text-sm"
                             >
                               <option value="">选择日期</option>
                               {lineupDateOptions.map((date) => (
@@ -1352,7 +1340,7 @@ export function ArchiveManager({
                             onChange={(event) => updateLineup(index, { note: event.target.value })}
                             rows={2}
                             placeholder="补充备注"
-                            className={`rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none ${
+                            className={`ui-input text-sm ${
                               isMultiDayEvent ? "xl:col-span-3" : "md:col-span-2"
                             }`}
                           />
@@ -1365,28 +1353,19 @@ export function ArchiveManager({
             </div>
 
             <div className="flex items-center justify-between gap-4">
-              <p className="text-xs leading-6 text-white/45">
+              <p className="text-xs leading-6 ui-muted">
                 保存活动信息后不会刷新整页，当前活动和档案草稿都会继续保留。
               </p>
-              <button
-                type="button"
-                onClick={handleSaveEvent}
-                disabled={pending || savingEvent}
-                data-testid="save-event"
-                className="rounded-full bg-[var(--color-accent)] px-5 py-3 text-sm uppercase tracking-[0.25em] text-black disabled:opacity-60"
-              >
-                {savingEvent ? "保存中..." : "保存活动信息"}
-              </button>
             </div>
           </div>
             </section>
         {!canEditArchive ? (
-          <section className="surface rounded-[1.8rem] px-6 py-10 text-center text-white/68">
+          <section className="surface rounded-[var(--radius-panel)] px-6 py-10 text-center ui-subtle">
             先保存活动基础信息，再开始录入我的现场档案。
           </section>
         ) : (
           <>
-            <section className="surface rounded-[1.8rem] p-6">
+            <section id="archive-editor-section" className="surface rounded-[1.2rem] p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -1397,8 +1376,8 @@ export function ArchiveManager({
                       </span>
                     ) : null}
                   </div>
-                  <h3 className="mt-3 text-2xl text-white">我的现场档案</h3>
-                  <p className="mt-3 text-sm leading-7 text-white/60">
+                  <h3 className="mt-3 text-2xl text-[var(--foreground)]">我的现场档案</h3>
+                  <p className="mt-3 text-sm leading-7 ui-subtle">
                     现场档案现在也支持按日期分组；图片位只保留当前图、上传新图和清空当前图。
                   </p>
                 </div>
@@ -1407,7 +1386,7 @@ export function ArchiveManager({
                     type="button"
                     data-testid="import-lineup-entries"
                     onClick={importLineupEntries}
-                    className="rounded-full border border-white/12 px-5 py-3 text-sm text-white/70"
+                    className="ui-button-secondary text-sm"
                   >
                     从当前阵容导入
                   </button>
@@ -1415,13 +1394,14 @@ export function ArchiveManager({
                     type="button"
                     data-testid="add-archive-entry"
                     onClick={addArchiveEntry}
-                    className="rounded-full border border-white/12 px-5 py-3 text-sm text-white/70"
+                    className="ui-button-secondary text-sm"
                   >
-                    + 添加现场记录
+                    <Plus aria-hidden="true" className="size-4" />
+                    添加现场记录
                   </button>
                 </div>
               </div>
-              <textarea
+              <label className="ui-field-label mt-4"><span>现场档案备注</span><textarea
                 value={archiveDraft.note}
                 data-testid="archive-note"
                 onChange={(event) =>
@@ -1432,13 +1412,12 @@ export function ArchiveManager({
                   }))
                 }
                 rows={3}
-                placeholder="活动档案备注"
-                className="mt-4 w-full rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
+                className="ui-textarea"
+              /></label>
             </section>
 
             {archiveDraft.entries.length === 0 ? (
-              <section className="surface rounded-[1.8rem] px-6 py-10 text-center text-white/60">
+              <section className="surface rounded-[var(--radius-panel)] px-6 py-10 text-center ui-subtle">
                 还没有现场记录。可以先从当前阵容导入，或者手动新增一条。
               </section>
             ) : (
@@ -1448,7 +1427,7 @@ export function ArchiveManager({
                     {group.label ? (
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm uppercase tracking-[0.18em] text-[var(--color-accent)]">{group.label}</p>
-                        <span className="text-xs text-white/45">{group.items.length} 条记录</span>
+                        <span className="text-xs ui-muted">{group.items.length} 条记录</span>
                       </div>
                     ) : null}
 
@@ -1458,13 +1437,13 @@ export function ArchiveManager({
                       return (
                       <section key={entry.id} data-testid="archive-entry" className="surface rounded-[1.8rem] p-5">
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-sm uppercase tracking-[0.2em] text-white/45">记录 {index + 1}</p>
+                          <p className="text-sm tracking-[0.08em] ui-muted">记录 {index + 1}</p>
                           <div className="flex flex-wrap gap-3">
                             <button
                               type="button"
                               data-testid={`archive-copy-${index}`}
                               onClick={() => duplicateArchiveEntry(index)}
-                              className="rounded-full border border-white/12 px-4 py-2 text-sm text-white/70"
+                              className="ui-button-secondary text-sm"
                             >
                               复制此条
                             </button>
@@ -1493,7 +1472,7 @@ export function ArchiveManager({
                                 entryDate: getDefaultArchiveDateForTalent(talentId) || null
                               });
                             }}
-                            className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
+                            className="ui-select text-sm"
                           >
                             <option value="">暂不选择达人</option>
                             {lineupTalentOptions.map((talent) => (
@@ -1507,7 +1486,7 @@ export function ArchiveManager({
                               data-testid={`archive-date-${index}`}
                               value={entry.entryDate ?? ""}
                               onChange={(event) => updateArchiveEntry(index, { entryDate: event.target.value || null })}
-                              className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
+                              className="ui-select text-sm"
                             >
                               <option value="">选择日期</option>
                               {entryDateOptions.map((date) => (
@@ -1522,7 +1501,7 @@ export function ArchiveManager({
                             value={entry.cosplayTitle}
                             onChange={(event) => updateArchiveEntry(index, { cosplayTitle: event.target.value })}
                             placeholder="角色 / 作品 / 游戏"
-                            className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
+                            className="ui-input text-sm"
                           />
                         </div>
 
@@ -1538,7 +1517,7 @@ export function ArchiveManager({
                         </div>
 
                         <div className="mt-4 grid gap-4 md:grid-cols-1">
-                          <label className="flex items-center gap-3 rounded-[1rem] border border-white/10 bg-black/20 px-3 py-3 text-sm text-white/70">
+                          <label className="flex items-center gap-3 rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] px-3 py-3 text-sm ui-subtle">
                             <input
                               data-testid={`archive-shared-flag-${index}`}
                               type="checkbox"
@@ -1570,18 +1549,9 @@ export function ArchiveManager({
             )}
 
             <div className="flex items-center justify-between gap-4">
-              <p className="text-xs leading-6 text-white/45">
+              <p className="text-xs leading-6 ui-muted">
                 保存我的档案只会更新当前编辑人的现场档案，不会覆盖共享活动信息。
               </p>
-              <button
-                type="button"
-                onClick={handleSaveArchive}
-                data-testid="save-archive"
-                disabled={pending || savingArchive}
-                className="rounded-full bg-[var(--color-accent)] px-5 py-3 text-sm uppercase tracking-[0.25em] text-black disabled:opacity-60"
-              >
-                {savingArchive ? "保存中..." : "保存我的档案"}
-              </button>
             </div>
           </>
         )}
@@ -1591,26 +1561,25 @@ export function ArchiveManager({
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">Archive Workspace</p>
+                  <p className="ui-kicker">活动档案</p>
                   {isEventDirty ? (
                     <span className="rounded-full border border-[#c48b26]/45 px-3 py-1 text-[11px] text-[#5f3d00]">
                       活动信息未保存
                     </span>
                   ) : null}
                 </div>
-                <h2 className="mt-3 text-3xl text-white">
+                <h2 className="mt-3 text-3xl text-[var(--foreground)]">
                   {selectedEvent ? getEventDisplayName(selectedEvent) : "新建活动档案"}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-white/60">
-                  新增和编辑活动、阵容与现场档案会在同一个弹窗中完成。
-                </p>
+                <p className="mt-3 text-sm leading-7 ui-subtle">{selectedEvent ? `${selectedEvent.city || "城市待定"} · ${selectedEvent.startsAt ? formatDateKey(selectedEvent.startsAt.slice(0, 10)) : "日期待定"} · ${liveLineups.filter((lineup) => lineup.eventId === selectedEvent.id).length} 位阵容 · ${liveArchives.find((archive) => archive.eventId === selectedEvent.id)?.entries.length ?? 0} 条现场记录` : "从左侧选择活动后开始维护。"}</p>
               </div>
               <button
                 type="button"
                 onClick={() => (selectedEventId ? selectEvent(selectedEventId) : handleNewEvent())}
-                className="ui-button-secondary px-5 py-2.5 text-sm"
+                className="ui-button-primary text-sm"
               >
-                {selectedEvent ? "编辑活动信息" : "新建活动档案"}
+                <Pencil aria-hidden="true" className="size-4" />
+                {selectedEvent ? "编辑活动档案" : "新建活动档案"}
               </button>
             </div>
           </section>
@@ -1675,7 +1644,7 @@ export function ArchiveManager({
                     className="mt-1"
                   />
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium text-[var(--ink)]">保留「{getEventDisplayName(event)}」</span>
+                    <span className="block text-sm font-medium text-[var(--foreground)]">保留「{getEventDisplayName(event)}」</span>
                     <span className="mt-1 block text-xs ui-muted">
                       {[event.city || "城市待定", formatDateRange(event.startsAt, event.endsAt)].filter(Boolean).join(" · ")}
                     </span>

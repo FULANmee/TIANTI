@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 const navItems = [
   { href: "/admin", label: "总览" },
   { href: "/admin/talents", label: "达人" },
-  { href: "/admin/archives", label: "活动" },
+  { href: "/admin/archives", label: "活动档案" },
   { href: "/admin/ladder", label: "天梯" }
 ];
 
@@ -15,16 +15,17 @@ export function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-wrap gap-2">
+    <nav aria-label="后台主导航" className="flex flex-wrap gap-1">
       {navItems.map((item) => {
         const active = pathname === item.href;
         return (
           <GuardedLink
             key={item.href}
             href={item.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "ui-pill px-4 py-2 text-sm",
-              active && "border-[rgba(43,109,246,0.22)] bg-[rgba(43,109,246,0.08)] text-[var(--color-accent)]"
+              "ui-pill min-h-9 border-transparent bg-transparent px-3 py-1.5 text-sm",
+              active && "border-[rgba(63,82,163,0.18)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
             )}
           >
             {item.label}

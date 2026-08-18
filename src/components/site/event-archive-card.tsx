@@ -35,12 +35,12 @@ export function EventArchiveCard({
   );
 
   return (
-    <div className="surface overflow-hidden rounded-[1.6rem]">
+    <div data-testid="event-archive-card" className="public-card surface h-full overflow-hidden rounded-[1.15rem]">
       <div className="relative" style={{ aspectRatio: activeDisplayPreset.aspectStyle }}>
         {sceneAsset ? (
           <FramedImage
             asset={sceneAsset}
-            sizes="(min-width: 768px) 42vw, 100vw"
+            sizes="(min-width: 1280px) 17vw, (min-width: 768px) 34vw, 100vw"
           />
         ) : (
           <div className="absolute inset-0 bg-transparent" />
@@ -48,13 +48,13 @@ export function EventArchiveCard({
         {sharedPhotoAsset ? (
           <FramedImage
             asset={sharedPhotoAsset}
-            sizes="(min-width: 768px) 42vw, 100vw"
+            sizes="(min-width: 1280px) 17vw, (min-width: 768px) 34vw, 100vw"
             className={`transition duration-300 ${showSharedPhoto ? "opacity-100" : "opacity-0"}`}
           />
         ) : null}
       </div>
-      <div className="space-y-3 p-5">
-        <Link href={getTalentPath({ id: talentId, slug: talentSlug })} className="text-xl tracking-[-0.03em] text-[var(--foreground)]">
+      <div className="space-y-2 p-4">
+        <Link href={getTalentPath({ id: talentId, slug: talentSlug })} className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">
           {talentName}
         </Link>
         {cosplayTitle ? <p className="text-sm ui-subtle">{cosplayTitle}</p> : null}

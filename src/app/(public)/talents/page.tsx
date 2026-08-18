@@ -42,9 +42,10 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
   return (
     <PageShell>
       <SectionFrame
-        eyebrow="Talent Index"
-        title="以展示优先的方式浏览达人"
-        description="用统一的筛选入口压缩关键词、编辑视角和行程，让扫描路径更清楚。"
+        headingLevel="h1"
+        eyebrow="人物索引"
+        title="找到你想了解的达人"
+        description="按昵称、编辑视角或公开行程筛选，再进入人物页查看活动与现场记录。"
         titleTestId="talents-page-title"
       />
 
@@ -135,9 +136,9 @@ export default async function TalentsPage({ searchParams }: { searchParams: Sear
         </div>
 
         {talents.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div data-testid="talent-index-grid" className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
             {talents.map((talent, index) => (
-              <TalentCard key={talent.id} talent={talent} eagerImage={index === 0} />
+              <TalentCard key={talent.id} talent={talent} eagerImage={index < 6} />
             ))}
           </div>
         ) : (

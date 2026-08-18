@@ -9,29 +9,25 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
 
   return (
     <AdminUnsavedChangesProvider>
-      <main className="mx-auto max-w-7xl px-5 py-6 md:px-8 md:py-8">
-        <section className="surface overflow-hidden rounded-[2.2rem] p-6 md:p-8">
-          <div className="grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-end">
-            <div className="space-y-4">
-              <p className="ui-kicker">TIANTI Admin</p>
-              <h1 className="text-4xl tracking-[-0.04em] text-[var(--foreground)] md:text-5xl">
-                {editor.name} 的工作台
-              </h1>
-              <p className="max-w-3xl text-sm leading-7 ui-subtle md:text-base">
-                在同一套工作语言里维护达人资料、活动信息、现场档案与公开天梯。这里优先保证清晰度、反馈和操作连续性。
-              </p>
-            </div>
-            <div className="flex flex-col items-start gap-4 md:items-end">
-              <AdminNav />
-              <div className="flex flex-wrap items-center gap-3">
-                <ReturnToSiteButton />
-                <SignOutButton />
+      <main className="mx-auto max-w-[96rem] px-4 pb-8 md:px-6">
+        <header className="sticky top-0 z-40 -mx-4 border-b border-[var(--line-soft)] bg-[rgba(243,246,245,0.94)] px-4 py-3 backdrop-blur-md md:-mx-6 md:px-6">
+          <div className="mx-auto flex max-w-[96rem] flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="border-r border-[var(--line-strong)] pr-4">
+                <p className="font-display text-xl tracking-[0.16em] text-[var(--foreground)]">TIANTI</p>
+                <p className="text-[10px] tracking-[0.16em] ui-muted">档案工作台</p>
               </div>
+              <AdminNav />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="hidden text-sm ui-subtle lg:inline">{editor.name}</span>
+              <ReturnToSiteButton />
+              <SignOutButton />
             </div>
           </div>
-        </section>
+        </header>
 
-        <div className="mt-8">{children}</div>
+        <div className="pt-5">{children}</div>
       </main>
     </AdminUnsavedChangesProvider>
   );

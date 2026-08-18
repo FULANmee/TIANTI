@@ -11,6 +11,7 @@ interface SectionFrameProps {
   className?: string;
   headerClassName?: string;
   contentClassName?: string;
+  headingLevel?: "h1" | "h2";
 }
 
 export function SectionFrame({
@@ -23,10 +24,12 @@ export function SectionFrame({
   children,
   className,
   headerClassName,
-  contentClassName
+  contentClassName,
+  headingLevel = "h2"
 }: SectionFrameProps) {
+  const Heading = headingLevel;
   return (
-    <section className={cn("space-y-8", className)}>
+    <section className={cn("public-section-frame space-y-8", className)}>
       {eyebrow || title || description || actions ? (
         <div
           className={cn(
@@ -38,15 +41,15 @@ export function SectionFrame({
           <div className="space-y-3">
             {eyebrow ? <p className="ui-kicker">{eyebrow}</p> : null}
             {title ? (
-              <h2
+              <Heading
                 data-testid={titleTestId}
                 className={cn(
-                  "text-3xl tracking-[-0.03em] text-[var(--foreground)] md:text-5xl",
+                  "font-display text-4xl leading-[0.95] tracking-[-0.05em] text-[var(--foreground)] md:text-6xl",
                   align === "center" && "mx-auto"
                 )}
               >
                 {title}
-              </h2>
+              </Heading>
             ) : null}
             {description ? (
               <p

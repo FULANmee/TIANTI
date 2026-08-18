@@ -3,7 +3,6 @@ import Link from "next/link";
 import { FramedImage } from "@/components/ui/framed-image";
 import { notFound } from "next/navigation";
 import { EmptyState } from "@/components/ui/empty-state";
-import { HorizontalCardRail } from "@/components/ui/horizontal-card-rail";
 import { PageShell } from "@/components/ui/page-shell";
 import { PublicReveal } from "@/components/ui/public-reveal";
 import { SectionFrame } from "@/components/ui/section-frame";
@@ -114,7 +113,7 @@ export default async function TalentDetailPage({
   return (
     <PageShell>
       <PublicReveal>
-        <section className="surface overflow-hidden rounded-[2.4rem] p-6 md:p-8">
+        <section className="public-stage surface overflow-hidden rounded-[2.4rem] p-6 md:p-8">
           <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
             <div className="relative overflow-hidden rounded-[1.8rem] bg-transparent">
               <div className="relative" style={{ aspectRatio: coverDisplayPreset.aspectStyle }}>
@@ -344,18 +343,15 @@ export default async function TalentDetailPage({
         <PublicReveal>
           <SectionFrame eyebrow="Representation" title="代表图像" description="用图像作为中段阅读重心，减少纯文字堆叠带来的疲劳。">
             {detail.representationAssets.length > 0 ? (
-              <HorizontalCardRail
-                controlsLabel="代表图像"
-                itemStyle={{ width: "min(20rem, calc(100vw - 5rem))" }}
-                testIdPrefix="representation-rail"
-              >
+              <div data-testid="representation-grid" className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
                 {detail.representationAssets.map((representation, index) => (
                   <article
                     key={representation.id}
                     data-testid={`representation-card-${index}`}
-                    className="surface flex h-full flex-col overflow-hidden rounded-[1.9rem]"
+                    className="public-card surface flex h-full flex-col overflow-hidden rounded-[1.15rem]"
                   >
                     <div
+                      data-testid={`representation-frame-${index}`}
                       className="relative"
                       style={{
                         aspectRatio: getAssetDisplayPreset("talent_representation", representation.asset).aspectStyle
@@ -364,20 +360,20 @@ export default async function TalentDetailPage({
                       {representation.asset ? (
                         <FramedImage
                           asset={representation.asset}
-                          sizes="(min-width: 1280px) 28vw, (min-width: 768px) 42vw, 100vw"
+                          sizes="(min-width: 1280px) 17vw, (min-width: 768px) 34vw, 100vw"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-transparent" />
                       )}
                     </div>
-                    <div className="p-5">
-                      <p data-testid={`representation-card-title-${index}`} className="text-lg text-[var(--foreground)]">
+                    <div className="p-4">
+                      <p data-testid={`representation-card-title-${index}`} className="text-base font-semibold text-[var(--foreground)]">
                         {representation.title}
                       </p>
                     </div>
                   </article>
                 ))}
-              </HorizontalCardRail>
+              </div>
             ) : (
               <EmptyState title="暂时没有公开代表图像" description="后续如果补充代表图或角色图，会优先出现在这一段。" />
             )}
@@ -391,17 +387,13 @@ export default async function TalentDetailPage({
             description="把该达人在公开活动档案中的现场记录按活动与日期汇总，作为进入活动详情页的另一条路径。"
           >
             {detail.fieldRecords.length > 0 ? (
-              <HorizontalCardRail
-                controlsLabel="现场记录"
-                itemStyle={{ width: "min(20rem, calc(100vw - 5rem))" }}
-                testIdPrefix="field-records-rail"
-              >
+              <div data-testid="field-records-grid" className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
                 {detail.fieldRecords.map((record, index) => (
                   <Link
                     key={record.id}
                     href={getEventPath(record.event)}
                     data-testid={`field-record-card-${index}`}
-                    className="surface flex h-full flex-col overflow-hidden rounded-[1.9rem] transition hover:-translate-y-1 hover:shadow-[var(--shadow-soft)]"
+                    className="public-card surface flex h-full flex-col overflow-hidden rounded-[1.15rem] transition hover:shadow-[var(--shadow-soft)]"
                   >
                     <div
                       className="relative"
@@ -412,14 +404,14 @@ export default async function TalentDetailPage({
                       {record.asset ? (
                         <FramedImage
                           asset={record.asset}
-                          sizes="(min-width: 1280px) 28vw, (min-width: 768px) 42vw, 100vw"
+                          sizes="(min-width: 1280px) 17vw, (min-width: 768px) 34vw, 100vw"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-transparent" />
                       )}
                     </div>
-                    <div className="space-y-3 p-5">
-                      <p data-testid={`field-record-card-title-${index}`} className="text-lg leading-7 text-[var(--foreground)]">
+                    <div className="space-y-2 p-4">
+                      <p data-testid={`field-record-card-title-${index}`} className="text-base font-semibold leading-6 text-[var(--foreground)]">
                         {record.roleSummary}
                       </p>
                       <p className="text-sm ui-subtle">{formatDate(record.recordDate)}</p>
@@ -427,7 +419,7 @@ export default async function TalentDetailPage({
                     </div>
                   </Link>
                 ))}
-              </HorizontalCardRail>
+              </div>
             ) : (
               <EmptyState
                 title="暂时没有公开现场记录"

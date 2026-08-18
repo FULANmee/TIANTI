@@ -7,6 +7,11 @@ describe("Douyin public projection", () => {
   it("projects only a successful current profile and verified related accounts", () => {
     const state = structuredClone(demoSeedState);
     const talent = state.talents[0];
+    talent.links.push({
+      id: "primary-douyin",
+      label: "抖音主页",
+      url: "https://www.douyin.com/user/main"
+    });
     state.douyinProfiles.push({
       talentId: talent.id,
       profileUrl: "https://www.douyin.com/user/main",
@@ -45,6 +50,9 @@ describe("Douyin public projection", () => {
       itineraryBlocks: ["8.8深圳金铲铲", "8.9上海闪魂绝区零"],
       relatedAccounts: [expect.objectContaining({ id: "related-valid", nickname: "理想型账号" })]
     });
+
+    talent.links = talent.links.filter((link) => link.id !== "primary-douyin");
+    expect(getTalentDetail(state, talent.id)?.douyinProfile).toBeNull();
   });
 
   it("formats followers in 万 and uses factual city/date for an unnamed event", () => {

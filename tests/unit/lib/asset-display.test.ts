@@ -49,4 +49,24 @@ describe("asset display presets", () => {
       })
     ).toBe(false);
   });
+
+  it("forces talent representations to the portrait 3:4 preset", () => {
+    expect(
+      getAssetDisplayPreset("talent_representation", {
+        width: 1200,
+        height: 900,
+        displayAspectWidth: 4,
+        displayAspectHeight: 3
+      }).ratioLabel
+    ).toBe("3:4");
+
+    expect(
+      isSupportedAssetDisplayRatio("talent_representation", {
+        width: 1200,
+        height: 900,
+        displayAspectWidth: 4,
+        displayAspectHeight: 3
+      })
+    ).toBe(false);
+  });
 });

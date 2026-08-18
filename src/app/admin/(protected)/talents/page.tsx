@@ -1,5 +1,5 @@
 import { TalentManager } from "@/components/admin/talent-manager";
-import { getContentState } from "@/modules/content/service";
+import { getContentState, getDouyinAdminStatuses } from "@/modules/content/service";
 
 export default async function AdminTalentsPage() {
   const state = await getContentState();
@@ -11,12 +11,7 @@ export default async function AdminTalentsPage() {
     <TalentManager
       talents={state.talents}
       assets={state.assets}
-      douyinStatuses={state.douyinProfiles.map((profile) => ({
-        talentId: profile.talentId,
-        lastSuccessAt: profile.lastSuccessAt ?? null,
-        lastErrorCode: profile.lastErrorCode ?? null,
-        manualSyncAvailableAt: profile.manualSyncAvailableAt ?? null
-      }))}
+      douyinStatuses={await getDouyinAdminStatuses()}
       initialLastSyncRun={lastRun}
       initialLastSyncResults={
         lastRun ? state.douyinSyncResults.filter((result) => result.runId === lastRun.id) : []

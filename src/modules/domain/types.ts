@@ -245,9 +245,16 @@ export interface DouyinSyncResult {
 
 export interface TalentDouyinAdminStatus {
   talentId: string;
+  profileUrl: string;
+  signature: string;
+  itineraryText: string;
+  followerCount: number | null;
+  fetchedAt: string | null;
   lastSuccessAt: string | null;
   lastErrorCode: string | null;
   manualSyncAvailableAt: string | null;
+  relatedAccounts: Array<{ nickname: string; url: string }>;
+  activeScheduleCount: number;
 }
 
 export interface ContentState {

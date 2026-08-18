@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode, type SyntheticEvent } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface AdminDialogProps {
@@ -10,6 +11,8 @@ interface AdminDialogProps {
   footer: ReactNode;
   onClose: () => void;
   size?: "md" | "lg" | "xl";
+  presentation?: "dialog" | "drawer" | "workspace";
+  closable?: boolean;
 }
 
 const sizeClassNames = {
@@ -18,7 +21,16 @@ const sizeClassNames = {
   xl: "max-w-5xl"
 };
 
-export function AdminDialog({ title, description, children, footer, onClose, size = "md" }: AdminDialogProps) {
+export function AdminDialog({
+  title,
+  description,
+  children,
+  footer,
+  onClose,
+  size = "md",
+  presentation = "dialog",
+  closable = true
+}: AdminDialogProps) {
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -55,6 +67,27 @@ export function AdminDialog({ title, description, children, footer, onClose, siz
     onClose();
   }
 
+  if (presentation === "workspace") {
+    return (
+      <section
+        data-testid="admin-editor-workspace"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        className="admin-editor-stage surface grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[var(--radius-panel)] lg:col-start-2 lg:row-start-1"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--line-soft)] bg-[rgba(255,255,255,0.96)] px-5 py-4 md:px-6">
+          <div>
+            <h2 id={titleId} className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">{title}</h2>
+            {description ? <p id={descriptionId} className="mt-2 text-sm leading-6 ui-subtle">{description}</p> : null}
+          </div>
+          {closable ? <button type="button" onClick={onClose} aria-label="关闭编辑" className="ui-button-secondary shrink-0 px-3"><X aria-hidden="true" className="size-4" /></button> : null}
+        </div>
+        <div className="overflow-y-auto overscroll-contain px-5 py-5 md:px-6">{children}</div>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--line-soft)] bg-[rgba(255,255,255,0.96)] px-5 py-4 md:px-6">{footer}</div>
+      </section>
+    );
+  }
+
   return (
     <dialog
       ref={dialogRef}
@@ -63,14 +96,21 @@ export function AdminDialog({ title, description, children, footer, onClose, siz
       aria-describedby={description ? descriptionId : undefined}
       onCancel={handleCancel}
       className={cn(
-        "m-auto max-h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] overflow-visible border-0 bg-transparent p-0 text-[var(--foreground)] outline-none backdrop:bg-[rgba(238,243,248,0.76)] backdrop:backdrop-blur-md",
-        sizeClassNames[size]
+        "w-[calc(100%-2rem)] overflow-visible border-0 bg-transparent p-0 text-[var(--foreground)] outline-none backdrop:bg-[rgba(24,33,38,0.38)] backdrop:backdrop-blur-sm",
+        presentation === "drawer"
+          ? "m-0 ml-auto h-dvh max-h-dvh max-w-[min(54rem,100vw)] md:w-[min(54rem,calc(100%-5rem))]"
+          : cn("m-auto max-h-[calc(100dvh-3rem)]", sizeClassNames[size])
       )}
     >
       <section
-        className="surface max-h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-[1.8rem] p-6 shadow-[0_24px_80px_rgba(91,109,133,0.16)]"
+        className={cn(
+          "surface grid w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden shadow-[0_24px_80px_rgba(24,33,38,0.18)]",
+          presentation === "drawer"
+            ? "h-dvh max-h-dvh rounded-none border-y-0 border-r-0"
+            : "max-h-[calc(100dvh-3rem)] rounded-[1.25rem]"
+        )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--line-soft)] pb-4">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--line-soft)] bg-[rgba(255,255,255,0.96)] px-5 py-4 md:px-6">
           <div>
             <h2 id={titleId} className="text-2xl text-[var(--foreground)]">
               {title}
@@ -87,11 +127,12 @@ export function AdminDialog({ title, description, children, footer, onClose, siz
             onClick={onClose}
             className="ui-button-secondary shrink-0 px-3 py-2 text-sm"
           >
-            关闭
+            <X aria-hidden="true" className="size-4" />
+            <span>关闭</span>
           </button>
         </div>
-        <div className="py-5">{children}</div>
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--line-soft)] pt-4">
+        <div className="overflow-y-auto overscroll-contain px-5 py-5 md:px-6">{children}</div>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--line-soft)] bg-[rgba(255,255,255,0.96)] px-5 py-4 md:px-6">
           {footer}
         </div>
       </section>

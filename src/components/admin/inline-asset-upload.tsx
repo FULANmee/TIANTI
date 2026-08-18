@@ -184,6 +184,7 @@ export function InlineAssetUpload({
   const uploadPresets = useMemo(() => ASSET_UPLOAD_PRESET_OPTIONS[kind], [kind]);
   const uploadSurfaceRef = useRef<HTMLDivElement | null>(null);
   const cropFrameRef = useRef<HTMLDivElement | null>(null);
+  const cropDialogRef = useRef<HTMLDivElement | null>(null);
   const dragDepthRef = useRef(0);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -240,6 +241,31 @@ export function InlineAssetUpload({
       URL.revokeObjectURL(cropSession.imageUrl);
     };
   }, [cropSession]);
+
+  useEffect(() => {
+    if (!cropSession) return;
+    const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = cropDialogRef.current;
+    dialog?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isBusy) {
+        event.preventDefault();
+        event.stopPropagation();
+        setCropSession(null);
+        setCropBox(null);
+        setOffset({ x: 0, y: 0 });
+        setScale(1);
+        setSelectedRatioLabel(defaultPreset.ratioLabel);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+      if (invoker?.isConnected) invoker.focus();
+    };
+  }, [cropSession, defaultPreset.ratioLabel, isBusy]);
 
   useEffect(() => {
     if (!cropSession) {
@@ -616,7 +642,7 @@ export function InlineAssetUpload({
         onDrop={handleDrop}
         onPaste={handlePaste}
       >
-        <div className="w-full max-w-xs overflow-hidden rounded-[1.2rem] border border-white/10 bg-black/20">
+        <div className="w-full max-w-xs overflow-hidden rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)]">
           <div className="relative" style={{ aspectRatio: previewPreset.aspectStyle }}>
             {currentAsset ? (
               <FramedImage asset={currentAsset} sizes="20rem" />
@@ -624,11 +650,11 @@ export function InlineAssetUpload({
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_45%,rgba(0,0,0,0.45))]" />
             )}
           </div>
-          <div className="border-t border-white/10 px-3 py-2 text-xs text-white/52">
+          <div className="border-t border-[var(--line-soft)] px-3 py-2 text-xs ui-muted">
             {currentAsset ? currentAsset.title : emptyLabel}
           </div>
         </div>
-        <label className="inline-flex cursor-pointer items-center rounded-full border border-white/12 px-3 py-2 text-xs text-white/72 transition hover:border-white/25 hover:text-white">
+        <label className="ui-button-secondary inline-flex cursor-pointer text-xs">
           <input
             data-testid={dataTestId}
             type="file"
@@ -661,15 +687,15 @@ export function InlineAssetUpload({
             data-testid={dataTestId ? `${dataTestId}-clear` : undefined}
             onClick={onClear}
             disabled={isBusy || !currentAsset}
-            className="rounded-full border border-[#b13b45]/45 px-3 py-2 text-xs text-[#5f0f18] disabled:cursor-not-allowed disabled:opacity-45"
+            className="ui-button-danger px-3 py-2 text-xs"
           >
             {clearButtonLabel}
           </button>
         ) : null}
-        <p className="text-[11px] text-white/42">
+        <p className="text-[11px] ui-muted">
           {helperText ?? `原图会完整保留，仅按前台比例 ${preset.ratioLabel} 选择显示区域`}
         </p>
-        <p className="text-[11px] text-white/38">支持拖拽图片，或先点此区域后按 Ctrl / Cmd + V 直接粘贴上传</p>
+        <p className="text-[11px] ui-muted">支持拖拽图片，或先点此区域后按 Ctrl / Cmd + V 直接粘贴上传</p>
         {message ? (
           <p className="text-xs text-[#734d07]" role="status">
             {message}
@@ -678,8 +704,8 @@ export function InlineAssetUpload({
       </div>
 
       {cropSession ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(244,248,255,0.82)] px-4 py-6 backdrop-blur-sm">
-          <div className="surface w-full max-w-3xl rounded-[2rem] p-5 shadow-[0_24px_80px_rgba(24,33,47,0.18)] md:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[rgba(24,33,38,0.42)] px-3 py-3 backdrop-blur-sm md:px-4 md:py-6">
+          <div ref={cropDialogRef} role="dialog" aria-modal="true" aria-label="图片取景" tabIndex={-1} className="surface my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-[1.25rem] p-4 shadow-[0_24px_80px_rgba(24,33,47,0.18)] outline-none md:max-h-[calc(100dvh-3rem)] md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-accent)]">Crop Before Upload</p>
@@ -705,12 +731,23 @@ export function InlineAssetUpload({
                 <div
                   ref={cropFrameRef}
                   data-testid={dataTestId ? `${dataTestId}-crop-frame` : undefined}
+                  tabIndex={0}
+                  aria-label="取景画布，可使用方向键移动图片"
                   className="relative mx-auto w-full max-w-[25rem] overflow-hidden rounded-[1.35rem] border border-[var(--line-soft)] bg-white/80 touch-none"
                   style={{ aspectRatio: preset.aspectStyle }}
                   onPointerDown={handleCropPointerDown}
                   onPointerMove={handleCropPointerMove}
                   onPointerUp={handleCropPointerEnd}
                   onPointerCancel={handleCropPointerEnd}
+                  onKeyDown={(event) => {
+                    const step = event.shiftKey ? 24 : 8;
+                    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+                    event.preventDefault();
+                    setOffset((current) => ({
+                      x: current.x + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0),
+                      y: current.y + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0)
+                    }));
+                  }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -741,7 +778,7 @@ export function InlineAssetUpload({
 
               <div className="surface-strong space-y-5 rounded-[1.6rem] p-5">
                 <div>
-                  <p className="text-sm text-white">比例</p>
+                  <p className="text-sm text-[var(--foreground)]">比例</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {uploadPresets.map((ratioPreset) => {
                       const isActive = ratioPreset.ratioLabel === preset.ratioLabel;
@@ -760,7 +797,7 @@ export function InlineAssetUpload({
                           className={`rounded-full border px-4 py-2 text-sm transition disabled:opacity-50 ${
                             isActive
                               ? "border-[var(--color-accent)] bg-[rgba(43,109,246,0.12)] text-[var(--foreground)]"
-                              : "border-[var(--line-soft)] text-white/72 hover:border-[var(--color-accent)] hover:text-[var(--foreground)]"
+                              : "border-[var(--line-soft)] text-[var(--foreground-soft)] hover:border-[var(--color-accent)] hover:text-[var(--foreground)]"
                           }`}
                         >
                           {ratioPreset.ratioLabel}
@@ -772,7 +809,7 @@ export function InlineAssetUpload({
                 </div>
 
                 <div>
-                  <p className="text-sm text-white">缩放</p>
+                  <p className="text-sm text-[var(--foreground)]">缩放</p>
                   <div className="mt-3 flex items-center gap-4">
                     <input
                       data-testid={dataTestId ? `${dataTestId}-crop-zoom` : undefined}
@@ -813,7 +850,7 @@ export function InlineAssetUpload({
                     data-testid={dataTestId ? `${dataTestId}-confirm-crop` : undefined}
                     onClick={handleConfirmCrop}
                     disabled={isBusy || !cropBox}
-                    className="rounded-full bg-[var(--color-accent)] px-5 py-2.5 text-sm uppercase tracking-[0.2em] text-black disabled:opacity-50"
+                    className="ui-button-primary text-sm"
                   >
                     {pending ? "保存中..." : cropSession.existingAsset ? "保存显示区域" : "确认取景并上传"}
                   </button>
