@@ -159,7 +159,7 @@ Cron 路由要求 `Authorization: Bearer ${CRON_SECRET}`，仅用于生产自动
 
 ## 抖音主页同步（5.0）
 
-网站通过同一个 Vercel 项目中的独立 Python Service 读取已配置达人的公开抖音简介和粉丝量。Production 每 6 小时同步一次；主页行程保持为独立资料，不再创建或更新活动与阵容。抓取失败不会清空上次成功资料。
+网站通过同一个 Vercel 项目中的独立 Python Service 读取已配置达人的公开抖音简介和粉丝量。Production 每天同步一次；主页行程保持为独立资料，不再创建或更新活动与阵容。抓取失败不会清空上次成功资料。
 
 仓库根目录的 `vercel.json` 使用 `experimentalServices` 声明两个服务：Next.js `web` 继续挂载在 `/`，FastAPI `douyin_scraper` 通过文件入口 `services/douyin-scraper/main.py` 挂载在 `/_internal/douyin-scraper`。这是保留 Bearer 鉴权的内部约定路径，并不是绕过公网访问控制的私有网络。
 
