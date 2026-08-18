@@ -38,6 +38,16 @@ function matchesLocation(entry: LocationItineraryEntry, provinceName: string, ci
   return cityLabel ? entry.city === cityLabel : entry.province === provinceName;
 }
 
+export function getLocationItineraryRecencyForSelection(
+  entries: LocationItineraryEntry[],
+  provinceName: string,
+  cityLabel: string
+) {
+  return getLocationItineraryRecency(
+    entries.filter((entry) => matchesLocation(entry, provinceName, cityLabel))
+  );
+}
+
 function ItineraryEntry({
   entry,
   matched
@@ -109,7 +119,7 @@ export function LocationItineraryDialog({ data }: { data: LocationItineraryIndex
   const results = useMemo(() => data.talents
     .map((item) => {
       const matchingEntries = item.entries.filter((entry) => matchesLocation(entry, provinceName, cityLabel));
-      const recency = getLocationItineraryRecency(item.entries);
+      const recency = getLocationItineraryRecencyForSelection(item.entries, provinceName, cityLabel);
       return {
         ...item,
         entries: [...item.entries].sort(compareLocationItineraryEntries),

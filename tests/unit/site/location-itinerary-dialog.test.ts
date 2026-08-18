@@ -1,11 +1,17 @@
 import type { LocationItineraryEntry } from "../../../src/modules/domain/types";
 import {
   compareLocationItineraryEntries,
-  getLocationItineraryRecency
+  getLocationItineraryRecency,
+  getLocationItineraryRecencyForSelection
 } from "../../../src/components/site/location-itinerary-dialog";
 
-function entry(date: string | null, isPast: boolean): LocationItineraryEntry {
-  return { rawText: date ?? "日期未知", date, endDate: date, province: "广东省", city: "深圳", isPast };
+function entry(
+  date: string | null,
+  isPast: boolean,
+  city = "深圳",
+  province = "广东省"
+): LocationItineraryEntry {
+  return { rawText: date ?? "日期未知", date, endDate: date, province, city, isPast };
 }
 
 describe("location itinerary ordering", () => {
@@ -30,5 +36,24 @@ describe("location itinerary ordering", () => {
       entry("2026-08-17", true),
       entry("2026-08-01", true)
     ])).toMatchObject({ hasFuture: false });
+  });
+
+  it("classifies talents using only itineraries in the selected province", () => {
+    const zhuhaiPastWithShanghaiFuture = [
+      entry("2026-08-11", true, "珠海"),
+      entry("2026-08-19", false, "上海", "上海市")
+    ];
+    const dongguanFuture = [entry("2026-08-20", false, "东莞")];
+
+    expect(getLocationItineraryRecencyForSelection(
+      zhuhaiPastWithShanghaiFuture,
+      "广东省",
+      ""
+    )).toMatchObject({ hasFuture: false });
+    expect(getLocationItineraryRecencyForSelection(
+      dongguanFuture,
+      "广东省",
+      ""
+    )).toMatchObject({ hasFuture: true });
   });
 });
