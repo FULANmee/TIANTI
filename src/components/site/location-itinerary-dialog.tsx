@@ -3,7 +3,11 @@
 import { useMemo, useRef, useState } from "react";
 import { MapPinned, X } from "lucide-react";
 import Link from "next/link";
-import type { LocationItineraryIndex } from "@/modules/domain/types";
+import type {
+  LocationItineraryEntry,
+  LocationItineraryIndex,
+  LocationItineraryTalent
+} from "@/modules/domain/types";
 import { getTalentPath } from "@/lib/public-path";
 
 function distanceFromToday(value: string | null) {
@@ -13,6 +17,89 @@ function distanceFromToday(value: string | null) {
   return Math.abs(Date.parse(`${value}T00:00:00+08:00`) - today.getTime());
 }
 
+export function compareLocationItineraryEntries(
+  left: LocationItineraryEntry,
+  right: LocationItineraryEntry
+) {
+  if (left.isPast !== right.isPast) return left.isPast ? 1 : -1;
+  return distanceFromToday(left.date) - distanceFromToday(right.date);
+}
+
+export function getLocationItineraryRecency(entries: LocationItineraryEntry[]) {
+  const futureEntries = entries.filter((entry) => !entry.isPast);
+  const relevantEntries = futureEntries.length > 0 ? futureEntries : entries;
+  return {
+    hasFuture: futureEntries.length > 0,
+    nearest: Math.min(...relevantEntries.map((entry) => distanceFromToday(entry.date)))
+  };
+}
+
+function matchesLocation(entry: LocationItineraryEntry, provinceName: string, cityLabel: string) {
+  return cityLabel ? entry.city === cityLabel : entry.province === provinceName;
+}
+
+function ItineraryEntry({
+  entry,
+  matched
+}: {
+  entry: LocationItineraryEntry;
+  matched: boolean;
+}) {
+  const stateClassName = entry.isPast && matched
+    ? "border-[rgba(200,71,58,0.28)] border-l-[3px] border-l-[rgba(200,71,58,0.68)] bg-[var(--color-danger-soft)] text-[#7f332c]"
+    : !entry.isPast && matched
+      ? "border-[rgba(43,109,246,0.28)] bg-[rgba(43,109,246,0.07)]"
+      : "border-[var(--line-soft)] bg-[var(--surface)] text-[var(--foreground-soft)]";
+  const expiredLabelClassName = matched
+    ? "border-[rgba(200,71,58,0.18)] bg-[rgba(200,71,58,0.1)] text-[var(--color-danger)]"
+    : "border-[var(--line-soft)] bg-[var(--surface-tint)] text-[var(--foreground-muted)]";
+
+  return (
+    <div className={`rounded-[1rem] border px-4 py-3 text-sm leading-6 ${stateClassName}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <span>{entry.rawText}</span>
+        {entry.isPast ? (
+          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${expiredLabelClassName}`}>
+            已过期
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TalentItineraryCard({
+  item,
+  provinceName,
+  cityLabel,
+  onNavigate
+}: {
+  item: LocationItineraryTalent;
+  provinceName: string;
+  cityLabel: string;
+  onNavigate: () => void;
+}) {
+  const futureEntries = item.entries.filter((entry) => !entry.isPast);
+  const pastEntries = item.entries.filter((entry) => entry.isPast);
+
+  return <article className="surface-strong rounded-[1.5rem] p-5">
+    <div className="flex items-center justify-between gap-4">
+      <Link href={getTalentPath(item.talent)} onClick={onNavigate} className="text-xl hover:text-[var(--color-accent)]">{item.talent.nickname}</Link>
+      <span className="text-xs ui-muted">{item.entries.length} 条行程</span>
+    </div>
+    <div className="mt-4 space-y-5">
+      {futureEntries.length ? <section aria-label="未来行程">
+        <p className="mb-2 font-mono text-[0.68rem] font-semibold tracking-[0.12em] text-[var(--color-accent)]">未来行程</p>
+        <div className="space-y-2">{futureEntries.map((entry, index) => <ItineraryEntry key={`${entry.rawText}-future-${index}`} entry={entry} matched={matchesLocation(entry, provinceName, cityLabel)} />)}</div>
+      </section> : null}
+      {pastEntries.length ? <section aria-label="过期行程">
+        <p className="mb-2 font-mono text-[0.68rem] font-semibold tracking-[0.12em] text-[var(--color-danger)]">过期行程</p>
+        <div className="space-y-2">{pastEntries.map((entry, index) => <ItineraryEntry key={`${entry.rawText}-past-${index}`} entry={entry} matched={matchesLocation(entry, provinceName, cityLabel)} />)}</div>
+      </section> : null}
+    </div>
+  </article>;
+}
+
 export function LocationItineraryDialog({ data }: { data: LocationItineraryIndex }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const initialProvince = data.provinces.find((province) => province.label === "广东") ?? data.provinces[0];
@@ -20,13 +107,24 @@ export function LocationItineraryDialog({ data }: { data: LocationItineraryIndex
   const [cityLabel, setCityLabel] = useState("");
   const province = data.provinces.find((item) => item.name === provinceName);
   const results = useMemo(() => data.talents
-    .filter((item) => item.entries.some((entry) => cityLabel ? entry.city === cityLabel : entry.province === provinceName))
-    .map((item) => ({
-      ...item,
-      entries: [...item.entries].sort((left, right) => distanceFromToday(left.date) - distanceFromToday(right.date) || (left.isPast === right.isPast ? 0 : left.isPast ? 1 : -1)),
-      nearest: Math.min(...item.entries.filter((entry) => cityLabel ? entry.city === cityLabel : entry.province === provinceName).map((entry) => distanceFromToday(entry.date)))
-    }))
-    .sort((left, right) => left.nearest - right.nearest || left.talent.nickname.localeCompare(right.talent.nickname, "zh-CN")), [cityLabel, data.talents, provinceName]);
+    .map((item) => {
+      const matchingEntries = item.entries.filter((entry) => matchesLocation(entry, provinceName, cityLabel));
+      const recency = getLocationItineraryRecency(item.entries);
+      return {
+        ...item,
+        entries: [...item.entries].sort(compareLocationItineraryEntries),
+        matchingEntries,
+        ...recency
+      };
+    })
+    .filter((item) => item.matchingEntries.length > 0)
+    .sort((left, right) =>
+      Number(right.hasFuture) - Number(left.hasFuture) ||
+      left.nearest - right.nearest ||
+      left.talent.nickname.localeCompare(right.talent.nickname, "zh-CN")
+    ), [cityLabel, data.talents, provinceName]);
+  const futureResults = results.filter((item) => item.hasFuture);
+  const pastResults = results.filter((item) => !item.hasFuture);
 
   return <>
     <button type="button" className="ui-button-secondary text-sm" onClick={() => dialogRef.current?.showModal()}><MapPinned className="h-4 w-4" aria-hidden="true" />按地点查看行程</button>
@@ -40,7 +138,22 @@ export function LocationItineraryDialog({ data }: { data: LocationItineraryIndex
       </div>
       <div className="max-h-[58vh] overflow-y-auto px-5 py-6 md:px-7">
         <p className="mb-4 font-mono text-sm ui-muted">{province?.label}{cityLabel ? ` · ${cityLabel}` : ""} / {results.length} 位达人</p>
-        <div className="space-y-4">{results.length ? results.map((item) => <article key={item.talent.id} className="surface-strong rounded-[1.5rem] p-5"><div className="flex items-center justify-between gap-4"><Link href={getTalentPath(item.talent)} onClick={() => dialogRef.current?.close()} className="text-xl hover:text-[var(--color-accent)]">{item.talent.nickname}</Link><span className="text-xs ui-muted">{item.entries.length} 条行程</span></div><div className="mt-4 space-y-2">{item.entries.map((entry, index) => { const matched = cityLabel ? entry.city === cityLabel : entry.province === provinceName; return <div key={`${entry.rawText}-${index}`} className={`rounded-[1rem] border px-4 py-3 text-sm leading-6 ${matched ? "border-[rgba(43,109,246,0.28)] bg-[rgba(43,109,246,0.07)]" : "border-[var(--line-soft)]"} ${entry.isPast ? "opacity-60" : ""}`}><div className="flex flex-wrap justify-between gap-2"><span>{entry.rawText}</span>{entry.isPast ? <span className="text-xs ui-muted">已过期</span> : null}</div></div>; })}</div></article>) : <p className="rounded-[1.5rem] border border-dashed border-[var(--line-strong)] px-5 py-10 text-center text-sm ui-subtle">当前地点没有可展示的主页行程。</p>}</div>
+        {results.length ? <div className="space-y-8">
+          {futureResults.length ? <section aria-labelledby="future-itineraries-heading">
+            <div className="mb-3 flex items-end justify-between gap-4 border-l-[3px] border-[var(--color-accent)] pl-3">
+              <h3 id="future-itineraries-heading" className="text-xl">未来行程</h3>
+              <span className="font-mono text-xs ui-muted">{futureResults.length} 位达人</span>
+            </div>
+            <div className="space-y-4">{futureResults.map((item) => <TalentItineraryCard key={item.talent.id} item={item} provinceName={provinceName} cityLabel={cityLabel} onNavigate={() => dialogRef.current?.close()} />)}</div>
+          </section> : null}
+          {pastResults.length ? <section aria-labelledby="past-itineraries-heading">
+            <div className="mb-3 flex items-end justify-between gap-4 border-l-[3px] border-[var(--color-danger)] pl-3 text-[var(--color-danger)]">
+              <h3 id="past-itineraries-heading" className="text-xl">过去行程</h3>
+              <span className="font-mono text-xs">{pastResults.length} 位达人</span>
+            </div>
+            <div className="space-y-4">{pastResults.map((item) => <TalentItineraryCard key={item.talent.id} item={item} provinceName={provinceName} cityLabel={cityLabel} onNavigate={() => dialogRef.current?.close()} />)}</div>
+          </section> : null}
+        </div> : <p className="rounded-[1.5rem] border border-dashed border-[var(--line-strong)] px-5 py-10 text-center text-sm ui-subtle">当前地点没有可展示的主页行程。</p>}
       </div>
     </dialog>
   </>;
