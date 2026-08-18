@@ -1,6 +1,8 @@
 import {
+  getAutomaticLadder,
   getEventDetail,
   getHomepageCollections,
+  getLocationItineraryIndex,
   getTalentDetail,
   listEventSummaries,
   listTalents,
@@ -32,6 +34,47 @@ describe("domain queries", () => {
   it("expands homepage featured talents to four cards", () => {
     const homepage = getHomepageCollections(demoSeedState);
     expect(homepage.featuredTalents).toHaveLength(4);
+  });
+
+  it("calculates editor-specific beauty averages and automatic tiers", () => {
+    const state = structuredClone(demoSeedState);
+    state.archives[0]!.entries[0]!.beautyTier = 4;
+    state.archives.push({
+      id: "archive-lin-second",
+      editorId: "editor-lin",
+      eventId: "event-echo-market",
+      note: "",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+      entries: [{ id: "archive-lin-second-entry", talentId: "talent-qingluan", entryDate: "2026-04-20T00:00:00.000Z", cosplayTitle: "测试", hasSharedPhoto: false, beautyTier: 2 }]
+    });
+
+    const detail = getTalentDetail(state, "talent-qingluan");
+    expect(detail?.editorSummaries.find((item) => item.editor.id === "editor-lin")?.averageBeautyTier).toBe(3);
+    expect(detail?.beautyTierSeries.find((item) => item.editor.id === "editor-lin")?.points).toHaveLength(2);
+    const automatic = getAutomaticLadder(state, "average-lin");
+    expect(automatic.tiers.find((tier) => tier.name === "2～3")?.talents[0]?.talent.id).toBe("talent-qingluan");
+  });
+
+  it("projects current profile itineraries into province and city locations", () => {
+    const state = structuredClone(demoSeedState);
+    state.talents[0]!.links.push({ id: "douyin-test", label: "抖音主页", url: "https://www.douyin.com/user/test-profile" });
+    state.douyinProfiles.push({
+      talentId: state.talents[0]!.id,
+      profileUrl: "https://www.douyin.com/user/test-profile",
+      signatureRaw: "行程：8.18深圳测试活动 / 8.20惠州见面会",
+      itineraryText: "行程：8.18深圳测试活动 / 8.20惠州见面会",
+      followerCount: 120_000,
+      fetchedAt: "2026-08-18T00:00:00.000Z",
+      lastSuccessAt: "2026-08-18T00:00:00.000Z",
+      linkExtractionStatus: "unavailable",
+      parserVersion: "1"
+    });
+
+    const index = getLocationItineraryIndex(state, new Date("2026-08-18T04:00:00.000Z"));
+    expect(index.talents[0]?.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ province: "广东省", city: "深圳" }),
+      expect.objectContaining({ province: "广东省", city: "惠州" })
+    ]));
   });
 
   it("counts homepage stats with recent talent updates and the rolling event window", () => {

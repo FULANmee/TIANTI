@@ -21,8 +21,7 @@ function successBody(signatureRaw = "8.8深圳金铲铲") {
       canonicalUrl: "https://www.douyin.com/user/primary-account"
     },
     profile: { signatureRaw, followerCount: 126_438 },
-    relatedAccounts: [],
-    diagnostics: { profileSource: "f2-user-detail", linkSource: "unavailable" }
+    diagnostics: { profileSource: "f2-user-detail" }
   };
 }
 

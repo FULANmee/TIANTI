@@ -159,7 +159,7 @@ Cron 路由要求 `Authorization: Bearer ${CRON_SECRET}`，仅用于生产自动
 
 ## 抖音主页同步（5.0）
 
-5.0 通过同一个 Vercel 项目中的独立 Python Service 读取已配置达人的公开抖音简介、粉丝量和可验证的简介 `@账号` 链接。网站每天同步一次，并只把明确的深圳未来行程写入活动；抓取失败不会清空上次成功资料，历史活动不会因简介变化被删除。
+网站通过同一个 Vercel 项目中的独立 Python Service 读取已配置达人的公开抖音简介和粉丝量。Production 每 6 小时同步一次；主页行程保持为独立资料，不再创建或更新活动与阵容。抓取失败不会清空上次成功资料。
 
 仓库根目录的 `vercel.json` 使用 `experimentalServices` 声明两个服务：Next.js `web` 继续挂载在 `/`，FastAPI `douyin_scraper` 通过文件入口 `services/douyin-scraper/main.py` 挂载在 `/_internal/douyin-scraper`。这是保留 Bearer 鉴权的内部约定路径，并不是绕过公网访问控制的私有网络。
 
@@ -187,5 +187,3 @@ TIANTI_PREVIEW_V5_MIGRATIONS=0
 `DOUYIN_SCRAPER_URL` 由 `douyin_scraper` 服务自动生成，正常的 Vercel Preview/Production 不要手工覆盖。如需在本地把 Next.js 指向 Uvicorn，或临时使用经过批准的外部 HTTPS 适配器，可设置优先级更高的 `DOUYIN_SCRAPER_URL_OVERRIDE`；Production override 仍必须使用 HTTPS。
 
 `CRON_SECRET` 同时保护素材清理和 `/api/cron/sync-douyin-profiles`。Vercel Cron 只在 Production deployment 激活，Preview 核验通过只读探针和后台手动同步完成，不要求定时任务实际运行。共享密钥、Cookie、`ttwid`、签名 URL 和上游完整响应不得进入日志或数据库。回滚时关闭 `DOUYIN_SYNC_ENABLED`，保留已有资料、活动和迁移结构。
-
-关联小号的结构化 `signature_extra` 路径已用真实 Preview 主页验收完成，无需 Chromium。浏览器后备路径仍有两个门槛：Vercel Python Service 必须实际具备可启动的 Chromium 与系统依赖，并且必须用缺少结构化目标但含可点击 `@账号` 的公开主页恢复真实 Douyin URL/`sec_user_id`。Python `playwright` 依赖本身不会安装浏览器。完成这些验证前应保持 `DOUYIN_ENABLE_BROWSER_LINKS=false`，不得把浏览器提取路径标记为验收完成，也不得按昵称猜测链接；无法权威提取时服务返回 `linkSource=unavailable` 并保留网站上一次成功的小号数据。

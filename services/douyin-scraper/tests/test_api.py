@@ -72,17 +72,7 @@ def test_profile_contract_and_authentication(monkeypatch):
             "canonicalUrl": "https://www.douyin.com/user/MS4wLjABAAAA-test",
         },
         "profile": {"signatureRaw": "8.8深圳金铲铲", "followerCount": 126438},
-        "relatedAccounts": [
-            {
-                "nickname": "小号",
-                "secUserId": "MS4wLjABAAAA-alt",
-                "url": "https://www.douyin.com/user/MS4wLjABAAAA-alt",
-            }
-        ],
-        "diagnostics": {
-            "profileSource": "f2-user-detail",
-            "linkSource": "structured",
-        },
+        "diagnostics": {"profileSource": "f2-user-detail"},
     }
 
 

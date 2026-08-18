@@ -46,7 +46,7 @@ describe("Vercel Services config", () => {
         },
         {
           path: "/api/cron/sync-douyin-profiles",
-          schedule: "23 4 * * *"
+          schedule: "23 4,10,16,22 * * *"
         }
       ])
     );

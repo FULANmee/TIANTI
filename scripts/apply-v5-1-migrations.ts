@@ -84,6 +84,15 @@ export async function main(environment: Environment = process.env) {
         const removal = await readFile(new URL("../drizzle/0011_remove_mcn.sql", import.meta.url), "utf8");
         await transaction.unsafe(removal, [], { prepare: false });
       }
+
+      const beautyTierRows = await transaction<{ column_name: string }[]>`
+        select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = 'archive_entries' and column_name = 'beauty_tier'
+      `;
+      if (beautyTierRows.length === 0) {
+        const ratingMigration = await readFile(new URL("../drizzle/0012_redundant_wolfpack.sql", import.meta.url), "utf8");
+        await transaction.unsafe(ratingMigration, [], { prepare: false });
+      }
     });
   } finally {
     await sql.end({ timeout: 5 });

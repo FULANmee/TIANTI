@@ -5,7 +5,6 @@ import { EditorialHero } from "@/components/ui/editorial-hero";
 import { PageShell } from "@/components/ui/page-shell";
 import { PublicReveal } from "@/components/ui/public-reveal";
 import { SectionFrame } from "@/components/ui/section-frame";
-import { getTalentPath } from "@/lib/public-path";
 import { buildMetadata } from "@/lib/site";
 import { getHomepageData } from "@/modules/content/service";
 
@@ -104,56 +103,6 @@ export default async function HomePage() {
           </SectionFrame>
         </PublicReveal>
 
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <PublicReveal className="h-full">
-            <section className="surface h-full rounded-[2rem] p-6 md:p-7">
-              <div className="flex items-center justify-between gap-4 border-b pb-4 ui-divider">
-                <div>
-                  <p className="ui-kicker">Editorial Views</p>
-                  <h2 className="mt-3 text-3xl tracking-[-0.03em] text-[var(--foreground)]">公开视角入口</h2>
-                </div>
-                <Link href="/ladder" className="ui-button-secondary text-sm">
-                  进入天梯
-                </Link>
-              </div>
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {homepage.editorSpotlights.map((spotlight) => (
-                  <article key={spotlight.editor.id} className="surface-strong rounded-[1.5rem] p-5">
-                    <h3 className="text-2xl tracking-[-0.03em] text-[var(--foreground)]">{spotlight.editor.name}</h3>
-                    <p className="mt-3 text-sm leading-7 ui-subtle">{spotlight.summary}</p>
-                    <Link href={spotlight.href} className="mt-4 inline-flex text-sm text-[var(--color-accent)]">
-                      查看公开排序
-                    </Link>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </PublicReveal>
-
-          <PublicReveal delay={0.08} className="h-full">
-            <section className="surface h-full rounded-[2rem] p-6 md:p-7">
-              <div className="border-b pb-4 ui-divider">
-                <p className="ui-kicker">Recent Talents</p>
-                <h2 className="mt-3 text-3xl tracking-[-0.03em] text-[var(--foreground)]">最近达人</h2>
-              </div>
-              <div className="mt-5 space-y-4">
-                {homepage.recentTalents.slice(0, 4).map((talent) => (
-                  <Link
-                    key={talent.id}
-                    href={getTalentPath(talent)}
-                    className="flex items-center justify-between gap-4 border-b pb-4 transition ui-divider last:border-none last:pb-0 hover:text-[var(--color-accent)]"
-                  >
-                    <div>
-                      <p className="text-lg text-[var(--foreground)]">{talent.nickname}</p>
-                      <p className="mt-1 text-sm ui-subtle">{talent.recentHint ?? "公开资料已更新"}</p>
-                    </div>
-                    <span className="text-sm ui-muted">{talent.archiveCount} 条记录</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          </PublicReveal>
-        </div>
       </div>
     </PageShell>
   );

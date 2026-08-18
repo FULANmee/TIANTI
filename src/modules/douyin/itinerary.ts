@@ -1,53 +1,9 @@
 import { getShanghaiDateKey, isValidDateOnlyValue } from "@/lib/date";
+import { findItineraryLocation, ITINERARY_LOCATION_PATTERN_SOURCE } from "@/modules/douyin/geography";
 
 export const DOUYIN_ITINERARY_PARSER_VERSION = "1";
 
-const CITY_NAMES = [
-  "乌鲁木齐",
-  "石家庄",
-  "哈尔滨",
-  "北京",
-  "上海",
-  "天津",
-  "重庆",
-  "深圳",
-  "广州",
-  "成都",
-  "青岛",
-  "南京",
-  "南宁",
-  "金华",
-  "厦门",
-  "武汉",
-  "杭州",
-  "郑州",
-  "西安",
-  "苏州",
-  "无锡",
-  "长沙",
-  "福州",
-  "合肥",
-  "济南",
-  "东莞",
-  "佛山",
-  "珠海",
-  "宁波",
-  "温州",
-  "昆明",
-  "沈阳",
-  "大连",
-  "长春",
-  "太原",
-  "南昌",
-  "海口",
-  "三亚",
-  "兰州",
-  "贵阳",
-  "香港",
-  "澳门"
-] as const;
-
-const CITY_SOURCE = CITY_NAMES.join("|");
+const CITY_SOURCE = ITINERARY_LOCATION_PATTERN_SOURCE;
 const CITY_PATTERN = new RegExp(`(${CITY_SOURCE})(?:市)?`, "u");
 const DATE_TOKEN_SOURCE = String.raw`(?<!\d)(?:(?:(\d{4})[./年])?(\d{1,2})[.月](\d{1,2})(?:日|号)?(?:\s*[-~～—至]\s*(?:(\d{1,2})[.月])?(\d{1,2})(?:日|号)?)?|(\d{3,4})(?=(?:${CITY_SOURCE})(?:市)?))`;
 const TRIM_SEPARATORS = /^[\s/➡️→·,，;；:：|✨]+|[\s/➡️→·,，;；:：|✨]+$/gu;
@@ -167,7 +123,7 @@ function parseEntrySegment(
 ): ParsedItineraryEntry {
   const afterDate = cleanSegment(segment.slice(token.raw.length));
   const cityMatch = CITY_PATTERN.exec(afterDate);
-  const city = cityMatch?.[1] ?? null;
+  const city = cityMatch ? findItineraryLocation(cityMatch[1])?.label ?? cityMatch[1] : null;
   const eventName = cityMatch
     ? cleanSegment(`${afterDate.slice(0, cityMatch.index)} ${afterDate.slice(cityMatch.index + cityMatch[0].length)}`)
     : afterDate;

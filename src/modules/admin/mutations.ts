@@ -19,16 +19,7 @@ import type {
   TalentBulkPayload,
   TalentBulkResponse
 } from "@/modules/admin/types";
-import type {
-  EditorArchive,
-  Event,
-  EventLineup,
-  EventMergeRule,
-  EventMergeRuleMember
-} from "@/modules/domain/types";
-import { normalizeDouyinEventName } from "@/modules/douyin/itinerary";
 import { getContentRepository } from "@/modules/repository";
-import type { EventMergePersistenceInput } from "@/modules/repository/types";
 
 const talentSchema = z.object({
   id: z.string().optional(),
@@ -134,7 +125,8 @@ const archiveSchema = z.object({
       sceneAssetId: z.string().nullable().optional(),
       sharedPhotoAssetId: z.string().nullable().optional(),
       cosplayTitle: z.string().optional().default(""),
-      hasSharedPhoto: z.boolean()
+      hasSharedPhoto: z.boolean(),
+      beautyTier: z.number().int().min(0).max(5).nullable().optional().default(null)
     })
   )
 });
@@ -167,9 +159,8 @@ const talentBulkSchema = z.object({
 });
 
 const eventBulkSchema = z.object({
-  action: z.enum(["delete", "merge"]),
-  ids: z.array(z.string()).min(1),
-  targetId: z.string().optional()
+  action: z.literal("delete"),
+  ids: z.array(z.string()).min(1)
 });
 
 const editorNameSchema = z.object({
@@ -523,232 +514,6 @@ export async function removeEvent(id: string) {
   await cleanupUnusedAssets(cleanupCandidateAssetIds);
 }
 
-function getMergeDateBounds(events: Event[]) {
-  const dateKeys = events.flatMap((event) => [getDateOnlyKey(event.startsAt), getDateOnlyKey(event.endsAt)]).filter(Boolean) as string[];
-  if (dateKeys.length === 0) {
-    return { startsAt: null, endsAt: null };
-  }
-
-  return {
-    startsAt: toDateOnlyIso(dateKeys.sort()[0])!,
-    endsAt: toDateOnlyIso(dateKeys.sort().at(-1)!)!
-  };
-}
-
-function getLineupMergeKey(lineup: EventLineup) {
-  return `${lineup.talentId}:${getDateOnlyKey(lineup.lineupDate) ?? "undated"}`;
-}
-
-function mergeEventLineups(events: Event[], lineups: EventLineup[], targetId: string) {
-  const selectedIds = new Set(events.map((event) => event.id));
-  const candidates = lineups
-    .filter((lineup) => selectedIds.has(lineup.eventId))
-    .map((lineup) => ({
-      lineup,
-      priority: [
-        lineup.source.startsWith("douyin:") ? 0 : 1,
-        lineup.eventId === targetId ? 0 : 1,
-        lineup.id
-      ] as const
-    }))
-    .sort((left, right) =>
-      left.priority[0] - right.priority[0] ||
-      left.priority[1] - right.priority[1] ||
-      left.priority[2].localeCompare(right.priority[2])
-    );
-  const merged = new Map<string, EventLineup>();
-
-  for (const candidate of candidates) {
-    const key = getLineupMergeKey(candidate.lineup);
-    const current = merged.get(key);
-    if (!current) {
-      merged.set(key, {
-        ...candidate.lineup,
-        eventId: targetId,
-        note: candidate.lineup.note.trim()
-      });
-      continue;
-    }
-
-    if (!current.note && candidate.lineup.note.trim()) {
-      merged.set(key, { ...current, note: candidate.lineup.note.trim() });
-    }
-  }
-
-  return [...merged.values()];
-}
-
-function getArchiveEntryMergeKey(entry: EditorArchive["entries"][number]) {
-  return `${entry.talentId}:${getDateOnlyKey(entry.entryDate) ?? "undated"}:${entry.cosplayTitle.trim()}`;
-}
-
-function mergeEventArchives(
-  events: Event[],
-  archives: EditorArchive[],
-  targetId: string,
-  nowIso: string
-) {
-  const selectedIds = new Set(events.map((event) => event.id));
-  const selectedArchives = archives
-    .filter((archive) => selectedIds.has(archive.eventId))
-    .sort(
-      (left, right) =>
-        Number(right.eventId === targetId) - Number(left.eventId === targetId) ||
-        left.id.localeCompare(right.id)
-    );
-  const mergedByEditor = new Map<string, EditorArchive>();
-
-  for (const archive of selectedArchives) {
-    const current = mergedByEditor.get(archive.editorId);
-    if (!current) {
-      mergedByEditor.set(archive.editorId, {
-        ...structuredClone(archive),
-        eventId: targetId,
-        updatedAt: nowIso
-      });
-      continue;
-    }
-
-    const entries = new Map(current.entries.map((entry) => [getArchiveEntryMergeKey(entry), entry]));
-    for (const entry of archive.entries) {
-      const key = getArchiveEntryMergeKey(entry);
-      const previous = entries.get(key);
-      if (!previous) {
-        entries.set(key, structuredClone(entry));
-        continue;
-      }
-
-      entries.set(key, {
-        ...previous,
-        sceneAssetId: previous.sceneAssetId ?? entry.sceneAssetId ?? null,
-        sharedPhotoAssetId: previous.sharedPhotoAssetId ?? entry.sharedPhotoAssetId ?? null,
-        hasSharedPhoto: previous.hasSharedPhoto || entry.hasSharedPhoto
-      });
-    }
-
-    mergedByEditor.set(archive.editorId, {
-      ...current,
-      note: current.note.trim() || archive.note.trim(),
-      updatedAt: nowIso,
-      entries: [...entries.values()]
-    });
-  }
-
-  return [...mergedByEditor.values()];
-}
-
-function buildMergeRule(
-  state: Awaited<ReturnType<ReturnType<typeof getContentRepository>["getState"]>>,
-  selectedEventIds: Set<string>,
-  targetId: string,
-  nowIso: string
-) {
-  const existingRules = state.eventMergeRules.filter((rule) => selectedEventIds.has(rule.targetEventId));
-  const targetRule = existingRules.find((rule) => rule.targetEventId === targetId);
-  const membersByEntryId = new Map<string, EventMergeRuleMember>();
-
-  for (const rule of existingRules) {
-    for (const member of rule.members) {
-      membersByEntryId.set(member.sourceEntryId, structuredClone(member));
-    }
-  }
-
-  for (const entry of state.douyinScheduleEntries) {
-    if (!entry.eventId || !selectedEventIds.has(entry.eventId)) continue;
-    membersByEntryId.set(entry.id, {
-      id: membersByEntryId.get(entry.id)?.id ?? randomUUID(),
-      sourceEntryId: entry.id,
-      talentId: entry.talentId,
-      city: entry.city,
-      normalizedName: normalizeDouyinEventName(entry.eventName),
-      startsAt: entry.startsAt,
-      endsAt: entry.endsAt,
-      lastSeenAt: entry.lastSeenAt
-    });
-  }
-
-  const mergedRule: EventMergeRule = {
-    id: targetRule?.id ?? randomUUID(),
-    targetEventId: targetId,
-    createdAt: targetRule?.createdAt ?? nowIso,
-    updatedAt: nowIso,
-    members: [...membersByEntryId.values()].sort((left, right) => left.id.localeCompare(right.id))
-  };
-
-  return {
-    mergedRule,
-    deletedMergeRuleIds: existingRules
-      .filter((rule) => rule.id !== mergedRule.id)
-      .map((rule) => rule.id)
-  };
-}
-
-async function mergeEventsBulk(input: EventBulkPayload) {
-  const repository = getContentRepository();
-  const state = await repository.getState();
-  const ids = dedupeIds(input.ids);
-  if (ids.length < 2) {
-    throw new Error("请至少选择两个活动后再合并。");
-  }
-  if (!input.targetId || !ids.includes(input.targetId)) {
-    throw new Error("请选择一个保留活动。");
-  }
-
-  const selectedEvents = ids.map((id) => state.events.find((event) => event.id === id));
-  if (selectedEvents.some((event): event is undefined => !event)) {
-    throw new Error("待合并活动不存在或已被删除，请刷新后重试。");
-  }
-  const eventsToMerge = selectedEvents as Event[];
-  const now = new Date();
-  if (eventsToMerge.some((event) => deriveEventTemporalStatus(event.startsAt, event.endsAt, now) !== "future")) {
-    throw new Error("只能合并尚未结束的活动，已完成活动不会被批量删除。");
-  }
-
-  const targetEvent = eventsToMerge.find((event) => event.id === input.targetId)!;
-  const deletedEventIds = ids.filter((id) => id !== targetEvent.id);
-  const nowIso = now.toISOString();
-  const bounds = getMergeDateBounds(eventsToMerge);
-  const mergedEvent: Event = {
-    ...targetEvent,
-    startsAt: bounds.startsAt,
-    endsAt: bounds.endsAt,
-    status: "future",
-    updatedAt: nowIso,
-    origin: "douyin_merged"
-  };
-  const mergedLineups = mergeEventLineups(eventsToMerge, state.lineups, targetEvent.id);
-  const mergedArchives = mergeEventArchives(eventsToMerge, state.archives, targetEvent.id, nowIso);
-  const selectedEventIds = new Set(ids);
-  const mergeRule = buildMergeRule(state, selectedEventIds, targetEvent.id, nowIso);
-  const scheduleEntryIds = state.douyinScheduleEntries
-    .filter((entry) => entry.eventId && selectedEventIds.has(entry.eventId))
-    .map((entry) => entry.id);
-  const cleanupCandidateAssetIds = state.archives
-    .filter((archive) => deletedEventIds.includes(archive.eventId))
-    .flatMap((archive) => archive.entries.flatMap((entry) => [entry.sceneAssetId, entry.sharedPhotoAssetId]))
-    .filter(Boolean) as string[];
-  const persistenceInput: EventMergePersistenceInput = {
-    targetEvent: mergedEvent,
-    deletedEventIds,
-    lineups: mergedLineups,
-    archives: mergedArchives,
-    scheduleEntryIds,
-    mergeRules: [mergeRule.mergedRule],
-    deletedMergeRuleIds: mergeRule.deletedMergeRuleIds
-  };
-
-  await repository.mergeEvents(persistenceInput);
-  await cleanupUnusedAssets(cleanupCandidateAssetIds);
-
-  return {
-    succeededIds: deletedEventIds,
-    blocked: [],
-    mergedEvent,
-    mergedLineups,
-    mergedArchives
-  } satisfies BulkActionResult;
-}
-
 export async function saveLadder(editorId: string, payload: unknown) {
   const repository = getContentRepository();
   const input = ladderSchema.parse(payload);
@@ -813,7 +578,8 @@ export async function saveArchive(editorId: string, payload: unknown) {
         sceneAssetId: entry.sceneAssetId?.trim() || null,
         sharedPhotoAssetId: entry.sharedPhotoAssetId ?? null,
         cosplayTitle: entry.cosplayTitle.trim(),
-        hasSharedPhoto: entry.hasSharedPhoto
+        hasSharedPhoto: entry.hasSharedPhoto,
+        beautyTier: entry.beautyTier ?? null
       };
     })
   });
@@ -863,9 +629,6 @@ export async function saveTalentBulk(payload: unknown): Promise<TalentBulkRespon
 export async function saveEventBulk(payload: unknown): Promise<BulkActionResult> {
   const repository = getContentRepository();
   const input = eventBulkSchema.parse(payload) as EventBulkPayload;
-  if (input.action === "merge") {
-    return mergeEventsBulk(input);
-  }
   const ids = dedupeIds(input.ids);
   const state = await repository.getState();
   const eventMap = new Map(state.events.map((event) => [event.id, event]));

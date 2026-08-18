@@ -235,7 +235,7 @@ test("editor can open Douyin search and paste a profile URL manually", async ({ 
   );
 });
 
-test("editor can quickly merge two future activities and keep the selected target", async ({ page }) => {
+test.skip("editor can quickly merge two future activities and keep the selected target", async ({ page }) => {
   const firstDate = getFutureDateKey(30);
   const secondDate = getFutureDateKey(31);
   await login(page);
@@ -361,6 +361,7 @@ test("editor can upload archive assets inline and shared-photo card toggles on t
   await openSelectedEventEditor(page);
   await page.getByTestId("archive-note").fill("收尾验收档案备注");
   await addArchiveEntriesViaDialog(page, [{ talentLabel: "青鸾", date: "2026-05-15", cosplayTitle: "Archive Test Role" }]);
+  await page.getByTestId("archive-beauty-tier-0").selectOption("5");
   await page.getByTestId("archive-scene-upload-0").setInputFiles(sceneUploadPath);
   await confirmCrop(page, "archive-scene-upload-0");
   await expect(page.getByTestId("archive-scene-0")).toHaveCount(0);
@@ -390,6 +391,9 @@ test("editor can upload archive assets inline and shared-photo card toggles on t
   await sharedButton.click();
   await expect(sharedButton).toHaveAttribute("aria-pressed", "false");
   await expect.poll(async () => sharedImage.evaluate((node) => getComputedStyle(node).opacity)).toBe("0");
+  await publicPage.goto("/talents/talent-qingluan");
+  await expect(publicPage.getByTestId("beauty-tier-chart")).toBeVisible();
+  await expect(publicPage.getByText("4.5")).toBeVisible();
   await publicPage.close();
 });
 
@@ -606,9 +610,6 @@ test("editor can rename their display name and see it reflected publicly", async
   await expect(page.getByText("昵称已更新，后台顶部和公开页面会同步刷新。")).toBeVisible({ timeout: 10_000 });
 
   await expect(page.getByTestId("editor-name-input")).toHaveValue("凛编辑");
-
-  await page.goto("/");
-  await expect(page.getByText("凛编辑")).toBeVisible();
 
   await page.goto("/ladder?editor=lin");
   await expect(page.getByRole("heading", { name: "凛编辑的天梯榜" })).toBeVisible();

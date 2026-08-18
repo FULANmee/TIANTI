@@ -4,7 +4,7 @@ import { demoSeedState } from "@/modules/domain/seed";
 import { formatDouyinFollowerCount } from "@/modules/douyin/format";
 
 describe("Douyin public projection", () => {
-  it("projects only a successful current profile and verified related accounts", () => {
+  it("projects only a successful current profile without related accounts", () => {
     const state = structuredClone(demoSeedState);
     const talent = state.talents[0];
     talent.links.push({
@@ -47,8 +47,7 @@ describe("Douyin public projection", () => {
 
     expect(getTalentDetail(state, talent.id)?.douyinProfile).toEqual({
       followerCount: 126_438,
-      itineraryBlocks: ["8.8深圳金铲铲", "8.9上海闪魂绝区零"],
-      relatedAccounts: [expect.objectContaining({ id: "related-valid", nickname: "理想型账号" })]
+      itineraryBlocks: ["8.8深圳金铲铲", "8.9上海闪魂绝区零"]
     });
 
     talent.links = talent.links.filter((link) => link.id !== "primary-douyin");

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
-import { Combine, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
 import { AdminDialog } from "@/components/admin/admin-dialog";
 import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
 import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
@@ -20,7 +20,6 @@ import {
 import {
   deriveEventTemporalStatus,
   formatDateKey,
-  formatDateRange,
   getDateRangeDays,
   getDateSortTime,
   isMultiDayRange,
@@ -57,6 +56,7 @@ interface AddArchiveEntryDraft {
   talentId: string;
   entryDate: string | null;
   cosplayTitle: string;
+  beautyTier: number;
 }
 
 const UNSAVED_MESSAGE = "当前活动仍有未保存的修改，离开后会丢失。确定继续吗？";
@@ -112,7 +112,8 @@ function createArchiveEntry(
   talentId = "",
   entryDate = "",
   sceneAssetId = "",
-  cosplayTitle = ""
+  cosplayTitle = "",
+  beautyTier = 0
 ): EditorArchive["entries"][number] {
   return {
     id: crypto.randomUUID(),
@@ -121,7 +122,8 @@ function createArchiveEntry(
     sceneAssetId,
     sharedPhotoAssetId: null,
     cosplayTitle,
-    hasSharedPhoto: false
+    hasSharedPhoto: false,
+    beautyTier
   };
 }
 
@@ -130,7 +132,8 @@ function createArchiveEntryDraft(talentId = "", entryDate = ""): AddArchiveEntry
     id: crypto.randomUUID(),
     talentId,
     entryDate: entryDate || null,
-    cosplayTitle: ""
+    cosplayTitle: "",
+    beautyTier: 0
   };
 }
 
@@ -310,8 +313,6 @@ export function ArchiveManager({
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEventId);
   const [isEventEditorOpen, setIsEventEditorOpen] = useState(() => Boolean(initialEventId));
-  const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
-  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
   const [isLineupDialogOpen, setIsLineupDialogOpen] = useState(false);
   const [lineupDialogDraft, setLineupDialogDraft] = useState<AddLineupDraft | null>(null);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -653,7 +654,7 @@ export function ArchiveManager({
     const nextEntries = archiveDialogDrafts
       .filter((entry) => entry.talentId)
       .map((entry) =>
-        createArchiveEntry(entry.talentId, entry.entryDate ?? "", "", entry.cosplayTitle)
+        createArchiveEntry(entry.talentId, entry.entryDate ?? "", "", entry.cosplayTitle, entry.beautyTier)
       );
 
     if (nextEntries.length === 0) {
@@ -875,79 +876,6 @@ export function ArchiveManager({
     });
   }
 
-  function openMergeDialog() {
-    if (selectedEventIds.length < 2) {
-      setMessage("请先勾选至少两个活动。");
-      return;
-    }
-    if (hasUnsavedChanges) {
-      setMessage("请先保存或放弃当前修改，再执行批量操作。");
-      return;
-    }
-
-    setMergeTargetId(
-      selectedEventId && selectedEventIds.includes(selectedEventId)
-        ? selectedEventId
-        : selectedEventIds[0] ?? null
-    );
-    setIsMergeDialogOpen(true);
-  }
-
-  async function handleMergeEvents() {
-    if (selectedEventIds.length < 2 || !mergeTargetId) {
-      setMessage("请选择至少两个活动，并指定一个保留活动。");
-      return;
-    }
-
-    setMessage(null);
-    startTransition(async () => {
-      const response = await fetch("/api/admin/events/bulk", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          action: "merge",
-          ids: selectedEventIds,
-          targetId: mergeTargetId
-        })
-      });
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string; result?: BulkActionResult }
-        | null;
-      const result = data?.result;
-      if (!response.ok || !result?.mergedEvent || !result.mergedLineups || !result.mergedArchives) {
-        setMessage(data?.error ?? "合并活动失败，原有数据未改变。");
-        return;
-      }
-
-      const removedIds = new Set(result.succeededIds);
-      const nextEvents = sortEventsForManager(
-        liveEvents
-          .filter((event) => !removedIds.has(event.id))
-          .map((event) => (event.id === result.mergedEvent!.id ? result.mergedEvent! : event))
-      );
-      const selectedIds = new Set([...removedIds, result.mergedEvent.id]);
-      const nextLineups = [
-        ...liveLineups.filter((lineup) => !selectedIds.has(lineup.eventId)),
-        ...result.mergedLineups
-      ];
-      const nextArchives = [
-        ...liveArchives.filter((archive) => !selectedIds.has(archive.eventId)),
-        ...result.mergedArchives
-      ];
-
-      setLiveEvents(nextEvents);
-      setLiveLineups(nextLineups);
-      setLiveArchives(nextArchives);
-      setSelectedEventIds([]);
-      setMergeTargetId(null);
-      setIsMergeDialogOpen(false);
-      resetDrafts(result.mergedEvent.id, nextEvents, nextLineups, nextArchives);
-      setMessage(`已将 ${removedIds.size + 1} 个活动合并为「${getEventDisplayName(result.mergedEvent)}」，后续抖音同步仍会自动更新。`);
-    });
-  }
-
   function toggleSelectedEvent(id: string, checked: boolean) {
     setSelectedEventIds((current) =>
       checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)
@@ -1099,16 +1027,6 @@ export function ArchiveManager({
         {selectedEventIds.length > 0 ? <div className="mt-4 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4">
           <p className="text-xs font-semibold tracking-[0.12em] ui-muted">批量模式</p>
           <div className="mt-3 grid gap-3">
-            <button
-              type="button"
-              data-testid="bulk-merge-events"
-              onClick={openMergeDialog}
-              disabled={pending || selectedEventIds.length < 2 || hasUnsavedChanges}
-              className="ui-button-secondary text-sm"
-            >
-              <Combine aria-hidden="true" className="size-4" />
-              合并活动
-            </button>
             <button
               type="button"
               data-testid="bulk-delete-events"
@@ -1503,6 +1421,17 @@ export function ArchiveManager({
                             placeholder="角色 / 作品 / 游戏"
                             className="ui-input text-sm"
                           />
+                          <label className="space-y-2 text-sm ui-subtle">
+                            <span className="block">颜值梯度</span>
+                            <select
+                              data-testid={`archive-beauty-tier-${index}`}
+                              value={entry.beautyTier ?? ""}
+                              onChange={(event) => updateArchiveEntry(index, { beautyTier: Number(event.target.value) })}
+                              className="ui-select text-sm"
+                            >
+                              {[0, 1, 2, 3, 4, 5].map((tier) => <option key={tier} value={tier}>{tier}</option>)}
+                            </select>
+                          </label>
                         </div>
 
                         <div className="mt-4">
@@ -1586,76 +1515,6 @@ export function ArchiveManager({
         )}
       </section>
     </div>
-    {isMergeDialogOpen ? (
-      <AdminDialog
-        title="合并活动"
-        description="请选择一个保留活动。其他活动会被删除，但抖音来源仍会持续自动更新到保留活动。"
-        onClose={() => {
-          setIsMergeDialogOpen(false);
-          setMergeTargetId(null);
-        }}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                setIsMergeDialogOpen(false);
-                setMergeTargetId(null);
-              }}
-              className="ui-button-secondary px-5 py-2.5 text-sm"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              data-testid="bulk-merge-submit"
-              onClick={handleMergeEvents}
-              disabled={pending || !mergeTargetId}
-              className="ui-button-primary px-5 py-2.5 text-sm disabled:opacity-50"
-            >
-              确认合并
-            </button>
-          </>
-        }
-      >
-        <div data-testid="bulk-merge-dialog" className="space-y-4">
-          <div className="rounded-[1rem] border border-[#b13b45]/25 bg-[#fff7f7] p-4 text-sm leading-6 text-[#5f2630]">
-            合并后，来源活动的阵容和现场档案会迁移并去重；来源活动本身会删除。已经完成的活动不能参与此操作。
-          </div>
-          <div className="space-y-3">
-            {selectedEventIds
-              .map((id) => liveEvents.find((event) => event.id === id))
-              .filter((event): event is Event => Boolean(event))
-              .map((event) => (
-                <label
-                  key={event.id}
-                  className={`flex cursor-pointer items-start gap-3 rounded-[1rem] border p-4 transition ${
-                    mergeTargetId === event.id
-                      ? "border-[#2d6c73]/55 bg-[#effafa]"
-                      : "border-[var(--line-soft)] bg-white/60"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="merge-target-event"
-                    aria-label={`保留 ${getEventDisplayName(event)}`}
-                    checked={mergeTargetId === event.id}
-                    onChange={() => setMergeTargetId(event.id)}
-                    className="mt-1"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-[var(--foreground)]">保留「{getEventDisplayName(event)}」</span>
-                    <span className="mt-1 block text-xs ui-muted">
-                      {[event.city || "城市待定", formatDateRange(event.startsAt, event.endsAt)].filter(Boolean).join(" · ")}
-                    </span>
-                  </span>
-                </label>
-              ))}
-          </div>
-        </div>
-      </AdminDialog>
-    ) : null}
-
     {isLineupDialogOpen && lineupDialogDraft ? (
       <AdminDialog
         title="添加达人"

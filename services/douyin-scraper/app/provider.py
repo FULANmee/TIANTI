@@ -352,26 +352,6 @@ class F2ProfileProvider:
         if not isinstance(follower_count, int) or isinstance(follower_count, bool) or follower_count < 0:
             raise ScraperProviderError("INVALID_UPSTREAM_RESPONSE", "Follower count is invalid.", True)
 
-        structured_accounts = extract_structured_related_accounts(
-            raw_user,
-            sec_user_id,
-            signature_raw,
-        )
-        extraction = RelatedAccountExtraction(structured_accounts, "structured")
-        if not structured_accounts and "@" in signature_raw and self.settings.enable_browser_links:
-            rendered_accounts = await extract_rendered_related_accounts(
-                canonical_user_url(sec_user_id),
-                signature_raw,
-                sec_user_id,
-                self.settings.browser_timeout_seconds,
-            )
-            extraction = RelatedAccountExtraction(
-                rendered_accounts,
-                "rendered" if rendered_accounts else "unavailable",
-            )
-        elif not structured_accounts:
-            extraction = RelatedAccountExtraction([], "unavailable")
-
         return ProfileFetchResponse(
             fetched_at=datetime.now(timezone.utc),
             account=Account(
@@ -383,6 +363,5 @@ class F2ProfileProvider:
                 signature_raw=signature_raw,
                 follower_count=follower_count,
             ),
-            related_accounts=extraction.accounts,
-            diagnostics=Diagnostics(link_source=extraction.source),
+            diagnostics=Diagnostics(),
         )

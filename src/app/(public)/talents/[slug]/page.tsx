@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BeautyTierChart } from "@/components/site/beauty-tier-chart";
 import { FramedImage } from "@/components/ui/framed-image";
 import { notFound } from "next/navigation";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -104,11 +105,6 @@ export default async function TalentDetailPage({
       ? { label: "抖音粉丝", value: formatDouyinFollowerCount(detail.douyinProfile.followerCount) }
       : null
   ].filter(Boolean) as Array<{ label: string; value: string }>;
-  const hasDouyinDetails =
-    douyinProfile && (
-      douyinProfile.itineraryBlocks.length > 0 ||
-      douyinProfile.relatedAccounts.length > 0
-    );
 
   return (
     <PageShell>
@@ -139,62 +135,6 @@ export default async function TalentDetailPage({
                 </p>
               </div>
 
-              {douyinProfile && hasDouyinDetails ? (
-                <div
-                  className="grid gap-4 md:grid-cols-[1.35fr_0.65fr]"
-                  data-testid="douyin-profile-summary"
-                >
-                  {douyinProfile.itineraryBlocks.length > 0 ? (
-                    <section
-                      className={
-                        douyinProfile.relatedAccounts.length > 0
-                          ? "surface-strong rounded-[1.4rem] p-4"
-                          : "surface-strong rounded-[1.4rem] p-4 md:col-span-2"
-                      }
-                      data-testid="douyin-itinerary"
-                    >
-                      <p className="text-sm ui-muted">主页行程</p>
-                      <div className="mt-3 space-y-2">
-                        {douyinProfile.itineraryBlocks.map((block, index) => (
-                          <p
-                            key={`${index}-${block}`}
-                            className="whitespace-pre-wrap break-words text-sm leading-7 text-[var(--foreground)]"
-                          >
-                            {block}
-                          </p>
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {douyinProfile.relatedAccounts.length > 0 ? (
-                    <section
-                      className={
-                        douyinProfile.itineraryBlocks.length > 0
-                          ? "surface-strong rounded-[1.4rem] p-4"
-                          : "surface-strong rounded-[1.4rem] p-4 md:col-span-2"
-                      }
-                      data-testid="douyin-related-accounts"
-                    >
-                      <p className="text-sm ui-muted">关联小号</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {douyinProfile.relatedAccounts.map((account) => (
-                          <a
-                            key={account.id}
-                            href={account.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ui-button-secondary px-3 py-2 text-sm"
-                          >
-                            @{account.nickname}
-                          </a>
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
-                </div>
-              ) : null}
-
               {publicInfoRows.length > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   {publicInfoRows.map((row) => (
@@ -210,7 +150,10 @@ export default async function TalentDetailPage({
                 {detail.editorSummaries.map((summary) => (
                   <div key={summary.editor.id} className="surface-strong rounded-[1.4rem] p-4">
                     <p className="text-sm ui-muted">{summary.editor.name}</p>
-                    <p className="mt-2 text-lg text-[var(--foreground)]">{summary.tierName ?? "未入榜"}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-3">
+                      <div><p className="text-xs ui-muted">手动梯度</p><p className="mt-1 text-lg text-[var(--foreground)]">{summary.tierName ?? "未入榜"}</p></div>
+                      <div><p className="text-xs ui-muted">平均梯度</p><p className="mt-1 font-mono text-lg text-[var(--foreground)]">{summary.averageBeautyTier == null ? "—" : summary.averageBeautyTier.toFixed(1)}</p></div>
+                    </div>
                     <div className="mt-3 flex gap-4 text-sm ui-subtle">
                       <span>{summary.seenCount} 次记录</span>
                       <span>{summary.sharedPhotoCount} 次集邮</span>
@@ -241,6 +184,10 @@ export default async function TalentDetailPage({
 
       <div className="mt-14 space-y-14">
         <PublicReveal>
+          <BeautyTierChart series={detail.beautyTierSeries} />
+        </PublicReveal>
+
+        <PublicReveal>
           <SectionFrame
             eyebrow="Activity Path"
             title="从未来活动到历史记录"
@@ -270,6 +217,18 @@ export default async function TalentDetailPage({
                   ) : (
                     <p className="text-sm ui-subtle">当前没有公开的未来活动。</p>
                   )}
+                  {douyinProfile?.itineraryBlocks.length ? (
+                    <div data-testid="douyin-itinerary" className="mt-5 border-t pt-5 ui-divider">
+                      <p className="ui-kicker">主页行程 · 含过期记录</p>
+                      <div className="mt-3 space-y-3">
+                        {douyinProfile.itineraryBlocks.map((block, index) => (
+                          <p key={`${index}-${block}`} className="whitespace-pre-wrap break-words rounded-[1rem] bg-[var(--surface-tint)] px-4 py-3 text-sm leading-7 text-[var(--foreground)]">
+                            {block}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 {totalUpcomingPages > 1 ? (
                   <div className="mt-6 flex items-center justify-between gap-3">
