@@ -520,6 +520,22 @@ describe("admin mutations", () => {
     ).rejects.toThrow("图片比例仅支持 3:4 或 4:3。");
   });
 
+  it("rejects landscape framing for talent representation assets", async () => {
+    await expect(
+      saveAsset({
+        kind: "talent_representation",
+        title: "landscape representation",
+        alt: "landscape representation",
+        url: "https://example.com/landscape-representation.jpg",
+        width: 1200,
+        height: 900,
+        displayAspectWidth: 4,
+        displayAspectHeight: 3,
+        objectKey: null
+      })
+    ).rejects.toThrow("代表图仅支持竖版 3:4。");
+  });
+
   it("keeps cleanup candidate assets when they are still referenced elsewhere", async () => {
     const candidateAssetId = "asset-rep-1";
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
 import { normalizeLadderDraft } from "@/components/admin/ladder-manager-utils";
 import { StatusNotice } from "@/components/ui/status-notice";
@@ -230,33 +231,15 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
               key={tier.id}
               className="surface rounded-[1.35rem] p-3"
             >
-              <div className="grid gap-3 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-center">
+              <div className="grid gap-3 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-center">
                 <div
-                  className="grid grid-cols-[5.5rem_7rem_auto] items-center gap-2"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
                 >
                   <input
                     value={tier.name}
                     onChange={(event) => updateTierName(tier.id, event.target.value)}
                     className="ui-input min-h-11 rounded-[0.95rem] px-3 py-2 text-sm"
                   />
-                  <select
-                    defaultValue=""
-                    onChange={(event) => {
-                      const talentId = event.target.value;
-                      if (!talentId) return;
-                      moveTalent(talentId, tier.id);
-                      event.currentTarget.value = "";
-                    }}
-                    className="ui-select min-h-11 rounded-[0.95rem] px-3 py-2 text-sm"
-                  >
-                    <option value="">达人</option>
-                    {unassignedTalents.map((talent) => (
-                      <option key={talent.id} value={talent.id}>
-                        {talent.nickname}
-                      </option>
-                    ))}
-                  </select>
-
                   <button
                     type="button"
                     aria-disabled={tier.talentIds.length > 0}
@@ -277,6 +260,7 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
                       dragging ? "border-red-300 bg-red-50" : ""
                     } ${tier.talentIds.length > 0 ? "opacity-70" : ""}`}
                   >
+                    <Trash2 aria-hidden="true" className="size-4" />
                     删除
                   </button>
                 </div>
@@ -302,16 +286,17 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
                             setDragging({ talentId, fromTierId: tier.id });
                           }}
                           onDragEnd={() => setDragging(null)}
-                          onDoubleClick={() => moveTalent(talentId, null)}
+                          onDoubleClickCapture={() => moveTalent(talentId, null)}
                           onDragOver={(event) => event.preventDefault()}
                           onDrop={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
                             handleDropToTierPosition(tier.id, talentId);
                           }}
-                          className="inline-flex w-fit cursor-grab whitespace-nowrap rounded-full border border-[var(--line-soft)] bg-[var(--surface-strong)] px-3 py-1.5 text-sm text-[var(--foreground)]"
+                          className="inline-flex w-fit cursor-grab items-center gap-2 whitespace-nowrap rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--color-accent)] active:cursor-grabbing"
                         >
-                          {talent.nickname}
+                          <GripVertical aria-hidden="true" className="size-4 text-[var(--foreground-muted)]" />
+                          <span>{talent.nickname}</span>
                         </div>
                       );
                     })}
@@ -345,7 +330,8 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
           }
           className="ui-button-secondary w-fit px-4 py-2 text-sm"
         >
-          + 新增梯度
+          <Plus aria-hidden="true" className="size-4" />
+          新增梯度
         </button>
       </div>
 
@@ -359,6 +345,7 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
           disabled={pending}
           className="ui-button-primary text-sm disabled:opacity-60"
         >
+          <Save aria-hidden="true" className="size-4" />
           {pending ? "保存中..." : "保存天梯"}
         </button>
       </div>

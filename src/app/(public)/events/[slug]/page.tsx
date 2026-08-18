@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventArchiveCard } from "@/components/site/event-archive-card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { HorizontalCardRail } from "@/components/ui/horizontal-card-rail";
 import { PageShell } from "@/components/ui/page-shell";
 import { PublicReveal } from "@/components/ui/public-reveal";
 import { SectionFrame } from "@/components/ui/section-frame";
@@ -74,7 +73,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <PublicReveal>
-        <section className="surface rounded-[2.4rem] p-6 md:p-8">
+        <section className="public-stage surface rounded-[2.4rem] p-6 md:p-8">
           <div className="grid gap-6 md:grid-cols-[1.15fr_0.85fr]">
             <div className="space-y-5">
               <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.22em] ui-muted">
@@ -169,12 +168,8 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                     <div className="mt-6 space-y-6">
                       {archive.entryGroups.map((group) => (
                         <div key={group.date ?? "undated"} className="space-y-4">
-                          <HorizontalCardRail
-                            controlsLabel={`${archive.editor.name}${group.label ? ` ${group.label}` : ""}现场记录`}
-                            heading={group.label ? <p className="ui-kicker">{group.label}</p> : null}
-                            itemStyle={{ width: "min(19rem, calc(100vw - 5rem))" }}
-                            testIdPrefix={`archive-rail-${archive.editor.slug}-${group.date ?? "undated"}`}
-                          >
+                          {group.label ? <p className="ui-kicker">{group.label}</p> : null}
+                          <div data-testid={`archive-grid-${archive.editor.slug}-${group.date ?? "undated"}`} className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
                             {group.items.map((entry) => (
                               <EventArchiveCard
                                 key={entry.entry.id}
@@ -187,7 +182,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                                 sharedPhotoAsset={entry.sharedPhotoAsset}
                               />
                             ))}
-                          </HorizontalCardRail>
+                          </div>
                         </div>
                       ))}
                     </div>

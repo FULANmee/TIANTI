@@ -37,6 +37,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   return (
     <PageShell>
       <SectionFrame
+        headingLevel="h1"
         eyebrow="Unified Search"
         title="在一个入口里同时搜索达人与活动"
         description="先输入关键词，再决定要看全部结果、只看达人，还是只看活动。"

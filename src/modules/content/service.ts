@@ -25,9 +25,21 @@ export async function getDouyinAdminStatuses() {
   const state = await getContentState();
   return state.douyinProfiles.map((profile) => ({
     talentId: profile.talentId,
+    profileUrl: profile.profileUrl,
+    signature: profile.signatureRaw,
+    itineraryText: profile.itineraryText,
+    followerCount: profile.followerCount ?? null,
+    fetchedAt: profile.fetchedAt ?? null,
     lastSuccessAt: profile.lastSuccessAt ?? null,
     lastErrorCode: profile.lastErrorCode ?? null,
-    manualSyncAvailableAt: profile.manualSyncAvailableAt ?? null
+    manualSyncAvailableAt: profile.manualSyncAvailableAt ?? null,
+    relatedAccounts: state.douyinRelatedAccounts
+      .filter((account) => account.talentId === profile.talentId)
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((account) => ({ nickname: account.nickname, url: account.url })),
+    activeScheduleCount: state.douyinScheduleEntries.filter(
+      (entry) => entry.talentId === profile.talentId && entry.state === "active"
+    ).length
   }));
 }
 

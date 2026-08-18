@@ -4,8 +4,8 @@
   --font-sans: var(--font-sans-stack);
   --font-display: var(--font-display-stack);
   --color-accent: var(--color-accent);
-  --color-black: #f4f7fb;
-  --color-white: #18212f;
+  --color-black: #182126;
+  --color-white: #ffffff;
 }
 
 :root {
@@ -13,26 +13,32 @@
     ui-sans-serif, system-ui, sans-serif;
   --font-display-stack: "Noto Serif CJK SC", "Noto Serif SC", "Songti SC", STSong, SimSun, ui-serif, Georgia,
     serif;
-  --background: #eef3f8;
-  --background-strong: #f8fbff;
-  --foreground: #18212f;
-  --foreground-soft: rgba(24, 33, 47, 0.72);
-  --foreground-muted: rgba(24, 33, 47, 0.52);
-  --line-soft: rgba(24, 33, 47, 0.08);
-  --line-strong: rgba(24, 33, 47, 0.16);
-  --surface: rgba(255, 255, 255, 0.7);
-  --surface-strong: rgba(255, 255, 255, 0.92);
-  --surface-tint: rgba(24, 33, 47, 0.035);
-  --color-accent: #2b6df6;
-  --color-accent-strong: #1d55c9;
-  --color-accent-soft: rgba(43, 109, 246, 0.12);
-  --color-warm: rgba(210, 155, 102, 0.16);
-  --radius-panel: 1.75rem;
-  --radius-card: 1.2rem;
+  --background: #f3f6f5;
+  --background-strong: #ffffff;
+  --foreground: #182126;
+  --foreground-soft: #59656b;
+  --foreground-muted: #7b878c;
+  --line-soft: #e6ebe9;
+  --line-strong: #d9e0de;
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-strong: #ffffff;
+  --surface-tint: #f7f9f8;
+  --color-accent: #3f52a3;
+  --color-accent-strong: #304187;
+  --color-accent-soft: rgba(63, 82, 163, 0.1);
+  --color-danger: #c8473a;
+  --color-danger-soft: rgba(200, 71, 58, 0.09);
+  --color-success: #2f786c;
+  --color-success-soft: rgba(47, 120, 108, 0.1);
+  --color-warning: #a66b21;
+  --color-warning-soft: rgba(166, 107, 33, 0.1);
+  --color-warm: rgba(200, 71, 58, 0.1);
+  --radius-panel: 1.25rem;
+  --radius-card: 0.9rem;
   --radius-pill: 999px;
-  --shadow-soft: 0 18px 50px rgba(91, 109, 133, 0.08);
-  --shadow-strong: 0 28px 80px rgba(83, 98, 122, 0.12);
-  --focus-ring: 0 0 0 3px rgba(43, 109, 246, 0.2);
+  --shadow-soft: 0 12px 32px rgba(24, 33, 38, 0.06);
+  --shadow-strong: 0 20px 56px rgba(24, 33, 38, 0.1);
+  --focus-ring: 0 0 0 3px rgba(63, 82, 163, 0.22);
   --motion-fast: 160ms;
   --motion-base: 260ms;
   --motion-slow: 420ms;
@@ -44,9 +50,10 @@
 
 html {
   background:
-    radial-gradient(circle at top left, rgba(43, 109, 246, 0.12), transparent 28%),
-    radial-gradient(circle at 85% 0%, rgba(210, 155, 102, 0.16), transparent 24%),
-    linear-gradient(180deg, #f7fafe 0%, #eef4fb 44%, #ebf0f7 100%);
+    linear-gradient(rgba(24, 33, 38, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 33, 38, 0.025) 1px, transparent 1px),
+    var(--background);
+  background-size: 80px 80px;
   color: var(--foreground);
   color-scheme: light;
   scroll-behavior: smooth;
@@ -74,11 +81,9 @@ button {
 
 .surface {
   border: 1px solid var(--line-soft);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.68)),
-    linear-gradient(135deg, rgba(43, 109, 246, 0.03), rgba(255, 255, 255, 0));
+  background: var(--surface);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
 }
 
 .surface-strong {
@@ -121,7 +126,8 @@ button {
   border: 1px solid var(--line-soft);
   background: rgba(255, 255, 255, 0.66);
   color: var(--foreground-soft);
-  padding: 0.72rem 1rem;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.9rem;
   transition:
     border-color var(--motion-fast) ease,
     background-color var(--motion-fast) ease,
@@ -152,7 +158,7 @@ button {
 
 .ui-input,
 .ui-select {
-  min-height: 3rem;
+  min-height: 2.75rem;
   padding: 0.75rem 1rem;
 }
 
@@ -181,8 +187,11 @@ button {
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
-  border-radius: var(--radius-pill);
-  padding: 0.82rem 1.2rem;
+  min-height: 2.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.8rem;
+  padding: 0.68rem 1rem;
+  font-weight: 600;
   transition:
     transform var(--motion-fast) ease,
     background-color var(--motion-fast) ease,
@@ -192,14 +201,14 @@ button {
 }
 
 .ui-button-primary {
-  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
+  background: var(--color-accent);
   color: #f8fbff;
-  box-shadow: 0 16px 36px rgba(43, 109, 246, 0.22);
+  box-shadow: 0 8px 18px rgba(63, 82, 163, 0.18);
 }
 
 .ui-button-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 22px 42px rgba(43, 109, 246, 0.28);
+  background: var(--color-accent-strong);
+  box-shadow: 0 10px 22px rgba(63, 82, 163, 0.22);
 }
 
 .ui-button-secondary {
@@ -215,15 +224,182 @@ button {
 }
 
 .ui-button-danger {
-  border: 1px solid rgba(187, 61, 61, 0.16);
-  background: rgba(187, 61, 61, 0.06);
-  color: #9d2f37;
+  border-color: rgba(200, 71, 58, 0.2);
+  background: var(--color-danger-soft);
+  color: #a4342a;
 }
 
 .ui-button-danger:hover {
-  transform: translateY(-1px);
-  background: rgba(187, 61, 61, 0.1);
+  background: rgba(200, 71, 58, 0.15);
 }
+
+.ui-button-primary:focus-visible,
+.ui-button-secondary:focus-visible,
+.ui-button-danger:focus-visible,
+.ui-pill:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ui-button-primary:disabled,
+.ui-button-secondary:disabled,
+.ui-button-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+  box-shadow: none;
+}
+
+.ui-field-label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--foreground-soft);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.ui-field-help {
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.ui-status-spine {
+  position: relative;
+}
+
+.ui-status-spine::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.55rem;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--status-color, var(--line-strong));
+}
+
+.public-stage::after {
+  content: "TIANTI / ARCHIVE";
+  position: absolute;
+  right: -0.06em;
+  bottom: -0.2em;
+  color: rgba(63, 82, 163, 0.045);
+  font-family: var(--font-display-stack);
+  font-size: clamp(4.5rem, 13vw, 12rem);
+  line-height: 0.72;
+  letter-spacing: -0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: public-stage-drift 10s ease-in-out infinite alternate;
+}
+
+.public-display-title {
+  text-wrap: balance;
+  text-shadow: 0 18px 50px rgba(24, 33, 38, 0.08);
+}
+
+.public-card {
+  transform-style: preserve-3d;
+}
+
+.public-section-frame > div:first-child {
+  position: relative;
+}
+
+.public-section-frame > div:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: min(9rem, 36%);
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-accent), transparent);
+}
+
+@keyframes public-stage-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-1.5rem, -0.75rem, 0); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .public-card:hover {
+    will-change: transform;
+    transform: perspective(900px) translateY(-0.4rem) rotateX(1.2deg) rotateY(-0.8deg);
+  }
+}
+
+.admin-workspace {
+  min-height: calc(100dvh - 8.5rem);
+}
+
+.admin-editor-stage {
+  height: calc(100dvh - 6.75rem);
+  background:
+    linear-gradient(90deg, var(--color-accent) 0 3px, transparent 3px),
+    radial-gradient(circle at 92% 4%, rgba(63, 82, 163, 0.09), transparent 18rem),
+    var(--surface-strong);
+  box-shadow: 0 28px 80px rgba(24, 33, 38, 0.1);
+  transform-origin: 100% 50%;
+  animation: workspace-arrive 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes workspace-arrive {
+  from {
+    opacity: 0;
+    transform: translateX(1rem) scale(0.985);
+    clip-path: inset(0 0 0 12% round var(--radius-panel));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    clip-path: inset(0 0 0 0 round var(--radius-panel));
+  }
+}
+
+.admin-scroll-region {
+  max-height: calc(100dvh - 12rem);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.admin-workspace input:focus-visible,
+.admin-workspace select:focus-visible,
+.admin-workspace textarea:focus-visible,
+dialog input:focus-visible,
+dialog select:focus-visible,
+dialog textarea:focus-visible {
+  outline: none;
+  border-color: rgba(63, 82, 163, 0.42) !important;
+  box-shadow: var(--focus-ring);
+}
+
+.admin-workspace button,
+dialog button {
+  min-height: 2.5rem;
+}
+
+.admin-workspace input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.admin-workspace select,
+.admin-workspace textarea,
+dialog input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+dialog select,
+dialog textarea {
+  min-height: 2.75rem;
+}
+
+@media (max-width: 1023px) {
+  .admin-scroll-region {
+    max-height: min(52dvh, 34rem);
+  }
+
+  .admin-editor-stage {
+    height: min(78dvh, 52rem);
+  }
+}
+
 
 .ui-stat {
   border-radius: 1.35rem;

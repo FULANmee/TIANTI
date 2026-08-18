@@ -22,9 +22,9 @@ export default async function HomePage() {
     <PageShell className="pt-5 md:pt-6">
       <PublicReveal>
         <EditorialHero
-          eyebrow="Premium Public Archive"
+          eyebrow="深圳 · 人物与活动档案"
           title="TIANTI"
-          description="把达人、活动、公开档案与编辑视角编排成一条更清晰的浏览路径，让内容本身先被看见。"
+          description="查找你关注的达人，看看她们接下来会出现在哪里，也回到已经发生过的活动与现场记录。"
           actions={
             <>
               <Link href="/talents" data-testid="home-cta-talents" className="ui-button-primary text-sm">
@@ -42,7 +42,7 @@ export default async function HomePage() {
           aside={
             <div className="grid gap-4">
               <div className="surface rounded-[1.7rem] p-5">
-                <p className="ui-kicker">Highlights</p>
+                <p className="ui-kicker">档案速览</p>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                   <div className="ui-stat">
                     <p className="text-sm ui-muted">近期活动</p>
@@ -67,9 +67,9 @@ export default async function HomePage() {
         {homepage.futureEvents.length > 0 ? (
           <PublicReveal>
             <SectionFrame
-              eyebrow="Upcoming Events"
-              title="优先看到即将发生的活动"
-              description="按阵容规模优先浏览未来活动，把时间、城市、阵容与详情入口压缩到同一屏。"
+              eyebrow="近期通告"
+              title="接下来可以见到谁"
+              description="未来活动按阵容规模排列，时间、城市和已确认达人都在这里。"
               actions={
                 <Link href="/events?eventStatus=future&sort=lineupSize" className="ui-button-secondary text-sm">
                   查看全部活动
@@ -87,18 +87,18 @@ export default async function HomePage() {
 
         <PublicReveal>
           <SectionFrame
-            eyebrow="Featured Talents"
-            title="从重点人物进入内容脉络"
-            description="精选封面、最近维护与公开资料摘要，让首页更像内容入口，而不是功能说明页。"
+            eyebrow="人物索引"
+            title="近期更新的达人"
+            description="从人物进入她参与的活动、公开行程与已经收录的现场档案。"
             actions={
               <Link href="/talents" className="ui-button-secondary text-sm">
                 打开达人索引
               </Link>
             }
           >
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <div data-testid="home-talent-grid" className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
               {homepage.featuredTalents.map((talent, index) => (
-                <TalentCard key={talent.id} talent={talent} eagerImage={index === 0} />
+                <TalentCard key={talent.id} talent={talent} eagerImage={index < 6} />
               ))}
             </div>
           </SectionFrame>

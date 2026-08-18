@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
 import { formatDateRange } from "@/lib/date";
 import { getEventDisplayName } from "@/lib/event-display";
 import { getEventPath } from "@/lib/public-path";
@@ -11,17 +12,15 @@ export function EventCard({ item }: { item: EventSummary }) {
   return (
     <Link
       href={getEventPath(item.event)}
-      className="surface group grid gap-6 rounded-[2rem] p-6 transition duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-strong)] md:grid-cols-[0.78fr_1.22fr]"
+      className="public-card surface group grid gap-6 overflow-hidden rounded-[1.4rem] p-6 transition duration-300 hover:shadow-[var(--shadow-strong)] md:grid-cols-[0.78fr_1.22fr]"
     >
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] uppercase tracking-[0.22em] ui-muted">
-          <span>{item.event.city || "城市待定"}</span>
-          <span>{statusLabel}</span>
+          <span className="flex items-center gap-1.5"><MapPin aria-hidden="true" className="size-3.5" />{item.event.city || "城市待定"}</span>
+          <span className="flex items-center gap-1.5"><CalendarDays aria-hidden="true" className="size-3.5" />{statusLabel}</span>
         </div>
         <div className="space-y-3">
-          <h3 className="text-3xl tracking-[-0.04em] text-[var(--foreground)]">
-            {getEventDisplayName(item.event)}
-          </h3>
+          <div className="flex items-start justify-between gap-3"><h3 className="text-3xl tracking-[-0.04em] text-[var(--foreground)]">{getEventDisplayName(item.event)}</h3><ArrowUpRight aria-hidden="true" className="size-5 shrink-0 text-[var(--color-accent)] transition duration-300 group-hover:-translate-y-1 group-hover:translate-x-1" /></div>
           <div className="space-y-1 text-sm ui-subtle">
             <p>{formatDateRange(item.event.startsAt, item.event.endsAt)}</p>
             {item.event.venue ? <p>{item.event.venue}</p> : null}

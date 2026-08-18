@@ -329,8 +329,8 @@ function normalizeRepresentations(
 export async function saveAsset(payload: unknown) {
   const repository = getContentRepository();
   const input = assetSchema.parse(payload);
-  if ((!input.displayAspectWidth || !input.displayAspectHeight) && !isSupportedAssetDisplayRatio(input.kind, input)) {
-    throw new Error("图片比例仅支持 3:4 或 4:3。");
+  if (!isSupportedAssetDisplayRatio(input.kind, input)) {
+    throw new Error(input.kind === "talent_representation" ? "代表图仅支持竖版 3:4。" : "图片比例仅支持 3:4 或 4:3。");
   }
   const displayAspectWidth = input.displayAspectWidth ?? (input.width >= input.height ? 4 : 3);
   const displayAspectHeight = input.displayAspectHeight ?? (input.width >= input.height ? 3 : 4);

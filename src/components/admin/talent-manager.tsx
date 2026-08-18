@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
+import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import { AdminDialog } from "@/components/admin/admin-dialog";
 import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
 import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
@@ -74,6 +75,23 @@ function formatAdminSyncTime(value?: string | null) {
   }).format(new Date(value));
 }
 
+function formatFollowerCount(value?: number | null) {
+  if (value === null || value === undefined) return "未读取";
+  return new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function getSyncPresentation(
+  hasProfileLink: boolean,
+  status: TalentDouyinAdminStatus | null,
+  coolingDown: boolean
+) {
+  if (!hasProfileLink) return { label: "未绑定", color: "var(--foreground-muted)" };
+  if (!status?.lastSuccessAt && !status?.lastErrorCode) return { label: "待首次同步", color: "var(--color-warning)" };
+  if (status?.lastErrorCode) return { label: "同步异常", color: "var(--color-danger)" };
+  if (coolingDown) return { label: "冷却中", color: "var(--color-warning)" };
+  return { label: "同步正常", color: "var(--color-success)" };
+}
+
 function createRepresentationDraft(title = "", assetId = ""): RepresentationDraft {
   return {
     id: crypto.randomUUID(),
@@ -141,19 +159,31 @@ export function TalentManager({
   const [cleanupCandidateAssetIds, setCleanupCandidateAssetIds] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const [syncPending, startSyncTransition] = useTransition();
+  const [syncingTalentId, setSyncingTalentId] = useState<string | "all" | null>(null);
   const [syncClock, setSyncClock] = useState(() => Date.now());
   const [message, setMessage] = useState<string | null>(null);
   const [liveDouyinStatuses, setLiveDouyinStatuses] = useState(douyinStatuses);
   const [lastSyncRun, setLastSyncRun] = useState(initialLastSyncRun);
   const [lastSyncResults, setLastSyncResults] = useState(initialLastSyncResults);
   const [draggingRepresentationId, setDraggingRepresentationId] = useState<string | null>(null);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(() => talents.length > 0);
 
-  const selectedTalent = liveTalents.find((talent) => talent.id === selectedId) ?? null;
-  const selectedDouyinStatus = liveDouyinStatuses.find((status) => status.talentId === selectedId) ?? null;
+  const talentMap = useMemo(() => new Map(liveTalents.map((talent) => [talent.id, talent])), [liveTalents]);
+  const douyinStatusMap = useMemo(
+    () => new Map(liveDouyinStatuses.map((status) => [status.talentId, status])),
+    [liveDouyinStatuses]
+  );
+  const selectedTalent = selectedId ? talentMap.get(selectedId) ?? null : null;
+  const selectedDouyinStatus = selectedId ? douyinStatusMap.get(selectedId) ?? null : null;
+  const selectedDouyinLink = selectedTalent ? getPrimaryDouyinProfileLink(selectedTalent).link : null;
   const selectedSyncCoolingDown = Boolean(
     selectedDouyinStatus?.manualSyncAvailableAt &&
       Date.parse(selectedDouyinStatus.manualSyncAvailableAt) > syncClock
+  );
+  const selectedSyncPresentation = getSyncPresentation(
+    Boolean(selectedDouyinLink),
+    selectedDouyinStatus,
+    selectedSyncCoolingDown
   );
   const [draft, setDraft] = useState<TalentDraft>(() => createTalentDraft(selectedTalent));
   const persistedDraft = useMemo(() => createTalentDraft(selectedTalent), [selectedTalent]);
@@ -201,18 +231,28 @@ export function TalentManager({
   const hasSelectedTalents = selectedIds.length > 0;
 
   function openTalentEditor(id: string | null) {
-    const nextTalent = liveTalents.find((talent) => talent.id === id) ?? null;
+    if (id !== selectedId && hasUnsavedChanges && !window.confirm(UNSAVED_MESSAGE)) return;
+    const nextTalent = id ? talentMap.get(id) ?? null : null;
     setSelectedId(id);
     setDraft(createTalentDraft(nextTalent));
     setCleanupCandidateAssetIds([]);
     setDraggingRepresentationId(null);
     setMessage(null);
     setIsEditorOpen(true);
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('[data-testid="admin-editor-workspace"]')?.scrollIntoView({ block: "start" });
+      });
+    }
+  }
+
+  function inspectTalent(id: string) {
+    openTalentEditor(id);
   }
 
   function closeTalentEditor() {
     if (hasUnsavedChanges && !window.confirm(UNSAVED_MESSAGE)) return;
-    const nextTalent = liveTalents.find((talent) => talent.id === selectedId) ?? null;
+    const nextTalent = selectedId ? talentMap.get(selectedId) ?? null : null;
     setDraft(createTalentDraft(nextTalent));
     setCleanupCandidateAssetIds([]);
     setDraggingRepresentationId(null);
@@ -399,6 +439,7 @@ export function TalentManager({
     }
 
     setMessage(null);
+    setSyncingTalentId(talentId ?? "all");
     startSyncTransition(async () => {
       try {
         const response = await fetch(
@@ -421,6 +462,8 @@ export function TalentManager({
         );
       } catch {
         setMessage("无法连接抖音同步服务，请稍后重试。");
+      } finally {
+        setSyncingTalentId(null);
       }
     });
   }
@@ -468,45 +511,64 @@ export function TalentManager({
         .filter((item) => item.assetId || item.title)
     };
 
+    const previousDouyinProfileUrl = selectedTalent
+      ? getPrimaryDouyinProfileLink(selectedTalent).link?.url ?? null
+      : null;
+    const shouldSyncAfterSave = Boolean(
+      normalizedDouyinProfileUrl && normalizedDouyinProfileUrl !== previousDouyinProfileUrl
+    );
+
     startTransition(async () => {
-      const response = await fetch(draft.id ? `/api/admin/talents/${draft.id}` : "/api/admin/talents", {
-        method: draft.id ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const response = await fetch(draft.id ? `/api/admin/talents/${draft.id}` : "/api/admin/talents", {
+          method: draft.id ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
 
-      const data = (await response.json().catch(() => null)) as { error?: string; talent?: Talent } | null;
-      if (!response.ok || !data?.talent) {
-        setMessage(data?.error ?? "保存失败。");
-        return;
-      }
+        const data = (await response.json().catch(() => null)) as { error?: string; talent?: Talent } | null;
+        if (!response.ok || !data?.talent) {
+          setMessage(data?.error ?? "保存失败。");
+          return;
+        }
 
-      setLiveTalents((current) => {
+        setLiveTalents((current) => {
         const exists = current.some((talent) => talent.id === data.talent!.id);
         const next = exists
           ? current.map((talent) => (talent.id === data.talent!.id ? data.talent! : talent))
           : [...current, data.talent!];
         return sortTalents(next);
-      });
-      setSelectedId(data.talent.id);
-      setDraft(createTalentDraft(data.talent));
-      setCleanupCandidateAssetIds([]);
-      setIsEditorOpen(false);
-      if (normalizedDouyinProfileUrl) {
-        const syncResponse = await fetch(`/api/admin/talents/${data.talent.id}/douyin-sync`, { method: "POST" });
-        const syncData = (await syncResponse.json().catch(() => null)) as DouyinSyncResponse | null;
-        if (syncResponse.ok && syncData?.run && syncData.results) {
-          setLastSyncRun(syncData.run);
-          setLastSyncResults(syncData.results);
-          if (syncData.statuses) setLiveDouyinStatuses(syncData.statuses);
-          setMessage(`已保存达人「${data.talent.nickname}」，并完成抖音主页校验与同步。`);
-        } else {
-          setMessage(`已保存达人「${data.talent.nickname}」，但抖音同步暂未完成：${syncData?.error ?? "请稍后重试"}。`);
-        }
-      } else {
+        });
+        setSelectedId(data.talent.id);
+        setDraft(createTalentDraft(data.talent));
+        setCleanupCandidateAssetIds([]);
+        setIsEditorOpen(true);
         setMessage(`已保存达人「${data.talent.nickname}」。`);
+
+        if (shouldSyncAfterSave) {
+          setSyncingTalentId(data.talent.id);
+          const syncResponse = await fetch(`/api/admin/talents/${data.talent.id}/douyin-sync`, { method: "POST" });
+          const syncData = (await syncResponse.json().catch(() => null)) as DouyinSyncResponse | null;
+          if (syncResponse.ok && syncData?.run && syncData.results) {
+            setLastSyncRun(syncData.run);
+            setLastSyncResults(syncData.results);
+            if (syncData.statuses) setLiveDouyinStatuses(syncData.statuses);
+            const result = syncData.results.find((item) => item.talentId === data.talent!.id) ?? syncData.results[0];
+            setMessage(
+              result?.status === "succeeded"
+                ? `已保存达人「${data.talent.nickname}」，抖音资料同步成功。`
+                : `已保存达人「${data.talent.nickname}」；抖音同步${result?.status === "skipped" ? "已跳过" : "未完成"}：${result?.message ?? "请稍后重试"}。`
+            );
+          } else {
+            setMessage(`已保存达人「${data.talent.nickname}」，但抖音同步暂未完成：${syncData?.error ?? "请稍后重试"}。`);
+          }
+          setSyncingTalentId(null);
+        }
+      } catch {
+        setMessage("无法连接保存服务，请检查网络后重试。");
+        setSyncingTalentId(null);
       }
     });
   }
@@ -533,7 +595,7 @@ export function TalentManager({
       setSelectedId(nextSelectedTalent?.id ?? null);
       setDraft(createTalentDraft(nextSelectedTalent));
       setCleanupCandidateAssetIds([]);
-      setIsEditorOpen(false);
+      setIsEditorOpen(Boolean(nextSelectedTalent));
       setMessage(`已删除达人「${selectedTalent.nickname}」。`);
     });
   }
@@ -582,7 +644,7 @@ export function TalentManager({
       setSelectedId(nextSelectedTalent?.id ?? null);
       setDraft(createTalentDraft(nextSelectedTalent));
       if (selectedId && succeededIds.includes(selectedId)) {
-        setIsEditorOpen(false);
+        setIsEditorOpen(Boolean(nextSelectedTalent));
       }
 
       const blockedSummary =
@@ -597,431 +659,191 @@ export function TalentManager({
     <div
       data-testid="talent-manager"
       data-unsaved={hasUnsavedChanges ? "true" : "false"}
-      className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]"
+      className="admin-workspace grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]"
     >
-      <aside className="surface rounded-[1.8rem] p-5">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索达人"
-          className="w-full rounded-full border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-        />
-        <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/55">
-          <button
-            type="button"
-            data-testid="talent-select-all"
-            onClick={toggleAllFilteredTalents}
-            className="rounded-full border border-white/12 px-3 py-2 transition hover:border-white/25 hover:text-white"
-          >
-            {filteredTalents.length > 0 && filteredTalents.every((talent) => selectedIds.includes(talent.id))
-              ? "取消全选当前结果"
-              : "全选当前结果"}
-          </button>
-          <span className="rounded-full border border-white/8 px-3 py-2">
-            已选 {selectedIds.length} / {liveTalents.length}
-          </span>
-        </div>
-        <div className="mt-4 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
-          <p className="text-xs uppercase tracking-[0.25em] text-white/45">Bulk Actions</p>
-          <div className="mt-3 grid gap-3">
-            <button
-              type="button"
-              data-testid="bulk-delete-talents"
-              onClick={handleBulkDelete}
-              disabled={pending || !hasSelectedTalents}
-              className="rounded-full border border-[#b13b45]/45 px-4 py-2 text-sm text-[#5f0f18] disabled:opacity-50"
-            >
-              批量删除达人
+      <aside className="surface flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-panel)]">
+        <div className="space-y-3 border-b border-[var(--line-soft)] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="ui-kicker">对象索引</p>
+              <h1 className="mt-1 text-xl font-semibold">达人</h1>
+            </div>
+            <button type="button" data-testid="new-talent-button" onClick={() => openTalentEditor(null)} className="ui-button-primary text-sm">
+              <Plus aria-hidden="true" className="size-4" />
+              新建达人
             </button>
           </div>
+          <label className="ui-field-label">
+            <span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索达人</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="输入昵称、别名或简介"
+              className="ui-input text-sm"
+            />
+          </label>
+          <div className="flex items-center justify-between gap-3 text-xs ui-muted">
+            <span>{filteredTalents.length} 位达人</span>
+            <button type="button" data-testid="talent-select-all" onClick={toggleAllFilteredTalents} className="ui-button-secondary min-h-9 px-3 py-1 text-xs">
+              {filteredTalents.length > 0 && filteredTalents.every((talent) => selectedIds.includes(talent.id)) ? "取消全选" : "全选结果"}
+            </button>
+          </div>
+          {hasSelectedTalents ? (
+            <div className="flex items-center justify-between gap-3 rounded-[0.8rem] bg-[var(--color-danger-soft)] p-3 text-sm">
+              <span>已进入批量模式 · {selectedIds.length} 项</span>
+              <button type="button" data-testid="bulk-delete-talents" onClick={handleBulkDelete} disabled={pending} className="ui-button-danger min-h-9 px-3 py-1 text-xs">
+                <Trash2 aria-hidden="true" className="size-3.5" />
+                删除所选
+              </button>
+            </div>
+          ) : null}
         </div>
-        <div className="mt-5 space-y-3">
-          <button
-            type="button"
-            data-testid="new-talent-button"
-            onClick={() => openTalentEditor(null)}
-            className="w-full rounded-[1.2rem] border border-dashed border-white/15 px-4 py-4 text-left text-sm text-white/70 transition hover:border-white/30 hover:text-white"
-          >
-            + 新建达人
-          </button>
-          {filteredTalents.map((talent) => {
+
+        <div className="admin-scroll-region flex-1 space-y-1 overflow-y-auto p-2" data-testid="talent-index">
+          {filteredTalents.length ? filteredTalents.map((talent) => {
             const isChecked = selectedIds.includes(talent.id);
+            const profileLink = getPrimaryDouyinProfileLink(talent).link;
+            const status = douyinStatusMap.get(talent.id) ?? null;
+            const coolingDown = Boolean(status?.manualSyncAvailableAt && Date.parse(status.manualSyncAvailableAt) > syncClock);
+            const presentation = getSyncPresentation(Boolean(profileLink), status, coolingDown);
 
             return (
               <div
                 key={talent.id}
-                className={`flex items-start gap-3 rounded-[1.2rem] px-3 py-3 transition ${
-                  selectedId === talent.id ? "bg-white/10" : "bg-black/10 hover:bg-white/6"
-                }`}
+                className={`ui-status-spine grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[0.8rem] py-2 pl-3 pr-2 transition ${selectedId === talent.id ? "bg-[var(--color-accent-soft)]" : "hover:bg-[var(--surface-tint)]"}`}
+                style={{ "--status-color": presentation.color } as React.CSSProperties}
               >
-                <input
-                  type="checkbox"
-                  aria-label={`选择 ${talent.nickname}`}
-                  checked={isChecked}
-                  onChange={(event) => toggleSelectedTalent(talent.id, event.target.checked)}
-                  className="mt-1 size-4 rounded border-white/20 bg-black/30"
-                />
-                <button type="button" onClick={() => openTalentEditor(talent.id)} className="flex-1 text-left">
-                  <p className="text-lg text-white">{talent.nickname}</p>
+                <input type="checkbox" aria-label={`批量选择 ${talent.nickname}`} checked={isChecked} onChange={(event) => toggleSelectedTalent(talent.id, event.target.checked)} className="size-4 accent-[var(--color-accent)]" />
+                <button type="button" aria-pressed={selectedId === talent.id} onClick={() => inspectTalent(talent.id)} className="min-w-0 rounded-md px-2 py-1 text-left">
+                  <span className="block truncate text-sm font-semibold">{talent.nickname}</span>
+                  <span className="mt-0.5 block text-xs ui-muted">{presentation.label} · {formatAdminSyncTime(status?.lastSuccessAt)}</span>
                 </button>
               </div>
             );
-          })}
+          }) : (
+            <div className="px-4 py-10 text-center text-sm ui-muted">没有匹配的达人。清除搜索词后查看全部。</div>
+          )}
         </div>
       </aside>
 
-      <section className="space-y-6">
-        {message ? (
-          <div className="surface rounded-[1.4rem] px-5 py-4 text-sm text-[#5f3d00]">{message}</div>
-        ) : null}
-        <div className="surface rounded-[1.8rem] p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">Talent Workspace</p>
-              <h2 className="mt-3 text-3xl text-white">达人资料</h2>
-            </div>
-            <button
-              type="button"
-              data-testid="sync-all-douyin"
-              onClick={() => handleDouyinSync()}
-              disabled={syncPending}
-              className="ui-button-secondary px-5 py-2.5 text-sm disabled:opacity-50"
-            >
-              {syncPending ? "同步中..." : "立即同步全部抖音"}
-            </button>
-          </div>
-          <p className="mt-3 text-sm leading-7 text-white/60">
-            新增和编辑会在独立弹窗中完成；列表保持用于搜索、勾选和批量管理。
-          </p>
-          <div className="mt-5 rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/55">
-            {lastSyncRun ? (
-              <div className="space-y-2">
-                <p>
-                  最近同步：成功 {lastSyncRun.succeededCount} · 跳过 {lastSyncRun.skippedCount} · 失败 {lastSyncRun.failedCount}
-                </p>
-                <p className="text-xs text-white/40">{formatAdminSyncTime(lastSyncRun.finishedAt ?? lastSyncRun.startedAt)}</p>
-                {lastSyncResults.some((result) => result.status !== "succeeded") ? (
-                  <p className="text-xs text-white/45">
-                    {lastSyncResults
-                      .filter((result) => result.status !== "succeeded")
-                      .slice(0, 3)
-                      .map((result) => result.message)
-                      .join(" / ")}
-                  </p>
-                ) : null}
+      <section id="talent-inspector" className={`${isEditorOpen ? "hidden" : ""} min-w-0 scroll-mt-24 space-y-4 lg:sticky lg:top-[5.25rem] lg:self-start`} data-testid="talent-inspector">
+        {selectedTalent ? (
+          <div className="surface overflow-hidden rounded-[var(--radius-panel)]">
+            <div className="ui-status-spine flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line-soft)] px-6 py-5" style={{ "--status-color": selectedSyncPresentation.color } as React.CSSProperties}>
+              <div className="pl-2">
+                <p className="text-xs font-semibold tracking-[0.12em] ui-muted">详情检查器</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">{selectedTalent.nickname}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 ui-subtle">{selectedTalent.bio || "尚未填写达人简介。"}</p>
               </div>
-            ) : (
-              "还没有抖音同步记录。"
-            )}
-          </div>
-          <div className="mt-6 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
-            {selectedTalent ? (
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-lg text-white">{selectedTalent.nickname}</p>
-                  <p className="mt-2 text-xs text-white/45">
-                    抖音上次成功：{formatAdminSyncTime(selectedDouyinStatus?.lastSuccessAt)}
-                    {selectedDouyinStatus?.lastErrorCode
-                      ? ` · 最近错误 ${selectedDouyinStatus.lastErrorCode}`
-                      : ""}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    data-testid="sync-selected-douyin"
-                    onClick={() => handleDouyinSync(selectedTalent.id)}
-                    disabled={syncPending || selectedSyncCoolingDown}
-                    className="ui-button-secondary px-5 py-2.5 text-sm disabled:opacity-50"
-                  >
-                    {syncPending ? "同步中..." : selectedSyncCoolingDown ? "同步冷却中" : "立即同步抖音"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openTalentEditor(selectedTalent.id)}
-                    className="ui-button-secondary px-5 py-2.5 text-sm"
-                  >
-                    编辑达人
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <p className="text-sm text-white/60">当前没有选中的达人。</p>
-                <button
-                  type="button"
-                  onClick={() => openTalentEditor(null)}
-                  className="ui-button-secondary px-5 py-2.5 text-sm"
-                >
-                  新建达人
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => openTalentEditor(selectedTalent.id)} className="ui-button-primary text-sm"><Pencil aria-hidden="true" className="size-4" />编辑达人</button>
+                <button type="button" data-testid="sync-selected-douyin" onClick={() => handleDouyinSync(selectedTalent.id)} disabled={syncPending || selectedSyncCoolingDown || !selectedDouyinLink} className="ui-button-secondary text-sm">
+                  <RefreshCw aria-hidden="true" className={`size-4 ${syncingTalentId === selectedTalent.id ? "animate-spin" : ""}`} />
+                  {syncingTalentId === selectedTalent.id ? "正在同步" : selectedSyncCoolingDown ? "同步冷却中" : "立即同步抖音"}
                 </button>
               </div>
-            )}
+            </div>
+
+            <div className="grid gap-px bg-[var(--line-soft)] md:grid-cols-4">
+              {[
+                ["同步状态", selectedSyncPresentation.label],
+                ["粉丝", formatFollowerCount(selectedDouyinStatus?.followerCount)],
+                ["未来行程", `${selectedDouyinStatus?.activeScheduleCount ?? 0} 条`],
+                ["关联账号", `${selectedDouyinStatus?.relatedAccounts.length ?? 0} 个`]
+              ].map(([label, value]) => (
+                <div key={label} className="bg-[var(--surface-strong)] px-5 py-4">
+                  <p className="text-xs ui-muted">{label}</p>
+                  <p className="mt-1 font-mono text-sm font-semibold">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-5 p-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4">
+                <section className="rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold">抖音资料</h3>
+                      <p className="mt-1 text-xs ui-muted">上次成功：{formatAdminSyncTime(selectedDouyinStatus?.lastSuccessAt)}</p>
+                    </div>
+                    {selectedDouyinLink ? <a href={selectedDouyinLink.url} target="_blank" rel="noreferrer" className="ui-button-secondary min-h-9 px-3 py-1 text-xs">打开主页</a> : null}
+                  </div>
+                  {selectedDouyinStatus ? (
+                    <dl className="mt-4 grid gap-3 text-sm">
+                      <div><dt className="text-xs ui-muted">简介</dt><dd className="mt-1 leading-6">{selectedDouyinStatus.signature || "未读取"}</dd></div>
+                      <div><dt className="text-xs ui-muted">主页行程</dt><dd className="mt-1 whitespace-pre-line leading-6">{selectedDouyinStatus.itineraryText || "暂无可识别行程"}</dd></div>
+                      {selectedDouyinStatus.lastErrorCode ? <div className="rounded-[0.75rem] bg-[var(--color-danger-soft)] p-3 text-[#96362d]"><dt className="text-xs font-semibold">最近同步异常</dt><dd className="mt-1">{selectedDouyinStatus.lastErrorCode}</dd></div> : null}
+                    </dl>
+                  ) : <p className="mt-4 text-sm ui-muted">绑定抖音主页并完成首次同步后，这里会显示资料和行程。</p>}
+                </section>
+              </div>
+
+              <div className="space-y-4">
+                <section className="rounded-[0.9rem] border border-[var(--line-soft)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><h3 className="font-semibold">最近批量同步</h3><p className="mt-1 text-xs ui-muted">{lastSyncRun ? formatAdminSyncTime(lastSyncRun.finishedAt ?? lastSyncRun.startedAt) : "尚无记录"}</p></div>
+                    <button type="button" data-testid="sync-all-douyin" onClick={() => handleDouyinSync()} disabled={syncPending} className="ui-button-secondary min-h-9 px-3 py-1 text-xs">{syncingTalentId === "all" ? "同步中" : "同步全部"}</button>
+                  </div>
+                  {lastSyncRun ? <p className="mt-3 text-sm">成功 {lastSyncRun.succeededCount} · 跳过 {lastSyncRun.skippedCount} · 失败 {lastSyncRun.failedCount}</p> : null}
+                  {lastSyncResults.some((result) => result.status !== "succeeded") ? (
+                    <ul className="mt-3 space-y-2 text-xs ui-subtle">
+                      {lastSyncResults.filter((result) => result.status !== "succeeded").slice(0, 5).map((result) => {
+                        const talentName = result.talentId ? talentMap.get(result.talentId)?.nickname ?? "未知达人" : "未知达人";
+                        return <li key={result.id} className="rounded-[0.7rem] bg-[var(--color-danger-soft)] p-2"><strong>{talentName}</strong>：{result.message}</li>;
+                      })}
+                    </ul>
+                  ) : null}
+                </section>
+                <section className="rounded-[0.9rem] border border-[var(--line-soft)] p-4">
+                  <h3 className="font-semibold">关联账号</h3>
+                  {selectedDouyinStatus?.relatedAccounts.length ? <ul className="mt-3 space-y-2 text-sm">{selectedDouyinStatus.relatedAccounts.map((account) => <li key={account.url}><a href={account.url} target="_blank" rel="noreferrer" className="text-[var(--color-accent)] hover:underline">{account.nickname}</a></li>)}</ul> : <p className="mt-3 text-sm ui-muted">暂无关联账号。</p>}
+                </section>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="surface rounded-[var(--radius-panel)] px-6 py-16 text-center"><h2 className="text-xl font-semibold">选择一位达人</h2><p className="mt-2 text-sm ui-muted">从左侧对象索引选择达人，详情会保持在当前视口。</p></div>
+        )}
       </section>
 
       {isEditorOpen ? (
         <AdminDialog
           title={selectedTalent ? `编辑 ${selectedTalent.nickname}` : "新建达人"}
-          description="只有昵称必填；保存成功后弹窗会自动关闭，并同步左侧列表。"
+          description="保存与抖音同步分开反馈；只有主页新增或变更时才自动同步。"
           onClose={closeTalentEditor}
+          presentation="workspace"
           size="xl"
-          footer={<span className="text-xs leading-6 ui-muted">别名支持中英文逗号分隔。</span>}
+          closable={false}
+          footer={<button type="button" disabled={pending || Boolean(duplicateNicknameTalent)} data-testid="save-talent" onClick={handleSave} className="ui-button-primary text-sm"><Save aria-hidden="true" className="size-4" />{pending ? "保存中" : "保存更改"}</button>}
         >
-          <section className="space-y-6">
-            <div className="space-y-5">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">Talent Editor</p>
-              <h2 className="mt-3 text-3xl text-white">
-                {selectedTalent ? `编辑 ${selectedTalent.nickname}` : "新建达人"}
-              </h2>
-            </div>
-            {selectedTalent ? (
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="rounded-full border border-[#b13b45]/55 px-4 py-2 text-sm text-[#5f0f18]"
-              >
-                删除
-              </button>
-            ) : null}
+          <div className="space-y-6">
+            {selectedTalent ? <section className="ui-status-spine grid gap-3 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4 pl-5 md:grid-cols-[1fr_auto]" style={{ "--status-color": selectedSyncPresentation.color } as React.CSSProperties}><div><p className="text-sm font-semibold">抖音同步 · {selectedSyncPresentation.label}</p><p className="mt-1 text-xs ui-muted">上次成功：{formatAdminSyncTime(selectedDouyinStatus?.lastSuccessAt)} · 粉丝 {formatFollowerCount(selectedDouyinStatus?.followerCount)} · 行程 {selectedDouyinStatus?.activeScheduleCount ?? 0} 条</p></div><button type="button" data-testid="sync-selected-douyin-editor" onClick={() => handleDouyinSync(selectedTalent.id)} disabled={syncPending || selectedSyncCoolingDown || !selectedDouyinLink} className="ui-button-secondary text-sm"><RefreshCw aria-hidden="true" className={`size-4 ${syncingTalentId === selectedTalent.id ? "animate-spin" : ""}`} />{syncingTalentId === selectedTalent.id ? "正在同步" : selectedSyncCoolingDown ? "同步冷却中" : "立即同步"}</button></section> : null}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between gap-4"><div><p className="ui-kicker">基本资料</p><p className="mt-1 text-sm ui-muted">昵称必填，其他字段可留空。</p></div>{selectedTalent ? <button type="button" onClick={handleDelete} className="ui-button-danger text-sm"><Trash2 aria-hidden="true" className="size-4" />删除达人</button> : null}</div>
+              <label className="ui-field-label"><span>昵称 <span className="text-[var(--color-danger)]">*</span></span><input name="nickname" value={draft.nickname} onChange={(event) => setDraft((current) => ({ ...current, nickname: event.target.value }))} className="ui-input" /></label>
+              {duplicateNicknameTalent ? <p role="alert" className="text-sm text-[var(--color-danger)]">已存在同名达人“{duplicateNicknameTalent.nickname}”，请更换昵称。</p> : null}
+              <label className="ui-field-label"><span>简介</span><textarea name="bio" value={draft.bio} onChange={(event) => setDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="ui-textarea" /></label>
+              <label className="ui-field-label"><span>别名 / 英文名</span><input name="aliases" value={draft.aliases} onChange={(event) => setDraft((current) => ({ ...current, aliases: event.target.value }))} className="ui-input" /><span className="ui-field-help">支持中英文逗号分隔。</span></label>
+            </section>
+
+            <section className="space-y-4 border-t border-[var(--line-soft)] pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="ui-kicker">抖音资料</p><p className="mt-1 text-sm ui-muted">粘贴主页链接或完整分享文案。</p></div><button type="button" data-testid="open-douyin-search" onClick={openDouyinSearch} disabled={!draft.nickname.trim()} className="ui-button-secondary text-sm">打开抖音搜索</button></div>
+              <label className="ui-field-label"><span>抖音主页</span><textarea name="douyinProfileUrl" value={draft.douyinProfileUrl} onChange={(event) => setDraft((current) => ({ ...current, douyinProfileUrl: event.target.value }))} rows={2} className="ui-textarea" /><span className="ui-field-help">清空后会停止公开展示历史同步资料，但保留历史用于恢复。</span></label>
+            </section>
+
+            <section className="space-y-4 border-t border-[var(--line-soft)] pt-6"><div><p className="ui-kicker">封面图片</p><p className="mt-1 text-sm ui-muted">替换、重新取景或清空当前图片。</p></div><InlineAssetUpload kind="talent_cover" dataTestId="talent-cover-upload" currentAsset={draft.coverAssetId ? (assetMap.get(draft.coverAssetId) ?? null) : null} onClear={handleClearCover} onUploaded={handleCoverUploaded} /></section>
+
+            <section className="space-y-4 border-t border-[var(--line-soft)] pt-6">
+              <div className="flex items-center justify-between gap-3"><div><p className="ui-kicker">平台链接</p><p className="mt-1 text-sm ui-muted">抖音主页在上一分区维护。</p></div><button type="button" onClick={addLinkRow} className="ui-button-secondary text-sm"><Plus aria-hidden="true" className="size-4" />添加链接</button></div>
+              {draft.links.length ? draft.links.map((link, index) => <div key={link.id} className="grid gap-3 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-3 md:grid-cols-[0.8fr_1.5fr_auto]"><label className="ui-field-label"><span>平台名称</span><input value={link.label} onChange={(event) => updateLink(index, { label: event.target.value })} className="ui-input" /></label><label className="ui-field-label"><span>链接</span><input value={link.url} onChange={(event) => updateLink(index, { url: event.target.value })} placeholder="https://" className="ui-input" /></label><button type="button" onClick={() => removeLinkRow(index)} className="ui-button-danger self-end text-sm">删除</button></div>) : <p className="rounded-[0.9rem] border border-dashed border-[var(--line-strong)] p-4 text-sm ui-muted">尚未添加其他平台链接。</p>}
+            </section>
+
+            <section className="space-y-4 border-t border-[var(--line-soft)] pt-6">
+              <div className="flex items-center justify-between gap-3"><div><p className="ui-kicker">代表图</p><p className="mt-1 text-sm ui-muted">可拖拽，也可使用上下移动按钮调整顺序。</p></div><button type="button" onClick={addRepresentationRow} className="ui-button-secondary text-sm"><Plus aria-hidden="true" className="size-4" />添加代表图</button></div>
+              {draft.representations.length ? <div className="space-y-4" onDragOver={(event) => event.preventDefault()} onDrop={handleRepresentationDropToEnd}>{draft.representations.map((representation, index) => <div key={representation.id} data-testid={`representation-row-${index}`} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); handleRepresentationDrop(representation.id); }} className="rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4"><div data-testid={`representation-drop-${index}`} className="sr-only" /><div className="grid gap-3 md:grid-cols-[auto_1fr_auto]"><div data-testid={`representation-handle-${index}`} draggable onDragStart={(event) => { event.dataTransfer.setData("text/plain", representation.id); event.dataTransfer.effectAllowed = "move"; setDraggingRepresentationId(representation.id); }} onDragEnd={() => setDraggingRepresentationId(null)} className="flex min-h-11 cursor-grab items-center gap-2 rounded-[0.8rem] border border-[var(--line-strong)] px-3 text-xs ui-muted"><GripVertical aria-hidden="true" className="size-4" />拖动</div><label className="ui-field-label"><span>图片标题</span><input data-testid={`representation-title-${index}`} value={representation.title} onChange={(event) => updateRepresentation(index, { title: event.target.value })} className="ui-input" /></label><div className="flex items-end gap-2"><button type="button" aria-label={`上移代表图 ${index + 1}`} onClick={() => moveRepresentation(representation.id, index - 1)} disabled={index === 0} className="ui-button-secondary px-3"><ArrowUp aria-hidden="true" className="size-4" /></button><button type="button" aria-label={`下移代表图 ${index + 1}`} onClick={() => moveRepresentation(representation.id, index + 1)} disabled={index === draft.representations.length - 1} className="ui-button-secondary px-3"><ArrowDown aria-hidden="true" className="size-4" /></button><button type="button" onClick={() => removeRepresentationRow(index)} className="ui-button-danger text-sm"><Trash2 aria-hidden="true" className="size-4" />删除</button></div></div><div className="mt-3"><InlineAssetUpload kind="talent_representation" dataTestId={`talent-representation-upload-${index}`} currentAsset={representation.assetId ? (assetMap.get(representation.assetId) ?? null) : null} onClear={() => handleClearRepresentation(index)} onUploaded={(asset) => handleRepresentationUploaded(index, asset)} /></div></div>)}</div> : <p className="rounded-[0.9rem] border border-dashed border-[var(--line-strong)] p-4 text-sm ui-muted">当前没有代表图。</p>}
+            </section>
+            {message ? <p role="status" className="rounded-[0.8rem] bg-[var(--color-warning-soft)] p-3 text-sm">{message}</p> : null}
           </div>
-
-          <div className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <input
-                name="nickname"
-                value={draft.nickname}
-                onChange={(event) => setDraft((current) => ({ ...current, nickname: event.target.value }))}
-                placeholder="昵称"
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
-              {duplicateNicknameTalent ? (
-                <p className="text-xs text-[#b13b45] md:col-span-2">
-                  已存在同名达人“{duplicateNicknameTalent.nickname}”，建议更换昵称后再保存。
-                </p>
-              ) : null}
-            </div>
-
-            <div className="space-y-3 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white">抖音主页</p>
-                  <p className="mt-1 text-xs text-white/45">先打开抖音搜索，进入达人主页后复制链接回来。</p>
-                </div>
-                <button
-                  type="button"
-                  data-testid="open-douyin-search"
-                  onClick={openDouyinSearch}
-                  disabled={!draft.nickname.trim()}
-                  className="rounded-full border border-white/12 px-3 py-2 text-xs text-white/72 disabled:opacity-40"
-                >
-                  打开抖音搜索
-                </button>
-              </div>
-              <textarea
-                name="douyinProfileUrl"
-                value={draft.douyinProfileUrl}
-                onChange={(event) => setDraft((current) => ({ ...current, douyinProfileUrl: event.target.value }))}
-                placeholder="粘贴主页链接或完整分享文案"
-                rows={2}
-                className="w-full rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
-            </div>
-
-            <textarea
-              name="bio"
-              value={draft.bio}
-              onChange={(event) => setDraft((current) => ({ ...current, bio: event.target.value }))}
-              placeholder="简介"
-              rows={4}
-              className="w-full rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-            />
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <input
-                name="aliases"
-                value={draft.aliases}
-                onChange={(event) => setDraft((current) => ({ ...current, aliases: event.target.value }))}
-                placeholder="别名 / 英文名，支持中英文逗号分隔"
-                className="rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-              />
-            </div>
-
-            <div className="space-y-3 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white">封面图片</p>
-                  <p className="mt-1 text-xs text-white/45">当前图片可直接替换或清空，不再从素材池手动选择。</p>
-                </div>
-                <InlineAssetUpload
-                  kind="talent_cover"
-                  dataTestId="talent-cover-upload"
-                  currentAsset={draft.coverAssetId ? (assetMap.get(draft.coverAssetId) ?? null) : null}
-                  onClear={handleClearCover}
-                  onUploaded={handleCoverUploaded}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white">平台链接</p>
-                  <p className="mt-1 text-xs text-white/45">一个框填名称，一个框填链接。空行会自动忽略。</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={addLinkRow}
-                  className="rounded-full border border-white/12 px-3 py-2 text-xs text-white/72"
-                >
-                  + 添加链接
-                </button>
-              </div>
-
-              {draft.links.length > 0 ? (
-                <div className="space-y-3">
-                  {draft.links.map((link, index) => (
-                    <div
-                      key={link.id}
-                      className="grid gap-3 rounded-[1.1rem] border border-white/10 bg-black/20 p-3 md:grid-cols-[0.9fr_1.5fr_auto]"
-                    >
-                      <input
-                        value={link.label}
-                        onChange={(event) => updateLink(index, { label: event.target.value })}
-                        placeholder="平台名称"
-                        className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
-                      />
-                      <input
-                        value={link.url}
-                        onChange={(event) => updateLink(index, { url: event.target.value })}
-                        placeholder="https://"
-                        className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeLinkRow(index)}
-                        className="rounded-[1rem] border border-[#b13b45]/45 px-3 py-2 text-sm text-[#5f0f18]"
-                      >
-                        删除
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-[1.1rem] border border-dashed border-white/10 px-4 py-4 text-sm text-white/55">
-                  还没有平台链接。
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4 rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-white">代表图</p>
-                  <p className="mt-1 text-xs text-white/45">代表图现在允许为空；不需要时可以删到 0 项。</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={addRepresentationRow}
-                  className="rounded-full border border-white/12 px-3 py-2 text-xs text-white/72"
-                >
-                  + 添加代表图
-                </button>
-              </div>
-
-              {draft.representations.length > 0 ? (
-                <div className="space-y-4" onDragOver={(event) => event.preventDefault()} onDrop={handleRepresentationDropToEnd}>
-                  {draft.representations.map((representation, index) => (
-                    <div
-                      key={representation.id}
-                      data-testid={`representation-row-${index}`}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleRepresentationDrop(representation.id);
-                      }}
-                      className="rounded-[1.2rem] border border-white/10 bg-black/20 p-4"
-                    >
-                      <div
-                        data-testid={`representation-drop-${index}`}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleRepresentationDrop(representation.id);
-                        }}
-                        className="mb-3 h-3 rounded-full border border-dashed border-white/10 bg-black/15"
-                      />
-                      <div className="grid gap-3 md:grid-cols-[auto_1fr_auto]">
-                        <div
-                          data-testid={`representation-handle-${index}`}
-                          draggable
-                          onDragStart={(event) => {
-                            event.dataTransfer.setData("text/plain", representation.id);
-                            event.dataTransfer.effectAllowed = "move";
-                            setDraggingRepresentationId(representation.id);
-                          }}
-                          onDragEnd={() => setDraggingRepresentationId(null)}
-                          className="flex min-h-10 cursor-grab items-center rounded-[1rem] border border-white/10 bg-black/25 px-3 text-xs uppercase tracking-[0.2em] text-white/55"
-                        >
-                          拖动
-                        </div>
-                        <input
-                          data-testid={`representation-title-${index}`}
-                          value={representation.title}
-                          onChange={(event) => updateRepresentation(index, { title: event.target.value })}
-                          placeholder="代表图标题"
-                          className="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeRepresentationRow(index)}
-                          className="rounded-[1rem] border border-[#b13b45]/45 px-3 py-2 text-sm text-[#5f0f18]"
-                        >
-                          删除
-                        </button>
-                      </div>
-                      <div className="mt-3">
-                        <InlineAssetUpload
-                          kind="talent_representation"
-                          dataTestId={`talent-representation-upload-${index}`}
-                          currentAsset={representation.assetId ? (assetMap.get(representation.assetId) ?? null) : null}
-                          onClear={() => handleClearRepresentation(index)}
-                          onUploaded={(asset) => handleRepresentationUploaded(index, asset)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-[1.1rem] border border-dashed border-white/10 px-4 py-4 text-sm text-white/55">
-                  当前没有代表图。
-                </div>
-              )}
-            </div>
-
-            {message ? <p className="text-sm text-[#5f3d00]">{message}</p> : null}
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-xs leading-6 text-white/45">
-                只有昵称必填，其他字段都可以留空；别名支持中英文逗号分隔。
-              </p>
-              <button
-                type="button"
-                disabled={pending || Boolean(duplicateNicknameTalent)}
-                data-testid="save-talent"
-                onClick={handleSave}
-                className="rounded-full bg-[var(--color-accent)] px-5 py-3 text-sm uppercase tracking-[0.25em] text-black disabled:opacity-60"
-              >
-                {pending ? "保存中..." : "保存并公开"}
-              </button>
-            </div>
-          </div>
-            </div>
-          </section>
         </AdminDialog>
       ) : null}
     </div>

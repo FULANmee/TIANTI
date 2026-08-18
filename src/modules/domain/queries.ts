@@ -13,7 +13,7 @@ import {
 import { compareByPinyin } from "@/lib/pinyin";
 import { matchesPublicIdentifier } from "@/lib/public-path";
 import { getEventDisplayName } from "@/lib/event-display";
-import { isSafeDouyinRelatedAccountUrl } from "@/modules/douyin/profile-link";
+import { getPrimaryDouyinProfileLink, isSafeDouyinRelatedAccountUrl } from "@/modules/douyin/profile-link";
 import type {
   Asset,
   ArchiveEntry,
@@ -879,9 +879,10 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
 
   const futureEvents = buildTalentFutureTimelineItems(state, talent.id);
   const pastEvents = buildTalentPastTimelineItems(state, talent.id);
-  const douyinProfile = state.douyinProfiles.find(
-    (profile) => profile.talentId === talent.id && profile.lastSuccessAt
-  );
+  const hasBoundDouyinProfile = Boolean(getPrimaryDouyinProfileLink(talent).link);
+  const douyinProfile = hasBoundDouyinProfile
+    ? state.douyinProfiles.find((profile) => profile.talentId === talent.id && profile.lastSuccessAt)
+    : null;
 
   const archiveHits = state.archives.flatMap((archive) =>
     archive.entries.filter((entry) => entry.talentId === talent.id).map(() => archive.eventId)

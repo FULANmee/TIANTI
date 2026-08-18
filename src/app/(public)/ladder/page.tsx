@@ -42,6 +42,7 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
   return (
     <PageShell>
       <SectionFrame
+        headingLevel="h1"
         eyebrow="Curated Ranking"
         title="公开排序并不是唯一答案，而是一种编辑视角"
         description="每位编辑维护自己的梯度和排序。公开页只负责让这些视角更清晰地被浏览。"
@@ -68,7 +69,7 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
 
         {data ? (
           <>
-            <section className="surface rounded-[2rem] p-6 md:p-7">
+            <section className="public-stage surface overflow-hidden rounded-[2rem] p-6 md:p-7">
               <div className="grid gap-6 md:grid-cols-[1.1fr_0.9fr]">
                 <div className="space-y-3">
                   <h1 className="text-4xl tracking-[-0.04em] text-[var(--foreground)] md:text-5xl">
@@ -113,7 +114,7 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                     <p className="text-sm ui-subtle">{tier.talents.length} 位达人</p>
                   </div>
                   {tier.talents.length > 0 ? (
-                    <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+                    <div data-testid="ladder-tier-grid" className="mt-6 grid gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
                       {tier.talents.map(({ talent, cover }, talentIndex) => (
                         <Link
                           key={talent.id}
@@ -128,7 +129,8 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                             {cover ? (
                               <FramedImage
                                 asset={cover}
-                                sizes="(min-width: 1536px) 14vw, (min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw"
+                                eager={index === 0 && talentIndex === 0}
+                                sizes="(min-width: 1280px) 12.5vw, (min-width: 768px) 25vw, 50vw"
                               />
                             ) : (
                               <div className="absolute inset-0 bg-transparent" />
