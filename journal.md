@@ -65,3 +65,9 @@
 - Changed: 建立“舞台通告 × 人物档案盒”语义 token 与控件基线；后台使用独立滚动对象索引，单击达人或活动后右侧直接显示可编辑详情，不再经过只读详情或主编辑弹窗；活动信息、阵容与现场档案合并为一个入口、连续工作面和统一保存动作；移除天梯梯度里的达人下拉与排序按钮，代表图同时支持拖拽和 Lucide 上下移动按钮，并统一为竖版 3:4 非破坏性取景；补全抖音状态投影、保存与同步阶段、解除主页后的公开隐藏规则；公开站统一使用 Lucide、超尺度宋体、档案水印、状态索引脊和透视卡片，除天梯宽屏 8 列外，首页达人、达人索引、代表图、现场记录、活动阵容和活动档案画廊均统一为宽屏 6 列。
 - Verified: ESLint、TypeScript、153 项 Vitest、生产构建与 30 项 Playwright 场景全部通过；公开站和后台在桌面 1440×1000、移动端 390×844 完成浏览器视觉复查，控制台无错误。
 - Specs: [界面与交互规范](./docs/spec/ui-ux.md)、[达人与素材行为](./docs/spec/talents-and-assets.md)、[ADR 0002](./docs/spec/adr/0002-admin-index-and-inspector.md)、[领域词汇](./docs/spec/glossary.md)
+
+## 2026-08-18 — 恢复 Production 抖音同步
+
+- Root cause: Production 缺少抖音同步开关、Web 与 Python Service 的共享密钥及 Cron 密钥，后台同步请求因此返回 503。
+- Changed: 为 Production 补齐并安全轮换 Sensitive 密钥，启用同步并保留浏览器后备关闭、并发 2、冷却 10 分钟和请求超时等保守配置；基于当前正式提交重新部署。
+- Verified: `douyin_scraper` 健康检查返回 200；真实全量同步处理 74 位达人，59 位成功、15 位按规则跳过、0 位失败；部署后 Serverless error/warning 扫描为空。
