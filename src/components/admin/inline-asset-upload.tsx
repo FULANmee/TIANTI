@@ -21,6 +21,8 @@ interface InlineAssetUploadProps {
   emptyLabel?: string;
   helperText?: string;
   dataTestId?: string;
+  expandInParentGrid?: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }
 
 interface CropSession {
@@ -178,7 +180,9 @@ export function InlineAssetUpload({
   clearButtonLabel = "清空当前图片",
   emptyLabel = "当前未上传图片",
   helperText,
-  dataTestId
+  dataTestId,
+  expandInParentGrid = false,
+  onEditingChange
 }: InlineAssetUploadProps) {
   const defaultPreset = useMemo(() => ASSET_DISPLAY_PRESETS[kind], [kind]);
   const uploadPresets = useMemo(() => ASSET_UPLOAD_PRESET_OPTIONS[kind], [kind]);
@@ -201,6 +205,10 @@ export function InlineAssetUpload({
   const [offset, setOffset] = useState<CropOffset>({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [selectedRatioLabel, setSelectedRatioLabel] = useState(defaultPreset.ratioLabel);
+
+  useEffect(() => {
+    onEditingChange?.(Boolean(cropSession));
+  }, [cropSession, onEditingChange]);
 
   const selectedPreset = useMemo(
     () => uploadPresets.find((preset) => preset.ratioLabel === selectedRatioLabel) ?? defaultPreset,
@@ -626,7 +634,7 @@ export function InlineAssetUpload({
   }
 
   return (
-    <>
+    <div className={`min-w-0 ${expandInParentGrid && cropSession ? "md:col-span-2" : ""}`}>
       <div
         ref={uploadSurfaceRef}
         data-testid={dataTestId ? `${dataTestId}-surface` : undefined}
@@ -642,7 +650,7 @@ export function InlineAssetUpload({
         onDrop={handleDrop}
         onPaste={handlePaste}
       >
-        <div className="w-full max-w-xs overflow-hidden rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)]">
+        <div className="w-full max-w-[10rem] overflow-hidden rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)]">
           <div className="relative" style={{ aspectRatio: previewPreset.aspectStyle }}>
             {currentAsset ? (
               <FramedImage asset={currentAsset} sizes="20rem" />
@@ -704,8 +712,7 @@ export function InlineAssetUpload({
       </div>
 
       {cropSession ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[rgba(24,33,38,0.42)] px-3 py-3 backdrop-blur-sm md:px-4 md:py-6">
-          <div ref={cropDialogRef} role="dialog" aria-modal="true" aria-label="图片取景" tabIndex={-1} className="surface my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-[1.25rem] p-4 shadow-[0_24px_80px_rgba(24,33,47,0.18)] outline-none md:max-h-[calc(100dvh-3rem)] md:p-6">
+        <section ref={cropDialogRef} aria-label="图片取景" tabIndex={-1} className="asset-crop-editor surface mt-4 w-full rounded-[1.25rem] p-4 outline-none md:p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-accent)]">Crop Before Upload</p>
@@ -726,14 +733,14 @@ export function InlineAssetUpload({
               </button>
             </div>
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="surface-strong rounded-[1.6rem] p-4">
+            <div className="asset-crop-layout mt-4 grid grid-cols-1 gap-4">
+              <div className="surface-strong rounded-[1.2rem] p-3">
                 <div
                   ref={cropFrameRef}
                   data-testid={dataTestId ? `${dataTestId}-crop-frame` : undefined}
                   tabIndex={0}
                   aria-label="取景画布，可使用方向键移动图片"
-                  className="relative mx-auto w-full max-w-[25rem] overflow-hidden rounded-[1.35rem] border border-[var(--line-soft)] bg-white/80 touch-none"
+                  className="relative mx-auto w-full max-w-[14rem] overflow-hidden rounded-[1rem] border border-[var(--line-soft)] bg-white/80 touch-none"
                   style={{ aspectRatio: preset.aspectStyle }}
                   onPointerDown={handleCropPointerDown}
                   onPointerMove={handleCropPointerMove}
@@ -776,7 +783,7 @@ export function InlineAssetUpload({
                 </div>
               </div>
 
-              <div className="surface-strong space-y-5 rounded-[1.6rem] p-5">
+              <div className="surface-strong space-y-4 rounded-[1.2rem] p-4">
                 <div>
                   <p className="text-sm text-[var(--foreground)]">比例</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -857,9 +864,8 @@ export function InlineAssetUpload({
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+        </section>
       ) : null}
-    </>
+    </div>
   );
 }

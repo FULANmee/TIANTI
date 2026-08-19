@@ -266,6 +266,7 @@ export const mockRepository: ContentRepository = {
       });
 
       state.douyinProfiles = structuredClone(input.profiles);
+      state.douyinFollowerSnapshots.push(...structuredClone(input.followerSnapshots));
       state.douyinRelatedAccounts = structuredClone(input.relatedAccounts);
       state.douyinScheduleEntries = scheduleEntries;
       const nextMergeRules = [...state.eventMergeRules];

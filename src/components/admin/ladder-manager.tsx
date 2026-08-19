@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Save, Search, Trash2 } from "lucide-react";
 import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
 import { normalizeLadderDraft } from "@/components/admin/ladder-manager-utils";
 import { StatusNotice } from "@/components/ui/status-notice";
+import { matchesPinyinSearch } from "@/lib/pinyin";
 import type { EditorLadder, Talent } from "@/modules/domain/types";
 
 interface LadderManagerProps {
@@ -36,6 +37,7 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
   const [dragging, setDragging] = useState<{ talentId: string; fromTierId: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<{ text: string; variant: "error" | "success" } | null>(null);
+  const [talentQuery, setTalentQuery] = useState("");
   const hasUnsavedChanges =
     JSON.stringify(normalizeLadderDraft(draft)) !== JSON.stringify(normalizeLadderDraft(persistedLadder));
 
@@ -47,8 +49,8 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
   const talentMap = useMemo(() => new Map(talents.map((talent) => [talent.id, talent])), [talents]);
   const assignedTalentIds = useMemo(() => new Set(draft.tiers.flatMap((tier) => tier.talentIds)), [draft.tiers]);
   const unassignedTalents = useMemo(
-    () => talents.filter((talent) => !assignedTalentIds.has(talent.id)).sort(compareTalentsByNickname),
-    [assignedTalentIds, talents]
+    () => talents.filter((talent) => !assignedTalentIds.has(talent.id) && matchesPinyinSearch([talent.nickname, ...talent.aliases, ...talent.searchKeywords], talentQuery)).sort(compareTalentsByNickname),
+    [assignedTalentIds, talentQuery, talents]
   );
 
   function updateTierName(tierId: string, name: string) {
@@ -193,6 +195,7 @@ export function LadderManager({ ladder, talents, editorName }: LadderManagerProp
             <h2 className="mt-3 text-2xl text-[var(--foreground)]">未入榜达人</h2>
           </div>
         </div>
+        <label className="ui-field-label mt-4"><span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索达人</span><input value={talentQuery} onChange={(event) => setTalentQuery(event.target.value)} placeholder="中文、拼音或首字母" className="ui-input text-sm" /></label>
         <div
           className="mt-5 flex min-h-24 flex-wrap gap-3 rounded-[1.2rem] border border-dashed border-[var(--line-strong)] bg-[rgba(248,251,255,0.82)] p-4"
           onDragOver={(event) => event.preventDefault()}

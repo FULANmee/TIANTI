@@ -75,6 +75,8 @@ describe("Douyin profile synchronization", () => {
 
     const state = getMockState();
     expect(state.douyinProfiles).toHaveLength(2);
+    expect(state.douyinFollowerSnapshots).toHaveLength(2);
+    expect(state.douyinFollowerSnapshots.map((snapshot) => snapshot.followerCount).sort((a, b) => a - b)).toEqual([88_000, 126_438]);
     expect(state.douyinScheduleEntries.length).toBeGreaterThan(0);
     expect(state.douyinScheduleEntries.every((entry) => entry.eventId == null)).toBe(true);
     expect(state.events.filter((event) => event.origin === "douyin_sync")).toHaveLength(0);

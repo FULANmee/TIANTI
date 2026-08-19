@@ -115,7 +115,6 @@ const ladderSchema = z.object({
 const archiveSchema = z.object({
   id: z.string().optional(),
   eventId: z.string(),
-  note: z.string().optional().default(""),
   cleanupCandidateAssetIds: z.array(z.string()).optional().default([]),
   entries: z.array(
     z.object({
@@ -549,7 +548,6 @@ export async function saveArchive(editorId: string, payload: unknown) {
     id: input.id ?? randomUUID(),
     editorId,
     eventId: input.eventId,
-    note: input.note.trim(),
     updatedAt: new Date().toISOString(),
     entries: input.entries.map((entry) => {
       const entryDate = toDateOnlyIso(entry.entryDate?.trim() ?? "") ?? null;

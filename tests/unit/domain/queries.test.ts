@@ -43,7 +43,6 @@ describe("domain queries", () => {
       id: "archive-lin-second",
       editorId: "editor-lin",
       eventId: "event-echo-market",
-      note: "",
       updatedAt: "2026-04-20T00:00:00.000Z",
       entries: [{ id: "archive-lin-second-entry", talentId: "talent-qingluan", entryDate: "2026-04-20T00:00:00.000Z", cosplayTitle: "测试", hasSharedPhoto: false, beautyTier: 2 }]
     });
@@ -51,7 +50,6 @@ describe("domain queries", () => {
       id: "archive-lin-yanjin",
       editorId: "editor-lin",
       eventId: "event-echo-market",
-      note: "",
       updatedAt: "2026-04-20T00:00:00.000Z",
       entries: [
         { id: "archive-lin-yanjin-first", talentId: "talent-yanjin", entryDate: "2026-04-19T00:00:00.000Z", cosplayTitle: "测试一", hasSharedPhoto: false, beautyTier: 2 },
@@ -70,6 +68,38 @@ describe("domain queries", () => {
       "talent-yanjin", "talent-qingluan"
     ]);
     expect(automatic.tiers.find((tier) => tier.name === "T2～T3")?.talents[1]?.valueLabel).toBe("平均 T3.0");
+  });
+
+  it("builds one follower ranking with real rolling history and three sort modes", () => {
+    const state = structuredClone(demoSeedState);
+    const first = state.talents[0]!;
+    const second = state.talents[1]!;
+    first.links.push({ id: "douyin-first", label: "抖音主页", url: "https://www.douyin.com/user/first" });
+    second.links.push({ id: "douyin-second", label: "抖音主页", url: "https://www.douyin.com/user/second" });
+    state.douyinProfiles.push(
+      { talentId: first.id, profileUrl: "https://www.douyin.com/user/first", signatureRaw: "", itineraryText: "", followerCount: 120_000, fetchedAt: "2026-04-29T12:00:00.000Z", lastSuccessAt: "2026-04-29T12:00:00.000Z", linkExtractionStatus: "unavailable", parserVersion: "1" },
+      { talentId: second.id, profileUrl: "https://www.douyin.com/user/second", signatureRaw: "", itineraryText: "", followerCount: 500_000, fetchedAt: "2026-04-29T12:00:00.000Z", lastSuccessAt: "2026-04-29T12:00:00.000Z", linkExtractionStatus: "unavailable", parserVersion: "1" }
+    );
+    state.douyinFollowerSnapshots.push(
+      { id: "snapshot-first-old", talentId: first.id, followerCount: 80_000, fetchedAt: "2026-03-20T12:00:00.000Z" },
+      { id: "snapshot-first", talentId: first.id, followerCount: 100_000, fetchedAt: "2026-04-25T18:00:00.000Z" },
+      { id: "snapshot-second", talentId: second.id, followerCount: 490_000, fetchedAt: "2026-04-25T18:00:00.000Z" }
+    );
+
+    const byFollowers = getAutomaticLadder(state, "followers", "followers").tiers[0]!.talents;
+    const byGrowth = getAutomaticLadder(state, "followers", "growth").tiers[0]!.talents;
+    const byRate = getAutomaticLadder(state, "followers", "rate").tiers[0]!.talents;
+
+    expect(byFollowers.slice(0, 2).map((item) => item.talent.id)).toEqual([second.id, first.id]);
+    expect(byGrowth.slice(0, 2).map((item) => item.talent.id)).toEqual([first.id, second.id]);
+    expect(byRate.slice(0, 2).map((item) => item.talent.id)).toEqual([first.id, second.id]);
+    expect(byGrowth.find((item) => item.talent.id === first.id)).toMatchObject({
+      followerCount: 120_000,
+      followerGrowth: 20_000,
+      followerGrowthRate: 0.2,
+      followerRecordedDays: 4
+    });
+    expect(getTalentDetail(state, first.id)?.douyinProfile).toMatchObject({ followerGrowth: 20_000, followerRecordedDays: 4 });
   });
 
   it("projects current profile itineraries into province and city locations", () => {
@@ -355,7 +385,6 @@ describe("domain queries", () => {
       id: "archive-grouped",
       editorId: "editor-lin",
       eventId: "event-archive-grouped",
-      note: "archive grouped",
       updatedAt: "2026-04-11T01:00:00.000Z",
       entries: [
         {
@@ -610,7 +639,6 @@ describe("domain queries", () => {
         id: "archive-field-record-shared-day-lin",
         editorId: "editor-lin",
         eventId: "event-field-record-shared-day",
-        note: "",
         updatedAt: "2026-06-03T08:00:00.000Z",
         entries: [
           {
@@ -628,7 +656,6 @@ describe("domain queries", () => {
         id: "archive-field-record-shared-day-yu",
         editorId: "editor-yu",
         eventId: "event-field-record-shared-day",
-        note: "",
         updatedAt: "2026-06-03T10:00:00.000Z",
         entries: [
           {
@@ -679,7 +706,6 @@ describe("domain queries", () => {
         id: "archive-field-record-multi-day-lin",
         editorId: "editor-lin",
         eventId: "event-field-record-multi-day",
-        note: "",
         updatedAt: "2026-06-03T08:00:00.000Z",
         entries: [
           {
@@ -706,7 +732,6 @@ describe("domain queries", () => {
         id: "archive-field-record-multi-day-yu",
         editorId: "editor-yu",
         eventId: "event-field-record-multi-day",
-        note: "",
         updatedAt: "2026-06-03T09:00:00.000Z",
         entries: [
           {
@@ -761,7 +786,6 @@ describe("domain queries", () => {
       id: "archive-field-record-no-location",
       editorId: "editor-lin",
       eventId: "event-field-record-no-location",
-      note: "",
       updatedAt: "2026-06-05T08:00:00.000Z",
       entries: [
         {
@@ -790,7 +814,6 @@ describe("domain queries", () => {
       id: "archive-lin-echo",
       editorId: "editor-lin",
       eventId: "event-echo-market",
-      note: "New active-event archive",
       updatedAt: "2026-04-20T08:00:00.000Z",
       entries: [
         {
@@ -851,7 +874,6 @@ describe("domain queries", () => {
       id: "archive-partial-archive-history",
       editorId: "editor-lin",
       eventId: "event-partial-archive-history",
-      note: "Only day one is archived",
       updatedAt: "2026-03-03T00:00:00.000Z",
       entries: [
         {

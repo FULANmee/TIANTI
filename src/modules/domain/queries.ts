@@ -956,6 +956,7 @@ export function getTalentDetail(state: ContentState, slug: string): TalentDetail
     douyinProfile: douyinProfile
       ? {
           followerCount: douyinProfile.followerCount ?? null,
+          ...getFollowerMetrics(state, talent.id),
           itineraryBlocks: douyinProfile.itineraryText
             .split("\n")
             .map((block) => block.trim())
@@ -989,26 +990,50 @@ function getAverageBeautyTier(state: ContentState, editorId: string, talentId: s
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-export function getAutomaticLadder(state: ContentState, mode: "followers" | `average-${"lin" | "yu"}`) {
+function getFollowerMetrics(state: ContentState, talentId: string) {
+  const profile = state.douyinProfiles.find((item) => item.talentId === talentId && item.lastSuccessAt);
+  if (profile?.followerCount == null || !profile.lastSuccessAt) {
+    return { followerGrowth: null, followerGrowthRate: null, followerRecordedDays: null };
+  }
+  const currentTime = Date.parse(profile.lastSuccessAt);
+  const cutoff = currentTime - 30 * 24 * 60 * 60 * 1000;
+  const baseline = state.douyinFollowerSnapshots
+    .filter((snapshot) => {
+      const snapshotTime = Date.parse(snapshot.fetchedAt);
+      return snapshot.talentId === talentId && snapshotTime >= cutoff && snapshotTime < currentTime;
+    })
+    .sort((left, right) => Date.parse(left.fetchedAt) - Date.parse(right.fetchedAt))[0];
+  if (!baseline) {
+    return { followerGrowth: null, followerGrowthRate: null, followerRecordedDays: null };
+  }
+  const followerGrowth = profile.followerCount - baseline.followerCount;
+  return {
+    followerGrowth,
+    followerGrowthRate: baseline.followerCount > 0 ? followerGrowth / baseline.followerCount : null,
+    followerRecordedDays: Math.min(30, Math.max(1, Math.ceil((currentTime - Date.parse(baseline.fetchedAt)) / (24 * 60 * 60 * 1000))))
+  };
+}
+
+export function getAutomaticLadder(
+  state: ContentState,
+  mode: "followers" | `average-${"lin" | "yu"}`,
+  followerSort: "followers" | "growth" | "rate" = "followers"
+) {
   const assetMap = byId(state.assets);
   const editorSlug = mode.startsWith("average-") ? mode.slice("average-".length) : null;
   const editor = editorSlug ? state.editors.find((item) => item.slug === editorSlug) : undefined;
   const rows = state.talents.map((talent) => {
     const profile = state.douyinProfiles.find((item) => item.talentId === talent.id && item.lastSuccessAt);
     const hasBoundProfile = Boolean(getPrimaryDouyinProfileLink(talent).link);
+    const followerCount = hasBoundProfile ? profile?.followerCount ?? null : null;
+    const metrics = hasBoundProfile ? getFollowerMetrics(state, talent.id) : { followerGrowth: null, followerGrowthRate: null, followerRecordedDays: null };
     const value = mode === "followers"
-      ? (hasBoundProfile ? profile?.followerCount ?? null : null)
+      ? (followerSort === "followers" ? followerCount : followerSort === "growth" ? metrics.followerGrowth : metrics.followerGrowthRate)
       : (editor ? getAverageBeautyTier(state, editor.id, talent.id) : null);
-    return { talent, cover: talent.coverAssetId ? assetMap.get(talent.coverAssetId) ?? null : null, value };
+    return { talent, cover: talent.coverAssetId ? assetMap.get(talent.coverAssetId) ?? null : null, value, followerCount, ...metrics };
   });
   const definitions = mode === "followers"
-    ? [
-        { id: "followers-500", name: "500万以上", accepts: (value: number) => value >= 5_000_000 },
-        { id: "followers-300", name: "300～500万", accepts: (value: number) => value >= 3_000_000 && value < 5_000_000 },
-        { id: "followers-200", name: "200～300万", accepts: (value: number) => value >= 2_000_000 && value < 3_000_000 },
-        { id: "followers-100", name: "100～200万", accepts: (value: number) => value >= 1_000_000 && value < 2_000_000 },
-        { id: "followers-under-100", name: "100万以下", accepts: (value: number) => value < 1_000_000 }
-      ]
+    ? [{ id: "followers-ranking", name: "全部达人", accepts: () => true }]
     : [
         { id: `${mode}-0`, name: "T0～T1", accepts: (value: number) => value >= 0 && value <= 1 },
         { id: `${mode}-1`, name: "T1～T2", accepts: (value: number) => value > 1 && value <= 2 },
@@ -1017,8 +1042,8 @@ export function getAutomaticLadder(state: ContentState, mode: "followers" | `ave
         { id: `${mode}-4`, name: "T4～T5", accepts: (value: number) => value > 4 && value <= 5 }
       ];
   const valueLabel = (value: number | null) => value == null
-    ? (mode === "followers" ? "粉丝数未知" : "暂无评分")
-    : mode === "followers" ? `${(value / 10_000).toFixed(value >= 100_000 ? 0 : 1)}万粉丝` : `平均 T${value.toFixed(1)}`;
+    ? (mode === "followers" ? "暂无数据" : "暂无评分")
+    : mode === "followers" ? value.toLocaleString("zh-CN") : `平均 T${value.toFixed(1)}`;
   const sortRows = (items: typeof rows) => [...items].sort((left, right) =>
     (mode === "followers"
       ? (right.value ?? Number.NEGATIVE_INFINITY) - (left.value ?? Number.NEGATIVE_INFINITY)
@@ -1026,10 +1051,14 @@ export function getAutomaticLadder(state: ContentState, mode: "followers" | `ave
     compareByPinyin(left.talent.nickname, right.talent.nickname));
   return {
     mode,
-    title: mode === "followers" ? "粉丝量天梯" : `${editor?.name ?? "编辑人"}的平均梯度`,
-    subtitle: mode === "followers" ? "依据最近一次成功同步的抖音粉丝数自动计算。" : "依据该编辑人的全部已评分现场档案自动计算。",
+    title: mode === "followers" ? "粉丝天梯" : `${editor?.name ?? "编辑人"}的平均梯度`,
+    subtitle: mode === "followers" ? "同时查看当前粉丝、最多近 30 天的真实涨粉量与涨粉比率。" : "依据该编辑人的全部已评分现场档案自动计算。",
     editor,
-    tiers: [
+    tiers: mode === "followers" ? definitions.map((definition) => ({
+      id: definition.id,
+      name: definition.name,
+      talents: sortRows(rows).map((row) => ({ ...row, valueLabel: valueLabel(row.value) }))
+    })) : [
       ...definitions.map((definition) => ({
         id: definition.id,
         name: definition.name,
@@ -1037,7 +1066,7 @@ export function getAutomaticLadder(state: ContentState, mode: "followers" | `ave
       })),
       {
         id: `${mode}-unknown`,
-        name: mode === "followers" ? "粉丝数未知" : "暂无评分",
+        name: "暂无评分",
         talents: sortRows(rows.filter((row) => row.value == null)).map((row) => ({ ...row, valueLabel: valueLabel(null) }))
       }
     ]

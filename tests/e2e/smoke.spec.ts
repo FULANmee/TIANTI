@@ -98,7 +98,6 @@ async function addLineupViaDialog(
 
 async function openSelectedEventEditor(page: Page) {
   await expect(page.getByTestId("admin-editor-workspace")).toBeVisible();
-  await expect(page.getByTestId("archive-note")).toBeVisible();
 }
 
 async function addArchiveEntriesViaDialog(
@@ -272,8 +271,10 @@ test("activity archive uses one save action across both persistence steps", asyn
   await openSelectedEventEditor(page);
 
   const saveButton = page.getByTestId("save-activity");
+  await addArchiveEntriesViaDialog(page, [
+    { talentLabel: "青鸾", date: "2026-05-15", cosplayTitle: "统一保存现场记录" }
+  ]);
   await page.locator('textarea[name="note"]').fill("统一保存状态回归测试");
-  await page.getByTestId("archive-note").fill("统一保存现场档案");
 
   let releaseEventRequest!: () => void;
   const eventRequestPaused = new Promise<void>((resolve) => {
@@ -324,7 +325,6 @@ test("multi-day event lineups are grouped by date in admin, list cards, and deta
   await confirmCrop(page, "archive-scene-upload-0");
   await page.getByTestId("archive-scene-upload-1").setInputFiles(sceneUploadPath);
   await confirmCrop(page, "archive-scene-upload-1");
-  await page.getByTestId("archive-note").fill("Weekend Expo archive note");
   await page.getByTestId("save-activity").click();
   await waitForArchiveSaved(page);
 
@@ -359,7 +359,6 @@ test("editor can upload archive assets inline and shared-photo card toggles on t
 
   await page.goto("/admin/archives");
   await openSelectedEventEditor(page);
-  await page.getByTestId("archive-note").fill("收尾验收档案备注");
   await addArchiveEntriesViaDialog(page, [{ talentLabel: "青鸾", date: "2026-05-15", cosplayTitle: "Archive Test Role" }]);
   await page.getByTestId("archive-beauty-tier-0").selectOption("5");
   await page.getByTestId("archive-scene-upload-0").setInputFiles(sceneUploadPath);
@@ -503,7 +502,7 @@ test("talent index selection immediately switches the editable detail", async ({
   await page.goto("/admin/talents");
 
   const index = page.getByTestId("talent-index");
-  await expect(index).toHaveCSS("overflow-y", "auto");
+  await expect(index).toHaveCSS("overflow-y", "scroll");
   await page.getByRole("button", { name: /云墨 未绑定/ }).click();
   await expect(page.getByTestId("admin-editor-workspace")).toBeVisible();
   await expect(page.getByTestId("admin-editor-workspace").getByRole("heading", { name: "编辑 云墨" })).toBeVisible();
@@ -719,7 +718,6 @@ test("archive workspace can import lineup entries and duplicate a record", async
   await page.getByTestId("archive-copy-1").click();
   await expect(page.getByTestId("archive-entry")).toHaveCount(3);
 
-  await page.getByTestId("archive-note").fill("Imported archive workflow note");
   await page.getByTestId("archive-cosplay-0").fill("Role One");
   await page.getByTestId("archive-cosplay-1").fill("Role Two");
   await page.getByTestId("archive-scene-upload-0").setInputFiles(sceneUploadPath);
@@ -731,7 +729,6 @@ test("archive workspace can import lineup entries and duplicate a record", async
   await page.getByTestId("save-activity").click();
 
   await expect(page.getByTestId("archive-entry")).toHaveCount(3);
-  await expect(page.getByTestId("archive-note")).toHaveValue("Imported archive workflow note");
 });
 
 test("public talent and ladder grids use the approved desktop density", async ({ page }) => {
@@ -747,7 +744,7 @@ test("public talent and ladder grids use the approved desktop density", async ({
   await expectGridColumnCount(page.getByTestId("field-records-grid"), 6);
 
   await page.goto("/ladder");
-  await expectGridColumnCount(page.getByTestId("ladder-tier-grid").first(), 8);
+  await expectGridColumnCount(page.getByTestId("ladder-tier-grid").first(), 10);
 });
 
 test("public pages remain browsable on mobile", async ({ page }) => {

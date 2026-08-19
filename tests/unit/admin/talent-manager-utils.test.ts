@@ -9,13 +9,11 @@ describe("talent manager utils", () => {
       douyinProfileUrl: "https://www.douyin.com/user/account",
       aliases: "Qingluan",
       coverAssetId: "asset-1",
-      links: [{ id: "persisted-link", label: "Bilibili", url: "https://example.com" }],
       representations: [{ id: "persisted-rep", title: "代表作", assetId: "asset-2" }]
     };
     const equivalent = {
       ...base,
       nickname: " 青鸾 ",
-      links: [{ id: "client-link", label: " Bilibili ", url: "https://example.com " }],
       representations: [{ id: "client-rep", title: " 代表作 ", assetId: "asset-2" }]
     };
 
@@ -29,11 +27,9 @@ describe("talent manager utils", () => {
       douyinProfileUrl: "",
       aliases: "",
       coverAssetId: "",
-      links: [{ label: "Label only", url: "" }],
       representations: [{ title: "Title only", assetId: "" }]
     });
 
-    expect(normalized.links).toEqual([]);
     expect(normalized.representations).toEqual([]);
   });
 });

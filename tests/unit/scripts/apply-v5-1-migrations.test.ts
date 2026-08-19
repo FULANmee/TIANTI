@@ -14,6 +14,10 @@ describe("TIANTI 5.1+ migration gate", () => {
     ).toBe("preview");
   });
 
+  it("accepts the 5.4 Preview branch", () => {
+    expect(getTarget({ ...previewEnvironment, VERCEL_GIT_COMMIT_REF: "codex/5.4" })).toBe("preview");
+  });
+
   it("rejects an unrelated Preview branch", () => {
     expect(() =>
       getTarget({ ...previewEnvironment, VERCEL_GIT_COMMIT_REF: "codex/other" })

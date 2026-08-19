@@ -215,6 +215,24 @@ export const talentDouyinProfiles = pgTable(
   })
 );
 
+export const talentDouyinFollowerSnapshots = pgTable(
+  "talent_douyin_follower_snapshots",
+  {
+    id: uuid("id").primaryKey(),
+    talentId: uuid("talent_id")
+      .notNull()
+      .references(() => talents.id, { onDelete: "cascade" }),
+    followerCount: integer("follower_count").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    talentFetchedIdx: uniqueIndex("talent_douyin_follower_snapshots_talent_fetched_idx").on(
+      table.talentId,
+      table.fetchedAt
+    )
+  })
+);
+
 export const assetObjectDeletionJobs = pgTable("asset_object_deletion_jobs", {
   objectKey: text("object_key").primaryKey(),
   assetId: uuid("asset_id").notNull(),
@@ -373,7 +391,6 @@ export const editorArchives = pgTable("editor_archives", {
   eventId: uuid("event_id")
     .notNull()
     .references(() => events.id, { onDelete: "cascade" }),
-  note: text("note").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
 });
 

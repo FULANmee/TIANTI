@@ -17,7 +17,7 @@ export function getTarget(environment: Environment) {
     if (
       environment.VERCEL_ENV !== "preview" ||
       environment.VERCEL_TARGET_ENV !== "preview" ||
-      !["5.1", "codex/5.1", "codex/5.3"].includes(environment.VERCEL_GIT_COMMIT_REF ?? "")
+      !["5.1", "codex/5.1", "codex/5.3", "codex/5.4"].includes(environment.VERCEL_GIT_COMMIT_REF ?? "")
     ) throw new Error("5.1 Preview migration guard rejected this deployment context.");
     return "preview" as const;
   }
@@ -92,6 +92,22 @@ export async function main(environment: Environment = process.env) {
       if (beautyTierRows.length === 0) {
         const ratingMigration = await readFile(new URL("../drizzle/0012_redundant_wolfpack.sql", import.meta.url), "utf8");
         await transaction.unsafe(ratingMigration, [], { prepare: false });
+      }
+
+      const followerSnapshotRows = await transaction<{ table_name: string }[]>`
+        select table_name from information_schema.tables
+        where table_schema = 'public' and table_name = 'talent_douyin_follower_snapshots'
+      `;
+      const archiveNoteRows = await transaction<{ column_name: string }[]>`
+        select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = 'editor_archives' and column_name = 'note'
+      `;
+      const followerSchemaComplete = followerSnapshotRows.length === 1 && archiveNoteRows.length === 0;
+      const followerSchemaPristine = followerSnapshotRows.length === 0 && archiveNoteRows.length === 1;
+      if (!followerSchemaComplete) {
+        if (!followerSchemaPristine) throw new Error("5.4 migration found a partial schema and stopped safely.");
+        const followerMigration = await readFile(new URL("../drizzle/0013_true_warlock.sql", import.meta.url), "utf8");
+        await transaction.unsafe(followerMigration, [], { prepare: false });
       }
     });
   } finally {

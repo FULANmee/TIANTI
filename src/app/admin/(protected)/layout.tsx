@@ -9,7 +9,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
 
   return (
     <AdminUnsavedChangesProvider>
-      <main className="mx-auto max-w-[96rem] px-4 pb-8 md:px-6">
+      <main className="admin-protected-shell mx-auto max-w-[96rem] px-4 pb-8 md:px-6">
         <header className="sticky top-0 z-40 -mx-4 border-b border-[var(--line-soft)] bg-[rgba(243,246,245,0.94)] px-4 py-3 backdrop-blur-md md:-mx-6 md:px-6">
           <div className="mx-auto flex max-w-[96rem] flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-4">

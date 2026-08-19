@@ -73,8 +73,11 @@ export async function getLadderPage(editorSlug: string) {
   return getLadderByEditor(await getContentState(), editorSlug);
 }
 
-export async function getAutomaticLadderPage(mode: "followers" | `average-${"lin" | "yu"}`) {
-  return getAutomaticLadder(await getContentState(), mode);
+export async function getAutomaticLadderPage(
+  mode: "followers" | `average-${"lin" | "yu"}`,
+  followerSort: "followers" | "growth" | "rate" = "followers"
+) {
+  return getAutomaticLadder(await getContentState(), mode, followerSort);
 }
 
 export async function getPublicLocationItineraries() {

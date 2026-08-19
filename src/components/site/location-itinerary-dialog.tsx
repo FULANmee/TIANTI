@@ -146,7 +146,7 @@ export function LocationItineraryDialog({ data }: { data: LocationItineraryIndex
           <label className="space-y-2 text-sm ui-subtle"><span className="block">城市</span><select className="ui-select" value={cityLabel} onChange={(event) => setCityLabel(event.target.value)}><option value="">省内全部城市</option>{province?.cities.map((city) => <option key={city.name} value={city.label}>{city.label}</option>)}</select></label>
         </div>
       </div>
-      <div className="max-h-[58vh] overflow-y-auto px-5 py-6 md:px-7">
+      <div className="max-h-[58vh] overflow-y-auto px-5 py-6 pb-[max(2rem,env(safe-area-inset-bottom))] [scroll-padding-bottom:max(2rem,env(safe-area-inset-bottom))] md:px-7">
         <p className="mb-4 font-mono text-sm ui-muted">{province?.label}{cityLabel ? ` · ${cityLabel}` : ""} / {results.length} 位达人</p>
         {results.length ? <div className="space-y-8">
           {futureResults.length ? <section aria-labelledby="future-itineraries-heading">

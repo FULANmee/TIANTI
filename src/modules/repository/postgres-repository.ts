@@ -22,6 +22,7 @@ import {
   sessions,
   talentAssets,
   talentDouyinProfiles,
+  talentDouyinFollowerSnapshots,
   talentDouyinRelatedAccounts,
   talentDouyinScheduleEntries,
   talentLinks,
@@ -77,6 +78,7 @@ async function loadState(): Promise<ContentState> {
     archiveRows,
     archiveEntryRows,
     douyinProfileRows,
+    douyinFollowerSnapshotRows,
     douyinRelatedAccountRows,
     douyinScheduleEntryRows,
     douyinSyncRunRows,
@@ -100,6 +102,7 @@ async function loadState(): Promise<ContentState> {
     db.select().from(editorArchives),
     db.select().from(archiveEntries),
     db.select().from(talentDouyinProfiles),
+    db.select().from(talentDouyinFollowerSnapshots),
     db.select().from(talentDouyinRelatedAccounts),
     db.select().from(talentDouyinScheduleEntries),
     db.select().from(douyinSyncRuns),
@@ -181,7 +184,7 @@ async function loadState(): Promise<ContentState> {
           assetId: item.assetId ?? null
         }))
     })),
-      events: eventRows.map((row) => ({
+    events: eventRows.map((row) => ({
         id: row.id,
         slug: row.slug,
         name: row.name,
@@ -189,13 +192,13 @@ async function loadState(): Promise<ContentState> {
         searchKeywords: row.searchKeywords,
         startsAt: row.startsAt?.toISOString() ?? null,
         endsAt: row.endsAt?.toISOString() ?? null,
-      city: row.city,
-      venue: row.venue,
-      status: row.status as Event["status"],
-      note: row.note,
-      updatedAt: row.updatedAt.toISOString(),
+        city: row.city,
+        venue: row.venue,
+        status: row.status as Event["status"],
+        note: row.note,
+        updatedAt: row.updatedAt.toISOString(),
         origin: row.origin as Event["origin"]
-      })),
+    })),
     eventMergeRules: eventMergeRuleRows.map((row) => ({
       id: row.id,
       targetEventId: row.targetEventId,
@@ -246,7 +249,6 @@ async function loadState(): Promise<ContentState> {
       id: row.id,
       editorId: row.editorId,
       eventId: row.eventId,
-      note: row.note,
       updatedAt: row.updatedAt.toISOString(),
       entries: archiveEntryRows
         .filter((entry) => entry.archiveId === row.id)
@@ -278,6 +280,12 @@ async function loadState(): Promise<ContentState> {
       linkExtractionStatus: row.linkExtractionStatus as ContentState["douyinProfiles"][number]["linkExtractionStatus"],
       manualSyncAvailableAt: row.manualSyncAvailableAt?.toISOString() ?? null,
       parserVersion: row.parserVersion
+    })),
+    douyinFollowerSnapshots: douyinFollowerSnapshotRows.map((row) => ({
+      id: row.id,
+      talentId: row.talentId,
+      followerCount: row.followerCount,
+      fetchedAt: row.fetchedAt.toISOString()
     })),
     douyinRelatedAccounts: douyinRelatedAccountRows
       .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -698,14 +706,12 @@ export const postgresRepository: ContentRepository = {
             id: archive.id,
             editorId: archive.editorId,
             eventId: archive.eventId,
-            note: archive.note,
             updatedAt: new Date(archive.updatedAt)
           })
           .onConflictDoUpdate({
             target: editorArchives.id,
             set: {
               eventId: archive.eventId,
-              note: archive.note,
               updatedAt: new Date(archive.updatedAt)
             }
           });
@@ -889,6 +895,18 @@ export const postgresRepository: ContentRepository = {
               parserVersion: profile.parserVersion
             }
           });
+      }
+
+      if (input.followerSnapshots.length > 0) {
+        await tx
+          .insert(talentDouyinFollowerSnapshots)
+          .values(input.followerSnapshots.map((snapshot) => ({
+            id: snapshot.id,
+            talentId: snapshot.talentId,
+            followerCount: snapshot.followerCount,
+            fetchedAt: new Date(snapshot.fetchedAt)
+          })))
+          .onConflictDoNothing();
       }
 
       await tx.delete(talentDouyinRelatedAccounts);
@@ -1249,13 +1267,11 @@ export const postgresRepository: ContentRepository = {
         id: archive.id,
         editorId: archive.editorId,
         eventId: archive.eventId,
-        note: archive.note,
         updatedAt: new Date(archive.updatedAt)
       })
       .onConflictDoUpdate({
         target: editorArchives.id,
         set: {
-          note: archive.note,
           updatedAt: new Date(archive.updatedAt)
         }
       });

@@ -703,7 +703,6 @@ describe("admin mutations", () => {
         id: "archive-merge-target",
         editorId: "editor-lin",
         eventId: "event-merge-target",
-        note: "保留档案备注",
         updatedAt: "2026-04-01T00:00:00.000Z",
         entries: [
           {
@@ -721,7 +720,6 @@ describe("admin mutations", () => {
         id: "archive-merge-source",
         editorId: "editor-lin",
         eventId: "event-merge-source",
-        note: "来源档案备注",
         updatedAt: "2026-04-01T00:00:00.000Z",
         entries: [
           {

@@ -26,7 +26,7 @@ import {
   toDateOnlyIso
 } from "@/lib/date";
 import { getEventDisplayName } from "@/lib/event-display";
-import { compareByPinyin } from "@/lib/pinyin";
+import { compareByPinyin, matchesPinyinSearch } from "@/lib/pinyin";
 import type { BulkActionResult } from "@/modules/admin/types";
 import type { Asset, EditorArchive, Event, EventLineup, Talent } from "@/modules/domain/types";
 
@@ -57,6 +57,8 @@ interface AddArchiveEntryDraft {
   entryDate: string | null;
   cosplayTitle: string;
   beautyTier: number;
+  sceneAssetId: string;
+  sharedPhotoAssetId: string;
 }
 
 const UNSAVED_MESSAGE = "当前活动仍有未保存的修改，离开后会丢失。确定继续吗？";
@@ -133,7 +135,9 @@ function createArchiveEntryDraft(talentId = "", entryDate = ""): AddArchiveEntry
     talentId,
     entryDate: entryDate || null,
     cosplayTitle: "",
-    beautyTier: 0
+    beautyTier: 0,
+    sceneAssetId: "",
+    sharedPhotoAssetId: ""
   };
 }
 
@@ -314,9 +318,11 @@ export function ArchiveManager({
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEventId);
   const [isEventEditorOpen, setIsEventEditorOpen] = useState(() => Boolean(initialEventId));
   const [isLineupDialogOpen, setIsLineupDialogOpen] = useState(false);
+  const [talentSelectionQuery, setTalentSelectionQuery] = useState("");
   const [lineupDialogDraft, setLineupDialogDraft] = useState<AddLineupDraft | null>(null);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [archiveDialogDrafts, setArchiveDialogDrafts] = useState<AddArchiveEntryDraft[]>([]);
+  const [expandedSharedArchiveIndex, setExpandedSharedArchiveIndex] = useState<number | null>(null);
   const [eventDraft, setEventDraft] = useState<EditableEvent>(() =>
     createEventDraft(initialEvents.find((event) => event.id === initialEventId) ?? null)
   );
@@ -327,6 +333,23 @@ export function ArchiveManager({
     createArchiveDraft(initialEventId, archives)
   );
   const { setGuard } = useAdminUnsavedChanges();
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const syncPageOverflow = () => {
+      document.documentElement.style.overflow = desktop.matches ? "hidden" : previousHtmlOverflow;
+      document.body.style.overflow = desktop.matches ? "hidden" : previousBodyOverflow;
+    };
+    syncPageOverflow();
+    desktop.addEventListener("change", syncPageOverflow);
+    return () => {
+      desktop.removeEventListener("change", syncPageOverflow);
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
 
   const filteredEvents = useMemo(
     () =>
@@ -348,6 +371,10 @@ export function ArchiveManager({
     [liveArchives, selectedEventId]
   );
   const sortedTalents = useMemo(() => sortTalentsForSelection(talents), [talents]);
+  const filteredTalentOptions = useMemo(
+    () => sortedTalents.filter((talent) => matchesPinyinSearch([talent.nickname, ...talent.aliases, ...talent.searchKeywords], talentSelectionQuery)),
+    [sortedTalents, talentSelectionQuery]
+  );
   const talentMap = useMemo(() => new Map(sortedTalents.map((talent) => [talent.id, talent])), [sortedTalents]);
   const assetMap = useMemo(() => new Map(liveAssets.map((asset) => [asset.id, asset])), [liveAssets]);
   const lineupDateOptions = useMemo(
@@ -426,6 +453,10 @@ export function ArchiveManager({
     return () => setGuard(null);
   }, [hasUnsavedChanges, setGuard]);
 
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1023px)").matches) setIsEventEditorOpen(false);
+  }, []);
+
   function enqueueCleanupAssetId(assetId?: string | null) {
     if (!assetId) return;
     setCleanupCandidateAssetIds((current) => [...new Set([...current, assetId])]);
@@ -474,7 +505,10 @@ export function ArchiveManager({
   }
 
   function inspectEvent(eventId: string) {
-    if (eventId === selectedEventId) return;
+    if (eventId === selectedEventId) {
+      setIsEventEditorOpen(true);
+      return;
+    }
     if (!canLeaveCurrentWork()) return;
     resetDrafts(eventId);
     setMessage(null);
@@ -653,9 +687,11 @@ export function ArchiveManager({
   function submitArchiveDialog() {
     const nextEntries = archiveDialogDrafts
       .filter((entry) => entry.talentId)
-      .map((entry) =>
-        createArchiveEntry(entry.talentId, entry.entryDate ?? "", "", entry.cosplayTitle, entry.beautyTier)
-      );
+      .map((entry) => ({
+        ...createArchiveEntry(entry.talentId, entry.entryDate ?? "", entry.sceneAssetId, entry.cosplayTitle, entry.beautyTier),
+        hasSharedPhoto: Boolean(entry.sharedPhotoAssetId),
+        sharedPhotoAssetId: entry.sharedPhotoAssetId || null
+      }));
 
     if (nextEntries.length === 0) {
       setMessage("请至少选择一位阵容达人。");
@@ -680,7 +716,7 @@ export function ArchiveManager({
     }
 
     const shouldSaveArchive = Boolean(
-      eventDraft.id && (archiveDraft.id || archiveDraft.note.trim() || archiveDraft.entries.length > 0 || isArchiveDirty)
+      eventDraft.id && (archiveDraft.id || archiveDraft.entries.length > 0 || isArchiveDirty)
     );
     if (shouldSaveArchive) {
       const archiveValidationError = validateArchiveDraft(
@@ -752,7 +788,6 @@ export function ArchiveManager({
             body: JSON.stringify({
               id: archiveDraft.id || undefined,
               eventId: nextEventId,
-              note: archiveDraft.note,
               cleanupCandidateAssetIds,
               entries: archiveDraft.entries
             })
@@ -1004,7 +1039,9 @@ export function ArchiveManager({
   return (
     <>
     <div className="admin-workspace grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
-      <aside className="surface admin-scroll-region overflow-y-auto rounded-[var(--radius-panel)] p-4 lg:sticky lg:top-[5.25rem] lg:self-start">
+      <aside className={`surface min-h-0 flex-col overflow-hidden rounded-[var(--radius-panel)] ${isEventEditorOpen ? "hidden lg:flex" : "flex"}`}>
+        <div className="space-y-3 border-b border-[var(--line-soft)] p-4">
+        <div className="flex items-center justify-between gap-3"><div><p className="ui-kicker">对象索引</p><h1 className="mt-1 text-xl font-semibold">活动</h1></div><button type="button" data-testid="new-event-button" onClick={handleNewEvent} className="ui-button-primary text-sm"><Plus aria-hidden="true" className="size-4" />新建活动</button></div>
         <label className="ui-field-label"><span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索活动</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入活动、城市或场馆" className="ui-input text-sm" /></label>
         <div className="mt-4 flex flex-wrap gap-3 text-xs ui-muted">
           <button
@@ -1039,16 +1076,8 @@ export function ArchiveManager({
             </button>
           </div>
         </div> : null}
-        <div className="mt-5 space-y-3">
-          <button
-            type="button"
-            data-testid="new-event-button"
-            onClick={handleNewEvent}
-            className="ui-button-primary w-full text-sm"
-          >
-            <Plus aria-hidden="true" className="size-4" />
-            新建活动档案
-          </button>
+        </div>
+        <div className="admin-scroll-region flex-1 space-y-1 overflow-y-auto p-2" data-testid="event-index">
           {filteredEvents.map((event) => {
             const isChecked = selectedEventIds.includes(event.id);
             const eventDateLabel = event.startsAt ? formatDateKey(event.startsAt.slice(0, 10)) : null;
@@ -1056,7 +1085,7 @@ export function ArchiveManager({
             return (
               <div
                 key={event.id}
-                className={`flex items-start gap-3 rounded-[1.2rem] px-3 py-3 transition ${
+                className={`flex items-start gap-3 rounded-[0.8rem] px-3 py-2 transition ${
                   selectedEventId === event.id ? "bg-[var(--color-accent-soft)]" : "hover:bg-[var(--surface-tint)]"
                 }`}
               >
@@ -1068,8 +1097,8 @@ export function ArchiveManager({
                   className="mt-1 size-4 accent-[var(--color-accent)]"
                 />
                 <button type="button" onClick={() => inspectEvent(event.id)} aria-pressed={selectedEventId === event.id} className="flex-1 rounded-md text-left">
-                  <p className="text-lg text-[var(--foreground)]">{getEventDisplayName(event)}</p>
-                  <p className="mt-2 text-xs tracking-[0.08em] ui-muted">
+                  <p className="truncate text-sm font-semibold text-[var(--foreground)]">{getEventDisplayName(event)}</p>
+                  <p className="mt-1 text-xs ui-muted">
                     {[event.city || "城市待定", eventDateLabel].filter(Boolean).join(" · ")}
                   </p>
                 </button>
@@ -1079,7 +1108,7 @@ export function ArchiveManager({
         </div>
       </aside>
 
-      <section className="space-y-5 lg:sticky lg:top-[5.25rem] lg:self-start">
+      <section className={`${isEventEditorOpen ? "" : "hidden lg:block"} min-h-0 space-y-5`}>
         {message ? <StatusNotice variant="warning">{message}</StatusNotice> : null}
         {isEventEditorOpen ? (
           <AdminDialog
@@ -1106,10 +1135,11 @@ export function ArchiveManager({
               <button
                 type="button"
                 onClick={handleDeleteEvent}
+                aria-label="删除活动"
                 className="ui-button-danger text-sm"
               >
                 <Trash2 aria-hidden="true" className="size-4" />
-                删除活动
+                <span className="hidden sm:inline">删除活动</span>
               </button>
             ) : null}
           </div>
@@ -1157,9 +1187,9 @@ export function ArchiveManager({
               name="note"
               value={eventDraft.note}
               onChange={(event) => setEventDraft((current) => ({ ...current, note: event.target.value }))}
-              rows={4}
+                rows={1}
               data-testid="event-note"
-              className="ui-textarea"
+                className="ui-textarea admin-auto-textarea"
             /></label>
             <div className="space-y-4 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1206,8 +1236,8 @@ export function ArchiveManager({
 
                     {group.items.map(({ lineup, index }) => {
                       const gridClass = isMultiDayEvent
-                        ? "xl:grid-cols-[1fr_0.9fr_auto]"
-                        : "md:grid-cols-[1fr_auto]";
+                        ? "xl:grid-cols-[minmax(9rem,1fr)_9rem_minmax(10rem,1fr)_auto]"
+                        : "md:grid-cols-[minmax(9rem,1fr)_minmax(10rem,1fr)_auto]";
 
                       return (
                         <div
@@ -1243,25 +1273,15 @@ export function ArchiveManager({
                               ))}
                             </select>
                           ) : null}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setEditableLineups((current) => current.filter((_, itemIndex) => itemIndex !== index))
-                            }
-                            className="rounded-[1rem] border border-[#b13b45]/45 px-3 py-2 text-sm text-[#5f0f18]"
-                          >
-                            删除
-                          </button>
                           <textarea
                             data-testid={`lineup-note-${index}`}
                             value={lineup.note}
                             onChange={(event) => updateLineup(index, { note: event.target.value })}
-                            rows={2}
+                            rows={1}
                             placeholder="补充备注"
-                            className={`ui-input text-sm ${
-                              isMultiDayEvent ? "xl:col-span-3" : "md:col-span-2"
-                            }`}
+                            className="ui-input admin-auto-textarea text-sm"
                           />
+                          <button type="button" aria-label={`删除阵容 ${index + 1}`} onClick={() => setEditableLineups((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="ui-button-danger px-3"><Trash2 aria-hidden="true" className="size-4" /></button>
                         </div>
                       );
                     })}
@@ -1319,19 +1339,6 @@ export function ArchiveManager({
                   </button>
                 </div>
               </div>
-              <label className="ui-field-label mt-4"><span>现场档案备注</span><textarea
-                value={archiveDraft.note}
-                data-testid="archive-note"
-                onChange={(event) =>
-                  setArchiveDraft((current) => ({
-                    ...current,
-                    eventId: eventDraft.id ?? current.eventId,
-                    note: event.target.value
-                  }))
-                }
-                rows={3}
-                className="ui-textarea"
-              /></label>
             </section>
 
             {archiveDraft.entries.length === 0 ? (
@@ -1434,19 +1441,17 @@ export function ArchiveManager({
                           </label>
                         </div>
 
-                        <div className="mt-4">
+                        <div className="archive-image-grid mt-4 grid gap-4 md:grid-cols-2">
                           <InlineAssetUpload
                             kind="event_scene"
+                            expandInParentGrid
                             dataTestId={`archive-scene-upload-${index}`}
                             currentAsset={entry.sceneAssetId ? (assetMap.get(entry.sceneAssetId) ?? null) : null}
                             onClear={() => handleClearScene(index)}
                             onUploaded={(asset) => handleSceneUploaded(index, asset)}
                             helperText="当前现场图可直接替换或清空，不再从素材池里手动选择。"
                           />
-                        </div>
-
-                        <div className="mt-4 grid gap-4 md:grid-cols-1">
-                          <label className="flex items-center gap-3 rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] px-3 py-3 text-sm ui-subtle">
+                          <div className={`space-y-3 ${expandedSharedArchiveIndex === index ? "md:col-span-2" : ""}`}><label className="flex items-center gap-3 rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] px-3 py-3 text-sm ui-subtle">
                             <input
                               data-testid={`archive-shared-flag-${index}`}
                               type="checkbox"
@@ -1455,20 +1460,18 @@ export function ArchiveManager({
                             />
                             是否有集邮
                           </label>
-                        </div>
-
-                        {entry.hasSharedPhoto ? (
-                          <div className="mt-4">
+                          {entry.hasSharedPhoto ? (
                             <InlineAssetUpload
                               kind="shared_photo"
+                              onEditingChange={(editing) => setExpandedSharedArchiveIndex((current) => editing ? index : current === index ? null : current)}
                               dataTestId={`archive-shared-upload-${index}`}
                               currentAsset={entry.sharedPhotoAssetId ? (assetMap.get(entry.sharedPhotoAssetId) ?? null) : null}
                               onClear={() => handleClearShared(index)}
                               onUploaded={(asset) => handleSharedUploaded(index, asset)}
                               helperText="当前合照可直接替换或清空，不再从素材池里手动选择。"
                             />
-                          </div>
-                        ) : null}
+                          ) : null}</div>
+                        </div>
                       </section>
                       );
                     })}
@@ -1547,6 +1550,7 @@ export function ArchiveManager({
         }
       >
         <div data-testid="lineup-dialog" className="space-y-5">
+          <label className="ui-field-label"><span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索达人</span><input value={talentSelectionQuery} onChange={(event) => setTalentSelectionQuery(event.target.value)} placeholder="中文、拼音或首字母" className="ui-input text-sm" /></label>
           <div className="grid gap-4">
             <label className="space-y-2">
               <span className="text-xs uppercase tracking-[0.2em] ui-muted">达人</span>
@@ -1556,7 +1560,7 @@ export function ArchiveManager({
                 onChange={(event) => updateLineupDialogTalent(event.target.value)}
                 className="ui-select text-sm"
               >
-                {sortedTalents.map((talent) => (
+                {filteredTalentOptions.map((talent) => (
                   <option key={talent.id} value={talent.id}>
                     {talent.nickname}
                   </option>
@@ -1626,6 +1630,7 @@ export function ArchiveManager({
       <AdminDialog
         title="添加现场记录"
         description="一次可以添加多条记录；达人只能从当前活动已保存阵容中选择。"
+        size="xl"
         onClose={() => {
           setIsArchiveDialogOpen(false);
           setArchiveDialogDrafts([]);
@@ -1662,6 +1667,7 @@ export function ArchiveManager({
         }
       >
         <div data-testid="archive-dialog" className="space-y-4">
+          <label className="ui-field-label"><span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索达人</span><input value={talentSelectionQuery} onChange={(event) => setTalentSelectionQuery(event.target.value)} placeholder="中文、拼音或首字母" className="ui-input text-sm" /></label>
           {archiveDialogDrafts.map((entry, index) => {
             const entryDateOptions = getArchiveDateOptionsForTalent(entry.talentId);
 
@@ -1685,7 +1691,7 @@ export function ArchiveManager({
                     onChange={(event) => updateArchiveDialogTalent(index, event.target.value)}
                     className="ui-select text-sm"
                   >
-                    {lineupTalentOptions.map((talent) => (
+                    {lineupTalentOptions.filter((talent) => matchesPinyinSearch([talent.nickname, ...talent.aliases, ...talent.searchKeywords], talentSelectionQuery)).map((talent) => (
                       <option key={talent.id} value={talent.id}>
                         {talent.nickname}
                       </option>
@@ -1712,6 +1718,10 @@ export function ArchiveManager({
                     placeholder="角色 / 作品 / 游戏"
                     className="ui-input text-sm"
                   />
+                </div>
+                <div className="archive-image-grid mt-4 grid gap-4 md:grid-cols-2">
+                  <InlineAssetUpload expandInParentGrid kind="event_scene" dataTestId={`archive-dialog-scene-${index}`} currentAsset={entry.sceneAssetId ? (assetMap.get(entry.sceneAssetId) ?? null) : null} onClear={() => updateArchiveDialogEntry(index, { sceneAssetId: "" })} onUploaded={(asset) => updateArchiveDialogEntry(index, { sceneAssetId: asset.id })} helperText="现场照片" />
+                  <InlineAssetUpload expandInParentGrid kind="shared_photo" dataTestId={`archive-dialog-shared-${index}`} currentAsset={entry.sharedPhotoAssetId ? (assetMap.get(entry.sharedPhotoAssetId) ?? null) : null} onClear={() => updateArchiveDialogEntry(index, { sharedPhotoAssetId: "" })} onUploaded={(asset) => updateArchiveDialogEntry(index, { sharedPhotoAssetId: asset.id })} helperText="集邮照片" />
                 </div>
               </section>
             );

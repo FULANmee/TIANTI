@@ -47,6 +47,9 @@ describe("Douyin public projection", () => {
 
     expect(getTalentDetail(state, talent.id)?.douyinProfile).toEqual({
       followerCount: 126_438,
+      followerGrowth: null,
+      followerGrowthRate: null,
+      followerRecordedDays: null,
       itineraryBlocks: ["8.8深圳金铲铲", "8.9上海闪魂绝区零"]
     });
 

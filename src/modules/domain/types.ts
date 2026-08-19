@@ -148,7 +148,6 @@ export interface EditorArchive {
   id: string;
   editorId: string;
   eventId: string;
-  note: string;
   updatedAt: string;
   entries: ArchiveEntry[];
 }
@@ -174,6 +173,13 @@ export interface TalentDouyinProfile {
   linkExtractionStatus: DouyinLinkExtractionStatus;
   manualSyncAvailableAt?: string | null;
   parserVersion: string;
+}
+
+export interface TalentDouyinFollowerSnapshot {
+  id: string;
+  talentId: string;
+  followerCount: number;
+  fetchedAt: string;
 }
 
 export interface AssetObjectDeletionJob {
@@ -268,6 +274,7 @@ export interface ContentState {
   archives: EditorArchive[];
   sessions: SessionRecord[];
   douyinProfiles: TalentDouyinProfile[];
+  douyinFollowerSnapshots: TalentDouyinFollowerSnapshot[];
   douyinRelatedAccounts: TalentDouyinRelatedAccount[];
   douyinScheduleEntries: TalentDouyinScheduleEntry[];
   douyinSyncRuns: DouyinSyncRun[];
@@ -365,6 +372,9 @@ export interface TalentDetail {
   relatedEvents: RelatedEventSummary[];
   douyinProfile: {
     followerCount: number | null;
+    followerGrowth: number | null;
+    followerGrowthRate: number | null;
+    followerRecordedDays: number | null;
     itineraryBlocks: string[];
   } | null;
   editorSummaries: Array<{
@@ -429,7 +439,16 @@ export interface HomepageDiscovery {
 export interface AutomaticLadderTier {
   id: string;
   name: string;
-  talents: Array<{ talent: Talent; cover: Asset | null; value: number | null; valueLabel: string }>;
+  talents: Array<{
+    talent: Talent;
+    cover: Asset | null;
+    value: number | null;
+    valueLabel: string;
+    followerCount?: number | null;
+    followerGrowth?: number | null;
+    followerGrowthRate?: number | null;
+    followerRecordedDays?: number | null;
+  }>;
 }
 
 export interface AutomaticLadderPage {
