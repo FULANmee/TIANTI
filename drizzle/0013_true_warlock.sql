@@ -13,5 +13,4 @@ FROM "talent_douyin_profiles"
 WHERE "follower_count" IS NOT NULL;--> statement-breakpoint
 DELETE FROM "talent_links"
 WHERE lower(trim("label")) NOT IN ('抖音', '抖音主页', 'douyin');--> statement-breakpoint
-ALTER TABLE "editor_archives" DROP COLUMN "note";--> statement-breakpoint
-ALTER TABLE "archive_entries" ADD CONSTRAINT "archive_entries_beauty_tier_check" CHECK ("archive_entries"."beauty_tier" is null or ("archive_entries"."beauty_tier" >= 0 and "archive_entries"."beauty_tier" <= 5));
+ALTER TABLE "editor_archives" DROP COLUMN "note";
