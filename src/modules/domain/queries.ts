@@ -1010,17 +1010,19 @@ export function getAutomaticLadder(state: ContentState, mode: "followers" | `ave
         { id: "followers-under-100", name: "100万以下", accepts: (value: number) => value < 1_000_000 }
       ]
     : [
-        { id: `${mode}-4`, name: "4～5", accepts: (value: number) => value > 4 && value <= 5 },
-        { id: `${mode}-3`, name: "3～4", accepts: (value: number) => value > 3 && value <= 4 },
-        { id: `${mode}-2`, name: "2～3", accepts: (value: number) => value > 2 && value <= 3 },
-        { id: `${mode}-1`, name: "1～2", accepts: (value: number) => value > 1 && value <= 2 },
-        { id: `${mode}-0`, name: "0～1", accepts: (value: number) => value >= 0 && value <= 1 }
+        { id: `${mode}-0`, name: "T0～T1", accepts: (value: number) => value >= 0 && value <= 1 },
+        { id: `${mode}-1`, name: "T1～T2", accepts: (value: number) => value > 1 && value <= 2 },
+        { id: `${mode}-2`, name: "T2～T3", accepts: (value: number) => value > 2 && value <= 3 },
+        { id: `${mode}-3`, name: "T3～T4", accepts: (value: number) => value > 3 && value <= 4 },
+        { id: `${mode}-4`, name: "T4～T5", accepts: (value: number) => value > 4 && value <= 5 }
       ];
   const valueLabel = (value: number | null) => value == null
     ? (mode === "followers" ? "粉丝数未知" : "暂无评分")
-    : mode === "followers" ? `${(value / 10_000).toFixed(value >= 100_000 ? 0 : 1)}万粉丝` : `平均 ${value.toFixed(1)}`;
+    : mode === "followers" ? `${(value / 10_000).toFixed(value >= 100_000 ? 0 : 1)}万粉丝` : `平均 T${value.toFixed(1)}`;
   const sortRows = (items: typeof rows) => [...items].sort((left, right) =>
-    (right.value ?? Number.NEGATIVE_INFINITY) - (left.value ?? Number.NEGATIVE_INFINITY) ||
+    (mode === "followers"
+      ? (right.value ?? Number.NEGATIVE_INFINITY) - (left.value ?? Number.NEGATIVE_INFINITY)
+      : (left.value ?? Number.POSITIVE_INFINITY) - (right.value ?? Number.POSITIVE_INFINITY)) ||
     compareByPinyin(left.talent.nickname, right.talent.nickname));
   return {
     mode,

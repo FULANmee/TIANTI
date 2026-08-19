@@ -1429,7 +1429,7 @@ export function ArchiveManager({
                               onChange={(event) => updateArchiveEntry(index, { beautyTier: Number(event.target.value) })}
                               className="ui-select text-sm"
                             >
-                              {[0, 1, 2, 3, 4, 5].map((tier) => <option key={tier} value={tier}>{tier}</option>)}
+                              {[0, 1, 2, 3, 4, 5].map((tier) => <option key={tier} value={tier}>T{tier}</option>)}
                             </select>
                           </label>
                         </div>

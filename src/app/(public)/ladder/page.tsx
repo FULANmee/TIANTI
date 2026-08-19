@@ -10,20 +10,6 @@ import { getAutomaticLadderPage, getLadderPage, getSiteEditors } from "@/modules
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-function getBioPreviewLine(bio: string) {
-  const lines = bio
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length > 0) {
-    return lines[0] ?? null;
-  }
-
-  const trimmedBio = bio.trim();
-  return trimmedBio || "\u00A0";
-}
-
 export const metadata = buildMetadata({
   title: "TIANTI | 天梯",
   description: "从不同编辑视角浏览 TIANTI 的公开排序与梯度。",
@@ -129,7 +115,6 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                     <div data-testid="ladder-tier-grid" className="mt-6 grid gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
                       {tier.talents.map((talentItem, talentIndex) => {
                         const { talent, cover } = talentItem;
-                        const valueLabel = "valueLabel" in talentItem ? talentItem.valueLabel : null;
                         return (
                         <Link
                           key={talent.id}
@@ -151,10 +136,8 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                               <div className="absolute inset-0 bg-transparent" />
                             )}
                           </div>
-                          <div className="space-y-2 p-4">
+                          <div className="p-4">
                             <p className="text-lg tracking-[-0.03em] text-[var(--foreground)]">{talent.nickname}</p>
-                            <p className="line-clamp-1 text-sm ui-subtle">{getBioPreviewLine(talent.bio) || "公开资料"}</p>
-                            {valueLabel ? <p className="font-mono text-xs text-[var(--color-accent)]">{valueLabel}</p> : null}
                           </div>
                         </Link>
                         );

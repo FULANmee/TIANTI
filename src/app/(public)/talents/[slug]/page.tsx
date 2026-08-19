@@ -152,7 +152,7 @@ export default async function TalentDetailPage({
                     <p className="text-sm ui-muted">{summary.editor.name}</p>
                     <div className="mt-2 grid grid-cols-2 gap-3">
                       <div><p className="text-xs ui-muted">手动梯度</p><p className="mt-1 text-lg text-[var(--foreground)]">{summary.tierName ?? "未入榜"}</p></div>
-                      <div><p className="text-xs ui-muted">平均梯度</p><p className="mt-1 font-mono text-lg text-[var(--foreground)]">{summary.averageBeautyTier == null ? "—" : summary.averageBeautyTier.toFixed(1)}</p></div>
+                      <div><p className="text-xs ui-muted">平均梯度</p><p className="mt-1 font-mono text-lg text-[var(--foreground)]">{summary.averageBeautyTier == null ? "—" : `T${summary.averageBeautyTier.toFixed(1)}`}</p></div>
                     </div>
                     <div className="mt-3 flex gap-4 text-sm ui-subtle">
                       <span>{summary.seenCount} 次记录</span>

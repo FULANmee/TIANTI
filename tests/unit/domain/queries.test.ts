@@ -47,12 +47,29 @@ describe("domain queries", () => {
       updatedAt: "2026-04-20T00:00:00.000Z",
       entries: [{ id: "archive-lin-second-entry", talentId: "talent-qingluan", entryDate: "2026-04-20T00:00:00.000Z", cosplayTitle: "测试", hasSharedPhoto: false, beautyTier: 2 }]
     });
+    state.archives.push({
+      id: "archive-lin-yanjin",
+      editorId: "editor-lin",
+      eventId: "event-echo-market",
+      note: "",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+      entries: [
+        { id: "archive-lin-yanjin-first", talentId: "talent-yanjin", entryDate: "2026-04-19T00:00:00.000Z", cosplayTitle: "测试一", hasSharedPhoto: false, beautyTier: 2 },
+        { id: "archive-lin-yanjin-second", talentId: "talent-yanjin", entryDate: "2026-04-20T00:00:00.000Z", cosplayTitle: "测试二", hasSharedPhoto: false, beautyTier: 3 }
+      ]
+    });
 
     const detail = getTalentDetail(state, "talent-qingluan");
     expect(detail?.editorSummaries.find((item) => item.editor.id === "editor-lin")?.averageBeautyTier).toBe(3);
     expect(detail?.beautyTierSeries.find((item) => item.editor.id === "editor-lin")?.points).toHaveLength(2);
     const automatic = getAutomaticLadder(state, "average-lin");
-    expect(automatic.tiers.find((tier) => tier.name === "2～3")?.talents[0]?.talent.id).toBe("talent-qingluan");
+    expect(automatic.tiers.slice(0, 5).map((tier) => tier.name)).toEqual([
+      "T0～T1", "T1～T2", "T2～T3", "T3～T4", "T4～T5"
+    ]);
+    expect(automatic.tiers.find((tier) => tier.name === "T2～T3")?.talents.map((item) => item.talent.id)).toEqual([
+      "talent-yanjin", "talent-qingluan"
+    ]);
+    expect(automatic.tiers.find((tier) => tier.name === "T2～T3")?.talents[1]?.valueLabel).toBe("平均 T3.0");
   });
 
   it("projects current profile itineraries into province and city locations", () => {
