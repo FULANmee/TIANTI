@@ -314,7 +314,6 @@ export const demoSeedState: RepositoryState = {
       id: "archive-lin-mist",
       editorId: "editor-lin",
       eventId: "event-mist-lantern",
-      note: "夜景与人物局部都很稳定，比较适合在首页做近期更新展示。",
       updatedAt: "2026-03-26T10:00:00.000Z",
       entries: [
         {
@@ -332,7 +331,6 @@ export const demoSeedState: RepositoryState = {
       id: "archive-yu-mist",
       editorId: "editor-yu",
       eventId: "event-mist-lantern",
-      note: "现场排队很长，但互动效率很好，后续返场值得继续跟。",
       updatedAt: "2026-03-26T12:30:00.000Z",
       entries: [
         {
@@ -349,6 +347,7 @@ export const demoSeedState: RepositoryState = {
   ],
   sessions: [],
   douyinProfiles: [],
+  douyinFollowerSnapshots: [],
   douyinRelatedAccounts: [],
   douyinScheduleEntries: [],
   douyinSyncRuns: [],

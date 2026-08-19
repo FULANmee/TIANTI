@@ -70,7 +70,6 @@ export function createArchiveDraft(eventId: string | null, archives: EditorArchi
       id: "",
       editorId: "",
       eventId: "",
-      note: "",
       updatedAt: "",
       entries: []
     };
@@ -82,7 +81,6 @@ export function createArchiveDraft(eventId: string | null, archives: EditorArchi
       id: "",
       editorId: "",
       eventId,
-      note: "",
       updatedAt: "",
       entries: []
     };
@@ -125,7 +123,6 @@ export function normalizeArchiveDraft(value: EditorArchive) {
     id: value.id ?? "",
     editorId: value.editorId ?? "",
     eventId: value.eventId ?? "",
-    note: value.note.trim(),
     entries: value.entries.map((entry) => ({
       id: entry.id,
       talentId: entry.talentId,

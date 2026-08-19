@@ -28,7 +28,11 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
       ? params.editor
       : editors[0]?.slug;
   const manualData = !automaticMode && editorSlug ? await getLadderPage(editorSlug) : null;
-  const automaticData = automaticMode ? await getAutomaticLadderPage(automaticMode) : null;
+  const followerSorts = ["followers", "growth", "rate"] as const;
+  const followerSort = typeof params.sort === "string" && followerSorts.includes(params.sort as typeof followerSorts[number])
+    ? params.sort as typeof followerSorts[number]
+    : "followers";
+  const automaticData = automaticMode ? await getAutomaticLadderPage(automaticMode, followerSort) : null;
   const data = automaticData ? {
     ladder: { title: automaticData.title, subtitle: automaticData.subtitle },
     editor: automaticData.editor ?? { name: "自动计算" },
@@ -61,12 +65,13 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
               </Link>
             );
           })}
-          <Link href="/ladder?view=followers" className={`ui-pill px-5 py-3 text-sm ${automaticMode === "followers" ? "border-[rgba(43,109,246,0.22)] bg-[rgba(43,109,246,0.08)] text-[var(--color-accent)]" : ""}`}>粉丝量</Link>
+          <Link href="/ladder?view=followers" className={`ui-pill px-5 py-3 text-sm ${automaticMode === "followers" ? "border-[rgba(43,109,246,0.22)] bg-[rgba(43,109,246,0.08)] text-[var(--color-accent)]" : ""}`}>粉丝天梯</Link>
           {editors.map((editor) => <Link key={`average-${editor.id}`} href={`/ladder?view=average-${editor.slug}`} className={`ui-pill px-5 py-3 text-sm ${automaticMode === `average-${editor.slug}` ? "border-[rgba(43,109,246,0.22)] bg-[rgba(43,109,246,0.08)] text-[var(--color-accent)]" : ""}`}>{editor.name}平均梯度</Link>)}
         </div>
 
         {data ? (
           <>
+            {automaticMode === "followers" ? <div className="inline-flex rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-1" aria-label="粉丝天梯排序方式">{([{ id: "followers", label: "粉丝量" }, { id: "growth", label: "涨粉量" }, { id: "rate", label: "涨粉比率" }] as const).map((item) => <Link key={item.id} href={`/ladder?view=followers&sort=${item.id}`} className={`rounded-[0.6rem] px-4 py-2 text-sm ${followerSort === item.id ? "bg-[var(--surface-strong)] font-semibold shadow-sm" : "ui-muted"}`}>{item.label}</Link>)}</div> : null}
             <section className="public-stage surface overflow-hidden rounded-[2rem] p-6 md:p-7">
               <div className="grid gap-6 md:grid-cols-[1.1fr_0.9fr]">
                 <div className="space-y-3">
@@ -112,7 +117,7 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                     <p className="text-sm ui-subtle">{tier.talents.length} 位达人</p>
                   </div>
                   {tier.talents.length > 0 ? (
-                    <div data-testid="ladder-tier-grid" className="mt-6 grid gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
+                    <div data-testid="ladder-tier-grid" className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-10">
                       {tier.talents.map((talentItem, talentIndex) => {
                         const { talent, cover } = talentItem;
                         return (
@@ -136,8 +141,9 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                               <div className="absolute inset-0 bg-transparent" />
                             )}
                           </div>
-                          <div className="p-4">
-                            <p className="text-lg tracking-[-0.03em] text-[var(--foreground)]">{talent.nickname}</p>
+                          <div className="p-3">
+                            <p className="truncate text-sm font-semibold text-[var(--foreground)]">{talent.nickname}</p>
+                            {automaticMode === "followers" && "followerCount" in talentItem ? <div className="mt-2 space-y-1 font-mono text-[10px] leading-4"><p className="text-[var(--foreground-soft)]">粉丝 {talentItem.followerCount == null ? "—" : talentItem.followerCount.toLocaleString("zh-CN")}</p><p className={talentItem.followerGrowth == null ? "ui-muted" : talentItem.followerGrowth < 0 ? "text-[#16866b]" : "text-[#b13b45]"}>涨粉 {talentItem.followerGrowth == null ? "—" : `${talentItem.followerGrowth >= 0 ? "+" : ""}${talentItem.followerGrowth.toLocaleString("zh-CN")}`}</p><p className={talentItem.followerGrowthRate == null ? "ui-muted" : talentItem.followerGrowthRate < 0 ? "text-[#16866b]" : "text-[#b13b45]"}>幅度 {talentItem.followerGrowthRate == null ? "—" : `${talentItem.followerGrowthRate >= 0 ? "+" : ""}${(talentItem.followerGrowthRate * 100).toFixed(2)}%`}</p><p className="ui-muted">{talentItem.followerRecordedDays == null ? "暂无历史" : talentItem.followerRecordedDays >= 30 ? "近 30 天" : `基于 ${talentItem.followerRecordedDays} 天记录`}</p></div> : null}
                           </div>
                         </Link>
                         );

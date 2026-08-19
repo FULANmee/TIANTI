@@ -300,7 +300,6 @@ async function main() {
       id: archive.id,
       editorId: archive.editorId,
       eventId: archive.eventId,
-      note: archive.note,
       updatedAt: new Date(archive.updatedAt)
     }))
   );

@@ -99,20 +99,16 @@ export default async function TalentDetailPage({
   const coverDisplayPreset = getAssetDisplayPreset("talent_cover", detail.cover);
   const douyinProfile = detail.douyinProfile;
 
-  const publicInfoRows = [
-    detail.talent.aliases.length > 0 ? { label: "别名", value: detail.talent.aliases.join(" / ") } : null,
-    detail.douyinProfile?.followerCount != null
-      ? { label: "抖音粉丝", value: formatDouyinFollowerCount(detail.douyinProfile.followerCount) }
-      : null
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
+  const followerGrowth = detail.douyinProfile?.followerGrowth ?? null;
+  const followerRecordedDays = detail.douyinProfile?.followerRecordedDays ?? null;
 
   return (
     <PageShell>
       <PublicReveal>
         <section className="public-stage surface overflow-hidden rounded-[2.4rem] p-6 md:p-8">
           <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
-            <div className="relative overflow-hidden rounded-[1.8rem] bg-transparent">
-              <div className="relative" style={{ aspectRatio: coverDisplayPreset.aspectStyle }}>
+            <div className="order-2 relative overflow-hidden rounded-[1.8rem] bg-transparent lg:order-1">
+              <div className="relative overflow-hidden rounded-[1.8rem]" style={{ aspectRatio: coverDisplayPreset.aspectStyle }}>
                 {detail.cover ? (
                   <FramedImage
                     asset={detail.cover}
@@ -124,25 +120,21 @@ export default async function TalentDetailPage({
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="order-1 space-y-6 lg:order-2">
               <div className="space-y-4">
                 <p className="ui-kicker">Talent Detail</p>
                 <h1 className="text-5xl tracking-[-0.05em] text-[var(--foreground)] md:text-6xl">
-                  {detail.talent.nickname}
+                  {detail.talent.nickname}{detail.talent.aliases.length > 0 ? <span className="ml-3 font-sans text-base font-normal tracking-normal ui-subtle">{detail.talent.aliases.join(" / ")}</span> : null}
                 </h1>
                 <p className="max-w-3xl whitespace-pre-line text-base leading-8 ui-subtle">
                   {detail.talent.bio || "当前公开页以结构化资料为主，后续内容会继续补齐。"}
                 </p>
               </div>
 
-              {publicInfoRows.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {publicInfoRows.map((row) => (
-                    <div key={row.label} className="surface-strong rounded-[1.4rem] p-4">
-                      <p className="text-sm ui-muted">{row.label}</p>
-                      <p className="mt-2 text-lg text-[var(--foreground)]">{row.value}</p>
-                    </div>
-                  ))}
+              {detail.douyinProfile?.followerCount != null ? (
+                <div className="surface-strong rounded-[1.4rem] p-4">
+                  <div className="flex items-center justify-between gap-4"><p className="text-sm ui-muted">抖音粉丝</p><p className="text-xs ui-muted">{followerRecordedDays == null ? "暂无历史" : followerRecordedDays >= 30 ? "近 30 天" : `基于 ${followerRecordedDays} 天记录`}</p></div>
+                  <div className="mt-2 flex items-baseline gap-4"><p className="text-lg text-[var(--foreground)]">{formatDouyinFollowerCount(detail.douyinProfile.followerCount)}</p>{followerGrowth != null ? <p className={followerGrowth >= 0 ? "text-sm font-semibold text-[#b13b45]" : "text-sm font-semibold text-[#16866b]"}>{followerGrowth >= 0 ? "+" : ""}{followerGrowth.toLocaleString("zh-CN")}</p> : null}</div>
                 </div>
               ) : null}
 
@@ -162,31 +154,14 @@ export default async function TalentDetailPage({
                 ))}
               </div>
 
-              {detail.talent.links.length > 0 ? (
-                <div className="flex flex-wrap gap-3">
-                  {detail.talent.links.map((link) => (
-                    <a
-                      key={link.id}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ui-button-secondary px-4 py-2 text-sm"
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              ) : null}
+              <BeautyTierChart series={detail.beautyTierSeries} />
+
             </div>
           </div>
         </section>
       </PublicReveal>
 
       <div className="mt-14 space-y-14">
-        <PublicReveal>
-          <BeautyTierChart series={detail.beautyTierSeries} />
-        </PublicReveal>
-
         <PublicReveal>
           <SectionFrame
             eyebrow="Activity Path"

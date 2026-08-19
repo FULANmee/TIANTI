@@ -1020,6 +1020,12 @@ export async function runDouyinSync(options: RunDouyinSyncOptions): Promise<Douy
 
     await repository.saveDouyinSyncState({
       profiles: [...profileMap.values()],
+      followerSnapshots: snapshots.map((snapshot) => ({
+        id: randomUUID(),
+        talentId: snapshot.talent.id,
+        followerCount: snapshot.response.profile.followerCount,
+        fetchedAt: snapshot.response.fetchedAt
+      })),
       relatedAccounts: reconciliationState.douyinRelatedAccounts,
       scheduleEntries,
       upsertEvents: [],

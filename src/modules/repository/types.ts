@@ -15,6 +15,7 @@ import type {
   SessionRecord,
   Talent,
   TalentDouyinProfile,
+  TalentDouyinFollowerSnapshot,
   TalentDouyinRelatedAccount,
   TalentDouyinScheduleEntry
 } from "@/modules/domain/types";
@@ -31,6 +32,7 @@ export interface EventMergePersistenceInput {
 
 export interface DouyinSyncPersistenceInput {
   profiles: TalentDouyinProfile[];
+  followerSnapshots: TalentDouyinFollowerSnapshot[];
   relatedAccounts: TalentDouyinRelatedAccount[];
   scheduleEntries: TalentDouyinScheduleEntry[];
   upsertEvents: Event[];

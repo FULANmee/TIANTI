@@ -8,7 +8,6 @@ describe("archive manager utils", () => {
         id: "archive-1",
         editorId: "editor-1",
         eventId: "event-1",
-        note: "",
         updatedAt: "2026-04-19T00:00:00.000Z",
         entries: [
           {

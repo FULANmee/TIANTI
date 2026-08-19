@@ -161,7 +161,6 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                       <div>
                         <p className="ui-kicker">{archive.editor.name}</p>
                         <h2 className="mt-3 text-3xl tracking-[-0.03em] text-[var(--foreground)]">现场记录</h2>
-                        {archive.archive.note ? <p className="mt-3 text-sm leading-7 ui-subtle">{archive.archive.note}</p> : null}
                       </div>
                       <p className="text-sm ui-subtle">{archive.entries.length} 条公开记录</p>
                     </div>

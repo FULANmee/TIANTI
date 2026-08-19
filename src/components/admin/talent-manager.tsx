@@ -6,7 +6,7 @@ import { AdminDialog } from "@/components/admin/admin-dialog";
 import { useAdminUnsavedChanges } from "@/components/admin/admin-unsaved-changes";
 import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
 import { normalizeTalentDraft, splitCommaValues } from "@/components/admin/talent-manager-utils";
-import { compareByPinyin } from "@/lib/pinyin";
+import { compareByPinyin, matchesPinyinSearch } from "@/lib/pinyin";
 import { extractDouyinProfileUrl, getPrimaryDouyinProfileLink } from "@/modules/douyin/profile-link";
 import type { DouyinSyncResponse, TalentBulkResponse } from "@/modules/admin/types";
 import type {
@@ -31,12 +31,6 @@ interface RepresentationDraft {
   assetId: string;
 }
 
-interface LinkDraft {
-  id: string;
-  label: string;
-  url: string;
-}
-
 interface TalentDraft {
   id?: string;
   nickname: string;
@@ -44,7 +38,6 @@ interface TalentDraft {
   douyinProfileUrl: string;
   aliases: string;
   coverAssetId: string;
-  links: LinkDraft[];
   representations: RepresentationDraft[];
 }
 
@@ -100,14 +93,6 @@ function createRepresentationDraft(title = "", assetId = ""): RepresentationDraf
   };
 }
 
-function createLinkDraft(label = "", url = ""): LinkDraft {
-  return {
-    id: crypto.randomUUID(),
-    label,
-    url
-  };
-}
-
 function createTalentDraft(talent?: Talent | null): TalentDraft {
   if (!talent) {
     return {
@@ -116,7 +101,6 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
       douyinProfileUrl: "",
       aliases: "",
       coverAssetId: "",
-      links: [],
       representations: []
     };
   }
@@ -129,11 +113,6 @@ function createTalentDraft(talent?: Talent | null): TalentDraft {
     douyinProfileUrl: primaryDouyin?.url ?? "",
     aliases: toCommaText(talent.aliases),
     coverAssetId: talent.coverAssetId ?? "",
-    links: talent.links.filter((link) => link.id !== primaryDouyin?.id).map((link) => ({
-      id: link.id,
-      label: link.label,
-      url: link.url
-    })),
     representations: talent.representations.map((item) => ({
       id: item.id,
       title: item.title,
@@ -201,15 +180,35 @@ export function TalentManager({
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1023px)").matches) setIsEditorOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const syncPageOverflow = () => {
+      document.documentElement.style.overflow = desktop.matches ? "hidden" : previousHtmlOverflow;
+      document.body.style.overflow = desktop.matches ? "hidden" : previousBodyOverflow;
+    };
+    syncPageOverflow();
+    desktop.addEventListener("change", syncPageOverflow);
+    return () => {
+      desktop.removeEventListener("change", syncPageOverflow);
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
+
   const assetMap = useMemo(() => new Map(liveAssets.map((asset) => [asset.id, asset])), [liveAssets]);
 
   const filteredTalents = useMemo(
     () =>
-      liveTalents.filter((talent) =>
-        `${talent.nickname} ${talent.aliases.join(" ")} ${talent.bio} ${talent.searchKeywords.join(" ")}`
-          .toLowerCase()
-          .includes(deferredQuery.toLowerCase())
-      ),
+      liveTalents.filter((talent) => matchesPinyinSearch(
+        [talent.nickname, ...talent.aliases, talent.bio, ...talent.searchKeywords],
+        deferredQuery
+      )),
     [deferredQuery, liveTalents]
   );
 
@@ -285,27 +284,6 @@ export function TalentManager({
   function enqueueCleanupAssetId(assetId?: string | null) {
     if (!assetId) return;
     setCleanupCandidateAssetIds((current) => [...new Set([...current, assetId])]);
-  }
-
-  function updateLink(index: number, patch: Partial<LinkDraft>) {
-    setDraft((current) => ({
-      ...current,
-      links: current.links.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item))
-    }));
-  }
-
-  function addLinkRow() {
-    setDraft((current) => ({
-      ...current,
-      links: [...current.links, createLinkDraft()]
-    }));
-  }
-
-  function removeLinkRow(index: number) {
-    setDraft((current) => ({
-      ...current,
-      links: current.links.filter((_, itemIndex) => itemIndex !== index)
-    }));
   }
 
   function updateRepresentation(index: number, patch: Partial<RepresentationDraft>) {
@@ -493,14 +471,7 @@ export function TalentManager({
       links: [
         ...(normalizedDouyinProfileUrl
           ? [{ id: crypto.randomUUID(), label: "抖音主页", url: normalizedDouyinProfileUrl }]
-          : []),
-        ...draft.links
-        .map((link) => ({
-          id: link.id,
-          label: link.label.trim(),
-          url: link.url.trim()
-        }))
-        .filter((link) => link.label || link.url)
+          : [])
       ],
       representations: draft.representations
         .map((item) => ({
@@ -661,7 +632,7 @@ export function TalentManager({
       data-unsaved={hasUnsavedChanges ? "true" : "false"}
       className="admin-workspace grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]"
     >
-      <aside className="surface flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-panel)]">
+      <aside className={`surface min-h-0 flex-col overflow-hidden rounded-[var(--radius-panel)] ${isEditorOpen ? "hidden lg:flex" : "flex"}`}>
         <div className="space-y-3 border-b border-[var(--line-soft)] p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -726,7 +697,7 @@ export function TalentManager({
         </div>
       </aside>
 
-      <section id="talent-inspector" className={`${isEditorOpen ? "hidden" : ""} min-w-0 scroll-mt-24 space-y-4 lg:sticky lg:top-[5.25rem] lg:self-start`} data-testid="talent-inspector">
+      <section id="talent-inspector" className={`${isEditorOpen ? "hidden" : "hidden lg:block"} min-w-0 scroll-mt-24 space-y-4`} data-testid="talent-inspector">
         {selectedTalent ? (
           <div className="surface overflow-hidden rounded-[var(--radius-panel)]">
             <div className="ui-status-spine flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line-soft)] px-6 py-5" style={{ "--status-color": selectedSyncPresentation.color } as React.CSSProperties}>
@@ -815,23 +786,17 @@ export function TalentManager({
             {selectedTalent ? <section className="ui-status-spine grid gap-3 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4 pl-5 md:grid-cols-[1fr_auto]" style={{ "--status-color": selectedSyncPresentation.color } as React.CSSProperties}><div><p className="text-sm font-semibold">抖音同步 · {selectedSyncPresentation.label}</p><p className="mt-1 text-xs ui-muted">上次成功：{formatAdminSyncTime(selectedDouyinStatus?.lastSuccessAt)} · 粉丝 {formatFollowerCount(selectedDouyinStatus?.followerCount)} · 行程 {selectedDouyinStatus?.activeScheduleCount ?? 0} 条</p></div><button type="button" data-testid="sync-selected-douyin-editor" onClick={() => handleDouyinSync(selectedTalent.id)} disabled={syncPending || selectedSyncCoolingDown || !selectedDouyinLink} className="ui-button-secondary text-sm"><RefreshCw aria-hidden="true" className={`size-4 ${syncingTalentId === selectedTalent.id ? "animate-spin" : ""}`} />{syncingTalentId === selectedTalent.id ? "正在同步" : selectedSyncCoolingDown ? "同步冷却中" : "立即同步"}</button></section> : null}
             <section className="space-y-4">
               <div className="flex items-center justify-between gap-4"><div><p className="ui-kicker">基本资料</p><p className="mt-1 text-sm ui-muted">昵称必填，其他字段可留空。</p></div>{selectedTalent ? <button type="button" onClick={handleDelete} className="ui-button-danger text-sm"><Trash2 aria-hidden="true" className="size-4" />删除达人</button> : null}</div>
-              <label className="ui-field-label"><span>昵称 <span className="text-[var(--color-danger)]">*</span></span><input name="nickname" value={draft.nickname} onChange={(event) => setDraft((current) => ({ ...current, nickname: event.target.value }))} className="ui-input" /></label>
+              <div className="grid gap-4 md:grid-cols-2"><label className="ui-field-label"><span>昵称 <span className="text-[var(--color-danger)]">*</span></span><input name="nickname" value={draft.nickname} onChange={(event) => setDraft((current) => ({ ...current, nickname: event.target.value }))} className="ui-input" /></label><label className="ui-field-label"><span>别名 / 英文名</span><input name="aliases" value={draft.aliases} onChange={(event) => setDraft((current) => ({ ...current, aliases: event.target.value }))} className="ui-input" /></label></div>
               {duplicateNicknameTalent ? <p role="alert" className="text-sm text-[var(--color-danger)]">已存在同名达人“{duplicateNicknameTalent.nickname}”，请更换昵称。</p> : null}
-              <label className="ui-field-label"><span>简介</span><textarea name="bio" value={draft.bio} onChange={(event) => setDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="ui-textarea" /></label>
-              <label className="ui-field-label"><span>别名 / 英文名</span><input name="aliases" value={draft.aliases} onChange={(event) => setDraft((current) => ({ ...current, aliases: event.target.value }))} className="ui-input" /><span className="ui-field-help">支持中英文逗号分隔。</span></label>
+              <label className="ui-field-label"><span>简介</span><textarea name="bio" value={draft.bio} onChange={(event) => setDraft((current) => ({ ...current, bio: event.target.value }))} rows={1} className="ui-textarea admin-auto-textarea" /></label>
             </section>
 
             <section className="space-y-4 border-t border-[var(--line-soft)] pt-6">
               <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="ui-kicker">抖音资料</p><p className="mt-1 text-sm ui-muted">粘贴主页链接或完整分享文案。</p></div><button type="button" data-testid="open-douyin-search" onClick={openDouyinSearch} disabled={!draft.nickname.trim()} className="ui-button-secondary text-sm">打开抖音搜索</button></div>
-              <label className="ui-field-label"><span>抖音主页</span><textarea name="douyinProfileUrl" value={draft.douyinProfileUrl} onChange={(event) => setDraft((current) => ({ ...current, douyinProfileUrl: event.target.value }))} rows={2} className="ui-textarea" /><span className="ui-field-help">清空后会停止公开展示历史同步资料，但保留历史用于恢复。</span></label>
+              <label className="ui-field-label"><span>抖音主页</span><textarea name="douyinProfileUrl" value={draft.douyinProfileUrl} onChange={(event) => setDraft((current) => ({ ...current, douyinProfileUrl: event.target.value }))} rows={1} className="ui-textarea admin-auto-textarea" /><span className="ui-field-help">清空后会停止公开展示历史同步资料，但保留历史用于恢复。</span></label>
             </section>
 
             <section className="space-y-4 border-t border-[var(--line-soft)] pt-6"><div><p className="ui-kicker">封面图片</p><p className="mt-1 text-sm ui-muted">替换、重新取景或清空当前图片。</p></div><InlineAssetUpload kind="talent_cover" dataTestId="talent-cover-upload" currentAsset={draft.coverAssetId ? (assetMap.get(draft.coverAssetId) ?? null) : null} onClear={handleClearCover} onUploaded={handleCoverUploaded} /></section>
-
-            <section className="space-y-4 border-t border-[var(--line-soft)] pt-6">
-              <div className="flex items-center justify-between gap-3"><div><p className="ui-kicker">平台链接</p><p className="mt-1 text-sm ui-muted">抖音主页在上一分区维护。</p></div><button type="button" onClick={addLinkRow} className="ui-button-secondary text-sm"><Plus aria-hidden="true" className="size-4" />添加链接</button></div>
-              {draft.links.length ? draft.links.map((link, index) => <div key={link.id} className="grid gap-3 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-3 md:grid-cols-[0.8fr_1.5fr_auto]"><label className="ui-field-label"><span>平台名称</span><input value={link.label} onChange={(event) => updateLink(index, { label: event.target.value })} className="ui-input" /></label><label className="ui-field-label"><span>链接</span><input value={link.url} onChange={(event) => updateLink(index, { url: event.target.value })} placeholder="https://" className="ui-input" /></label><button type="button" onClick={() => removeLinkRow(index)} className="ui-button-danger self-end text-sm">删除</button></div>) : <p className="rounded-[0.9rem] border border-dashed border-[var(--line-strong)] p-4 text-sm ui-muted">尚未添加其他平台链接。</p>}
-            </section>
 
             <section className="space-y-4 border-t border-[var(--line-soft)] pt-6">
               <div className="flex items-center justify-between gap-3"><div><p className="ui-kicker">代表图</p><p className="mt-1 text-sm ui-muted">可拖拽，也可使用上下移动按钮调整顺序。</p></div><button type="button" onClick={addRepresentationRow} className="ui-button-secondary text-sm"><Plus aria-hidden="true" className="size-4" />添加代表图</button></div>

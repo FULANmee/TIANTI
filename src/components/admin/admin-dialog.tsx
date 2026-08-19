@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode, type SyntheticEvent } from "react";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface AdminDialogProps {
@@ -73,17 +73,18 @@ export function AdminDialog({
         data-testid="admin-editor-workspace"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className="admin-editor-stage surface grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[var(--radius-panel)] lg:col-start-2 lg:row-start-1"
+        className="admin-editor-stage surface min-h-0 overscroll-contain rounded-[var(--radius-panel)] lg:col-start-2 lg:row-start-1"
       >
         <div className="flex items-start justify-between gap-4 border-b border-[var(--line-soft)] bg-[rgba(255,255,255,0.96)] px-5 py-4 md:px-6">
           <div>
             <h2 id={titleId} className="text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">{title}</h2>
             {description ? <p id={descriptionId} className="mt-2 text-sm leading-6 ui-subtle">{description}</p> : null}
           </div>
-          {closable ? <button type="button" onClick={onClose} aria-label="关闭编辑" className="ui-button-secondary shrink-0 px-3"><X aria-hidden="true" className="size-4" /></button> : null}
+          <button type="button" onClick={onClose} className="ui-button-secondary shrink-0 px-3 text-sm lg:hidden"><ArrowLeft aria-hidden="true" className="size-4" />返回列表</button>
+          {closable ? <button type="button" onClick={onClose} aria-label="关闭编辑" className="ui-button-secondary hidden shrink-0 px-3 lg:inline-flex"><X aria-hidden="true" className="size-4" /></button> : null}
         </div>
-        <div className="overflow-y-auto overscroll-contain px-5 py-5 md:px-6">{children}</div>
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--line-soft)] bg-[rgba(255,255,255,0.96)] px-5 py-4 md:px-6">{footer}</div>
+        <div className="px-5 py-5 md:px-6">{children}</div>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--line-soft)] bg-[rgba(255,255,255,0.96)] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:px-6">{footer}</div>
       </section>
     );
   }
