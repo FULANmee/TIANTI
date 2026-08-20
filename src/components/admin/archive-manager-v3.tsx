@@ -555,9 +555,22 @@ export function ArchiveManager({
       setMessage("请先在达人库里添加达人。");
       return;
     }
+    setTalentSelectionQuery("");
     setLineupDialogDraft(createLineupDialogDraft());
     setIsLineupDialogOpen(true);
     setMessage(null);
+  }
+
+  function updateLineupTalentQuery(nextQuery: string) {
+    const nextOptions = sortedTalents.filter((talent) =>
+      matchesPinyinSearch([talent.nickname, ...talent.aliases, ...talent.searchKeywords], nextQuery)
+    );
+
+    setTalentSelectionQuery(nextQuery);
+    setLineupDialogDraft((current) => {
+      if (!current || nextOptions.some((talent) => talent.id === current.talentId)) return current;
+      return createLineupDialogDraft(nextOptions[0]?.id ?? "");
+    });
   }
 
   function updateLineupDialogTalent(talentId: string) {
@@ -1550,7 +1563,7 @@ export function ArchiveManager({
         }
       >
         <div data-testid="lineup-dialog" className="space-y-5">
-          <label className="ui-field-label"><span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索达人</span><input value={talentSelectionQuery} onChange={(event) => setTalentSelectionQuery(event.target.value)} placeholder="中文、拼音或首字母" className="ui-input text-sm" /></label>
+          <label className="ui-field-label"><span className="flex items-center gap-2"><Search aria-hidden="true" className="size-3.5" />搜索达人</span><input value={talentSelectionQuery} onChange={(event) => updateLineupTalentQuery(event.target.value)} placeholder="中文、拼音或首字母" className="ui-input text-sm" /></label>
           <div className="grid gap-4">
             <label className="space-y-2">
               <span className="text-xs uppercase tracking-[0.2em] ui-muted">达人</span>

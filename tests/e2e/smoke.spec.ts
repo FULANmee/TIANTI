@@ -234,6 +234,29 @@ test("editor can open Douyin search and paste a profile URL manually", async ({ 
   );
 });
 
+test("activity lineup search submits the talent shown after filtering", async ({ page }) => {
+  const firstDate = getFutureDateKey(30);
+  const secondDate = getFutureDateKey(31);
+  await login(page);
+  await page.goto("/admin/archives");
+  await page.getByTestId("new-event-button").click();
+  await page.locator('input[name="startsAt"]').fill(firstDate);
+  await page.locator('input[name="endsAt"]').fill(secondDate);
+
+  await page.getByTestId("add-lineup").click();
+  await page.getByPlaceholder("中文、拼音或首字母").fill("ym");
+
+  const talentSelect = page.getByTestId("lineup-dialog-talent");
+  await expect(talentSelect).toHaveValue("talent-yunmo");
+  await expect(talentSelect.locator("option")).toHaveCount(1);
+  await expect(talentSelect.locator("option")).toHaveText("云墨");
+
+  await page.getByTestId(`lineup-dialog-date-${firstDate}`).check();
+  await page.getByTestId("lineup-dialog-submit").click();
+  await expect(page.getByTestId("lineup-talent-0")).toHaveValue("talent-yunmo");
+  await expect(page.getByTestId("lineup-date-0")).toHaveValue(firstDate);
+});
+
 test.skip("editor can quickly merge two future activities and keep the selected target", async ({ page }) => {
   const firstDate = getFutureDateKey(30);
   const secondDate = getFutureDateKey(31);
