@@ -582,6 +582,28 @@ test("editor can reopen crop for an existing image without saving an out-of-boun
   await expect(page.getByTestId("talent-cover-upload-crop-frame")).toBeVisible();
 });
 
+test("a framed ladder image stays clipped above the talent name", async ({ page }) => {
+  await login(page);
+
+  await page.goto("/admin/talents");
+  await page.getByTestId("talent-cover-upload-edit").click();
+  await page.getByTestId("talent-cover-upload-crop-zoom").focus();
+  await page.keyboard.press("End");
+  await page.getByTestId("talent-cover-upload-confirm-crop").click();
+
+  await page.goto("/ladder?editor=lin");
+  const talentName = page.getByTestId("ladder-tier-lin-t0-talent-0").getByText("青鸾", { exact: true });
+  await talentName.scrollIntoViewIfNeeded();
+  const nameBox = await talentName.boundingBox();
+  expect(nameBox).not.toBeNull();
+  const topElement = await page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    return { tagName: element?.tagName ?? null, text: element?.textContent ?? null };
+  }, { x: nameBox!.x + nameBox!.width / 2, y: nameBox!.y + nameBox!.height / 2 });
+  expect(topElement.tagName).toBe("P");
+  expect(topElement.text).toBe("青鸾");
+});
+
 test("public filters apply automatically without a filter button", async ({ page }) => {
   await page.goto("/talents");
   await page.getByLabel("按编辑视角筛选达人").selectOption("lin");

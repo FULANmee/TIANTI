@@ -29,23 +29,25 @@ export function FramedImage({ asset, sizes, eager = false, className = "" }: Fra
   }
 
   return (
-    <div
-      className="absolute"
-      style={{
-        left: `${(-cropX / cropWidth) * 100}%`,
-        top: `${(-cropY / cropHeight) * 100}%`,
-        width: `${100 / cropWidth}%`,
-        height: `${100 / cropHeight}%`
-      }}
-    >
-      <Image
-        src={asset.url}
-        alt={asset.alt}
-        fill
-        loading={eager ? "eager" : undefined}
-        sizes={sizes}
-        className={`object-fill ${className}`}
-      />
+    <div className="absolute inset-0 overflow-hidden">
+      <div
+        className="absolute"
+        style={{
+          left: `${(-cropX / cropWidth) * 100}%`,
+          top: `${(-cropY / cropHeight) * 100}%`,
+          width: `${100 / cropWidth}%`,
+          height: `${100 / cropHeight}%`
+        }}
+      >
+        <Image
+          src={asset.url}
+          alt={asset.alt}
+          fill
+          loading={eager ? "eager" : undefined}
+          sizes={sizes}
+          className={`object-fill ${className}`}
+        />
+      </div>
     </div>
   );
 }
