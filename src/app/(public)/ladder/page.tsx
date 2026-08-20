@@ -7,6 +7,7 @@ import { getAssetDisplayPreset } from "@/lib/asset-display";
 import { getTalentPath } from "@/lib/public-path";
 import { buildMetadata } from "@/lib/site";
 import { getAutomaticLadderPage, getLadderPage, getSiteEditors } from "@/modules/content/service";
+import { formatDouyinFollowerCount, formatDouyinFollowerDelta } from "@/modules/douyin/format";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -143,7 +144,7 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
                           </div>
                           <div className="p-3">
                             <p className="truncate text-sm font-semibold text-[var(--foreground)]">{talent.nickname}</p>
-                            {automaticMode === "followers" && "followerCount" in talentItem ? <div className="mt-2 space-y-1 font-mono text-[10px] leading-4"><p className="text-[var(--foreground-soft)]">粉丝 {talentItem.followerCount == null ? "—" : talentItem.followerCount.toLocaleString("zh-CN")}</p><p className={talentItem.followerGrowth == null ? "ui-muted" : talentItem.followerGrowth < 0 ? "text-[#16866b]" : "text-[#b13b45]"}>涨粉 {talentItem.followerGrowth == null ? "—" : `${talentItem.followerGrowth >= 0 ? "+" : ""}${talentItem.followerGrowth.toLocaleString("zh-CN")}`}</p><p className={talentItem.followerGrowthRate == null ? "ui-muted" : talentItem.followerGrowthRate < 0 ? "text-[#16866b]" : "text-[#b13b45]"}>幅度 {talentItem.followerGrowthRate == null ? "—" : `${talentItem.followerGrowthRate >= 0 ? "+" : ""}${(talentItem.followerGrowthRate * 100).toFixed(2)}%`}</p><p className="ui-muted">{talentItem.followerRecordedDays == null ? "暂无历史" : talentItem.followerRecordedDays >= 30 ? "近 30 天" : `基于 ${talentItem.followerRecordedDays} 天记录`}</p></div> : null}
+                            {automaticMode === "followers" && "followerCount" in talentItem ? <div className="mt-2 space-y-1 font-mono text-[10px] leading-4"><p className="text-[var(--foreground-soft)]">粉丝 {talentItem.followerCount == null ? "—" : formatDouyinFollowerCount(talentItem.followerCount)}</p><p className={talentItem.followerGrowth == null ? "ui-muted" : talentItem.followerGrowth < 0 ? "text-[#16866b]" : "text-[#b13b45]"}>涨粉 {talentItem.followerGrowth == null ? "—" : formatDouyinFollowerDelta(talentItem.followerGrowth)}</p><p className={talentItem.followerGrowthRate == null ? "ui-muted" : talentItem.followerGrowthRate < 0 ? "text-[#16866b]" : "text-[#b13b45]"}>幅度 {talentItem.followerGrowthRate == null ? "—" : `${talentItem.followerGrowthRate >= 0 ? "+" : ""}${(talentItem.followerGrowthRate * 100).toFixed(2)}%`}</p><p className="ui-muted">{talentItem.followerRecordedDays == null ? "暂无历史" : talentItem.followerRecordedDays >= 30 ? "近 30 天" : `基于 ${talentItem.followerRecordedDays} 天记录`}</p></div> : null}
                           </div>
                         </Link>
                         );

@@ -13,7 +13,7 @@ import { getEventDisplayName } from "@/lib/event-display";
 import { getEventPath, getPublicIdentifier, getTalentPath } from "@/lib/public-path";
 import { buildMetadata } from "@/lib/site";
 import { getTalentPage } from "@/modules/content/service";
-import { formatDouyinFollowerCount } from "@/modules/douyin/format";
+import { formatDouyinFollowerCount, formatDouyinFollowerDelta } from "@/modules/douyin/format";
 
 type Params = Promise<{ slug: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -134,7 +134,7 @@ export default async function TalentDetailPage({
               {detail.douyinProfile?.followerCount != null ? (
                 <div className="surface-strong rounded-[1.4rem] p-4">
                   <div className="flex items-center justify-between gap-4"><p className="text-sm ui-muted">抖音粉丝</p><p className="text-xs ui-muted">{followerRecordedDays == null ? "暂无历史" : followerRecordedDays >= 30 ? "近 30 天" : `基于 ${followerRecordedDays} 天记录`}</p></div>
-                  <div className="mt-2 flex items-baseline gap-4"><p className="text-lg text-[var(--foreground)]">{formatDouyinFollowerCount(detail.douyinProfile.followerCount)}</p>{followerGrowth != null ? <p className={followerGrowth >= 0 ? "text-sm font-semibold text-[#b13b45]" : "text-sm font-semibold text-[#16866b]"}>{followerGrowth >= 0 ? "+" : ""}{followerGrowth.toLocaleString("zh-CN")}</p> : null}</div>
+                  <div className="mt-2 flex items-baseline gap-4"><p className="text-lg text-[var(--foreground)]">{formatDouyinFollowerCount(detail.douyinProfile.followerCount)}</p>{followerGrowth != null ? <p className={followerGrowth >= 0 ? "text-sm font-semibold text-[#b13b45]" : "text-sm font-semibold text-[#16866b]"}>{formatDouyinFollowerDelta(followerGrowth)}</p> : null}</div>
                 </div>
               ) : null}
 

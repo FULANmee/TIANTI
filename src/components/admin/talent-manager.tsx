@@ -8,6 +8,7 @@ import { InlineAssetUpload } from "@/components/admin/inline-asset-upload";
 import { normalizeTalentDraft, splitCommaValues } from "@/components/admin/talent-manager-utils";
 import { compareByPinyin, matchesPinyinSearch } from "@/lib/pinyin";
 import { extractDouyinProfileUrl, getPrimaryDouyinProfileLink } from "@/modules/douyin/profile-link";
+import { formatDouyinFollowerCount } from "@/modules/douyin/format";
 import type { DouyinSyncResponse, TalentBulkResponse } from "@/modules/admin/types";
 import type {
   Asset,
@@ -70,7 +71,7 @@ function formatAdminSyncTime(value?: string | null) {
 
 function formatFollowerCount(value?: number | null) {
   if (value === null || value === undefined) return "未读取";
-  return new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return formatDouyinFollowerCount(value);
 }
 
 function getSyncPresentation(
