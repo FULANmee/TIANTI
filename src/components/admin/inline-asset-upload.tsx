@@ -6,6 +6,7 @@ import {
   ASSET_UPLOAD_PRESET_OPTIONS,
   getAssetDisplayPreset
 } from "@/lib/asset-display";
+import { normalizeAssetFraming } from "@/lib/asset-framing";
 import { getImageFileFromTransfer, hasImageFileInTransfer } from "@/lib/image-transfer";
 import { FramedImage } from "@/components/ui/framed-image";
 import type { Asset, AssetKind } from "@/modules/domain/types";
@@ -314,8 +315,7 @@ export function InlineAssetUpload({
       setScale(minScale);
       return;
     }
-    const cropWidth = asset.cropWidth ?? 1;
-    const cropHeight = asset.cropHeight ?? 1;
+    const { cropX, cropY, cropWidth, cropHeight } = normalizeAssetFraming(asset);
     const nextScale = Math.max(
       cropBox.width / (cropWidth * cropSession.width),
       cropBox.height / (cropHeight * cropSession.height)
@@ -324,8 +324,8 @@ export function InlineAssetUpload({
     const displayedHeight = cropSession.height * nextScale;
     setScale(nextScale);
     setOffset({
-      x: -(asset.cropX ?? 0) * displayedWidth - (cropBox.width - displayedWidth) / 2,
-      y: -(asset.cropY ?? 0) * displayedHeight - (cropBox.height - displayedHeight) / 2
+      x: -cropX * displayedWidth - (cropBox.width - displayedWidth) / 2,
+      y: -cropY * displayedHeight - (cropBox.height - displayedHeight) / 2
     });
   }, [cropBox, cropSession, minScale]);
 
@@ -548,10 +548,12 @@ export function InlineAssetUpload({
       const imageLeft = (cropBox.width - displayedWidth) / 2 + offset.x;
       const imageTop = (cropBox.height - displayedHeight) / 2 + offset.y;
       const framing = {
-        cropX: Math.max(0, -imageLeft / safeScale / cropSession.width),
-        cropY: Math.max(0, -imageTop / safeScale / cropSession.height),
-        cropWidth: Math.min(1, cropBox.width / safeScale / cropSession.width),
-        cropHeight: Math.min(1, cropBox.height / safeScale / cropSession.height),
+        ...normalizeAssetFraming({
+          cropX: -imageLeft / displayedWidth,
+          cropY: -imageTop / displayedHeight,
+          cropWidth: cropBox.width / displayedWidth,
+          cropHeight: cropBox.height / displayedHeight
+        }),
         displayAspectWidth: preset.aspectWidth,
         displayAspectHeight: preset.aspectHeight
       } as Asset;
@@ -748,12 +750,12 @@ export function InlineAssetUpload({
                   onPointerCancel={handleCropPointerEnd}
                   onKeyDown={(event) => {
                     const step = event.shiftKey ? 24 : 8;
-                    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+                    if (!cropBox || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
                     event.preventDefault();
-                    setOffset((current) => ({
+                    setOffset((current) => clampOffset({
                       x: current.x + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0),
                       y: current.y + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0)
-                    }));
+                    }, cropSession.width, cropSession.height, cropBox, safeScale));
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}

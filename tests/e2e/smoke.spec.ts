@@ -551,14 +551,35 @@ test("editor can clear a current image and save the empty state", async ({ page 
   await expect(page.getByText("当前未上传图片")).toBeVisible();
 });
 
-test("editor can reopen crop for an existing image", async ({ page }) => {
+test("editor can reopen crop for an existing image without saving an out-of-bounds preview", async ({ page }) => {
   await login(page);
 
   await page.goto("/admin/talents");
   await expect(page.getByTestId("talent-cover-upload-edit")).toBeVisible();
   await page.getByTestId("talent-cover-upload-edit").click();
-  await expect(page.getByTestId("talent-cover-upload-crop-frame")).toBeVisible();
+  const cropFrame = page.getByTestId("talent-cover-upload-crop-frame");
+  await expect(cropFrame).toBeVisible();
   await expect(page.getByTestId("talent-cover-upload-crop-zoom")).toBeVisible();
+  await cropFrame.focus();
+  for (let index = 0; index < 8; index += 1) await page.keyboard.press("ArrowLeft");
+
+  const frameBox = await cropFrame.boundingBox();
+  const imageBox = await cropFrame.locator("img").boundingBox();
+  expect(frameBox).not.toBeNull();
+  expect(imageBox).not.toBeNull();
+  expect(imageBox!.x).toBeLessThanOrEqual(frameBox!.x + 1);
+  expect(imageBox!.x + imageBox!.width).toBeGreaterThanOrEqual(frameBox!.x + frameBox!.width - 2);
+
+  const framingResponse = page.waitForResponse(
+    (response) => response.url().includes("/api/admin/assets") && response.request().method() === "PATCH"
+  );
+  await page.getByTestId("talent-cover-upload-confirm-crop").click();
+  const savedAsset = (await (await framingResponse).json()).asset;
+  expect(savedAsset.cropX + savedAsset.cropWidth).toBeLessThanOrEqual(1.000001);
+  expect(savedAsset.cropY + savedAsset.cropHeight).toBeLessThanOrEqual(1.000001);
+
+  await page.getByTestId("talent-cover-upload-edit").click();
+  await expect(page.getByTestId("talent-cover-upload-crop-frame")).toBeVisible();
 });
 
 test("public filters apply automatically without a filter button", async ({ page }) => {

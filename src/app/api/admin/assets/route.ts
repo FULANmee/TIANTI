@@ -130,6 +130,8 @@ export async function PATCH(request: Request) {
       cropWidth: z.number().positive().max(1), cropHeight: z.number().positive().max(1),
       displayAspectWidth: z.union([z.literal(3), z.literal(4)]),
       displayAspectHeight: z.union([z.literal(3), z.literal(4)])
+    }).refine((value) => value.cropX + value.cropWidth <= 1.000001 && value.cropY + value.cropHeight <= 1.000001, {
+      message: "图片取景范围无效。"
     }).parse(await request.json());
     const { assetId, ...framing } = input;
     const asset = await getContentRepository().updateAssetFraming(assetId, framing);

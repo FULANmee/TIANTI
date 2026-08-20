@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { normalizeAssetFraming } from "@/lib/asset-framing";
 import type { Asset } from "@/modules/domain/types";
 
 interface FramedImageProps {
@@ -9,10 +10,7 @@ interface FramedImageProps {
 }
 
 export function FramedImage({ asset, sizes, eager = false, className = "" }: FramedImageProps) {
-  const cropX = asset.cropX ?? 0;
-  const cropY = asset.cropY ?? 0;
-  const cropWidth = asset.cropWidth ?? 1;
-  const cropHeight = asset.cropHeight ?? 1;
+  const { cropX, cropY, cropWidth, cropHeight } = normalizeAssetFraming(asset);
   const displayAspect = (asset.displayAspectWidth ?? 0) / (asset.displayAspectHeight ?? 1);
   const cropAspect = (cropWidth * asset.width) / (cropHeight * asset.height);
   const hasFraming = displayAspect > 0 && Math.abs(displayAspect - cropAspect) < 0.03;
