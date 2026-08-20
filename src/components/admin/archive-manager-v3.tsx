@@ -1121,8 +1121,8 @@ export function ArchiveManager({
         </div>
       </aside>
 
-      <section className={`${isEventEditorOpen ? "" : "hidden lg:block"} min-h-0 space-y-5`}>
-        {message ? <StatusNotice variant="warning">{message}</StatusNotice> : null}
+      <section className={`${isEventEditorOpen ? "flex" : "hidden lg:flex"} min-h-0 min-w-0 flex-col gap-5`}>
+        {message ? <div className="shrink-0"><StatusNotice variant="warning">{message}</StatusNotice></div> : null}
         {isEventEditorOpen ? (
           <AdminDialog
             title={selectedEvent ? `编辑 ${getEventDisplayName(selectedEvent)}` : "新建活动档案"}
@@ -1133,31 +1133,28 @@ export function ArchiveManager({
             footer={
               <>
                 <span className="mr-auto text-xs leading-6 ui-muted">一次保存活动信息、公开阵容与现场档案。</span>
-                <button type="button" onClick={handleSaveAll} disabled={pending || savingEvent || savingArchive} data-testid="save-activity-footer" className="ui-button-primary text-sm"><Save aria-hidden="true" className="size-4" />{savingEvent || savingArchive ? "保存中..." : "保存活动档案"}</button>
+                <button type="button" onClick={handleSaveAll} disabled={pending || savingEvent || savingArchive} data-testid="save-activity" className="ui-button-primary text-sm"><Save aria-hidden="true" className="size-4" />{savingEvent || savingArchive ? "保存中..." : "保存活动档案"}</button>
               </>
             }
             closable={false}
           >
             <section className="space-y-5">
-          <div className="mb-6 flex flex-col items-stretch gap-4 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-[0.9rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-4">
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-sm font-semibold">基本信息与阵容</p>
               {isEventDirty ? <span className="rounded-full bg-[var(--color-warning-soft)] px-3 py-1 text-xs text-[var(--color-warning)]">尚未保存</span> : <span className="text-xs ui-muted">已保存</span>}
             </div>
-            <div className="flex shrink-0 flex-wrap justify-start gap-2 sm:justify-end">
-              <button type="button" onClick={handleSaveAll} disabled={pending || savingEvent || savingArchive} data-testid="save-activity" className="ui-button-primary text-sm"><Save aria-hidden="true" className="size-4" />{savingEvent || savingArchive ? "保存中..." : "保存活动档案"}</button>
-              {selectedEvent ? (
-                <button
-                  type="button"
-                  onClick={handleDeleteEvent}
-                  aria-label="删除活动"
-                  className="ui-button-danger text-sm"
-                >
-                  <Trash2 aria-hidden="true" className="size-4" />
-                  <span className="hidden sm:inline">删除活动</span>
-                </button>
-              ) : null}
-            </div>
+            {selectedEvent ? (
+              <button
+                type="button"
+                onClick={handleDeleteEvent}
+                aria-label="删除活动"
+                className="ui-button-danger text-sm"
+              >
+                <Trash2 aria-hidden="true" className="size-4" />
+                <span className="hidden sm:inline">删除活动</span>
+              </button>
+            ) : null}
           </div>
 
           <div className="space-y-5">

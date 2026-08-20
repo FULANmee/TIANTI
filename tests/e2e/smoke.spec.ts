@@ -256,6 +256,16 @@ test("activity lineup search submits the talent shown after filtering", async ({
   await page.getByTestId("lineup-dialog-submit").click();
   await expect(page.getByTestId("lineup-talent-0")).toHaveValue("talent-yunmo");
   await expect(page.getByTestId("lineup-date-0")).toHaveValue(firstDate);
+
+  const workspace = page.getByTestId("admin-editor-workspace");
+  await workspace.evaluate((node) => node.scrollTo({ top: node.scrollHeight }));
+  await expect(page.getByTestId("save-activity")).toBeInViewport();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await workspace.evaluate((node) => node.scrollTo({ top: 0 }));
+  await page.getByTestId("save-activity").scrollIntoViewIfNeeded();
+  await expect(page.getByTestId("save-activity")).toBeInViewport();
+  await expect.poll(() => page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBeGreaterThan(0);
 });
 
 test.skip("editor can quickly merge two future activities and keep the selected target", async ({ page }) => {
