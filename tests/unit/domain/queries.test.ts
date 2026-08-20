@@ -86,10 +86,18 @@ describe("domain queries", () => {
       { id: "snapshot-second", talentId: second.id, followerCount: 490_000, fetchedAt: "2026-04-25T18:00:00.000Z" }
     );
 
-    const byFollowers = getAutomaticLadder(state, "followers", "followers").tiers[0]!.talents;
-    const byGrowth = getAutomaticLadder(state, "followers", "growth").tiers[0]!.talents;
-    const byRate = getAutomaticLadder(state, "followers", "rate").tiers[0]!.talents;
+    const followerLadder = getAutomaticLadder(state, "followers", "followers");
+    const growthLadder = getAutomaticLadder(state, "followers", "growth");
+    const rateLadder = getAutomaticLadder(state, "followers", "rate");
+    const byFollowers = followerLadder.tiers.find((tier) => tier.name === "100 万以下")!.talents;
+    const byGrowth = growthLadder.tiers[0]!.talents;
+    const byRate = rateLadder.tiers[0]!.talents;
 
+    expect(followerLadder.tiers.slice(0, 5).map((tier) => tier.name)).toEqual([
+      "500 万以上", "300～500 万", "200～300 万", "100～200 万", "100 万以下"
+    ]);
+    expect(growthLadder.tiers.map((tier) => tier.name)).toEqual(["全部达人"]);
+    expect(rateLadder.tiers.map((tier) => tier.name)).toEqual(["全部达人"]);
     expect(byFollowers.slice(0, 2).map((item) => item.talent.id)).toEqual([second.id, first.id]);
     expect(byGrowth.slice(0, 2).map((item) => item.talent.id)).toEqual([first.id, second.id]);
     expect(byRate.slice(0, 2).map((item) => item.talent.id)).toEqual([first.id, second.id]);

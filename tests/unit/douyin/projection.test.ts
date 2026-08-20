@@ -58,7 +58,7 @@ describe("Douyin public projection", () => {
   });
 
   it("formats followers in 万 and uses factual city/date for an unnamed event", () => {
-    expect(formatDouyinFollowerCount(126_438)).toBe("12.6w");
+    expect(formatDouyinFollowerCount(126_438)).toBe("12.6万");
     expect(
       getEventDisplayName({
         name: "",

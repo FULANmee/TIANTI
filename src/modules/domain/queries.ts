@@ -1034,11 +1034,11 @@ export function getAutomaticLadder(
   });
   const definitions = mode === "followers"
     ? [
-        { id: "followers-under-100w", name: "100w 以下", accepts: (value: number) => value < 1_000_000 },
-        { id: "followers-100w-200w", name: "100w～200w", accepts: (value: number) => value >= 1_000_000 && value < 2_000_000 },
-        { id: "followers-200w-300w", name: "200w～300w", accepts: (value: number) => value >= 2_000_000 && value < 3_000_000 },
-        { id: "followers-300w-500w", name: "300w～500w", accepts: (value: number) => value >= 3_000_000 && value < 5_000_000 },
-        { id: "followers-over-500w", name: "500w 以上", accepts: (value: number) => value >= 5_000_000 }
+        { id: "followers-over-500-wan", name: "500 万以上", accepts: (value: number) => value >= 5_000_000 },
+        { id: "followers-300-500-wan", name: "300～500 万", accepts: (value: number) => value >= 3_000_000 && value < 5_000_000 },
+        { id: "followers-200-300-wan", name: "200～300 万", accepts: (value: number) => value >= 2_000_000 && value < 3_000_000 },
+        { id: "followers-100-200-wan", name: "100～200 万", accepts: (value: number) => value >= 1_000_000 && value < 2_000_000 },
+        { id: "followers-under-100-wan", name: "100 万以下", accepts: (value: number) => value < 1_000_000 }
       ]
     : [
         { id: `${mode}-0`, name: "T0～T1", accepts: (value: number) => value >= 0 && value <= 1 },
@@ -1049,7 +1049,7 @@ export function getAutomaticLadder(
       ];
   const valueLabel = (value: number | null) => value == null
     ? (mode === "followers" ? "暂无数据" : "暂无评分")
-    : mode === "followers" ? `${(value / 10_000).toFixed(1)}w` : `平均 T${value.toFixed(1)}`;
+    : mode === "followers" ? `${(value / 10_000).toFixed(1)}万` : `平均 T${value.toFixed(1)}`;
   const sortRows = (items: typeof rows) => [...items].sort((left, right) =>
     (mode === "followers"
       ? (right.value ?? Number.NEGATIVE_INFINITY) - (left.value ?? Number.NEGATIVE_INFINITY)
@@ -1057,21 +1057,25 @@ export function getAutomaticLadder(
     compareByPinyin(left.talent.nickname, right.talent.nickname));
   return {
     mode,
-    title: mode === "followers" ? "粉丝天梯" : `${editor?.name ?? "编辑人"}的平均梯度`,
+    title: mode === "followers" ? "粉丝天梯" : `${editor?.name ?? "编辑人"}的平均天梯`,
     subtitle: mode === "followers" ? "同时查看当前粉丝、最多近 30 天的真实涨粉量与涨粉比率。" : "依据该编辑人的全部已评分现场档案自动计算。",
     editor,
-    tiers: mode === "followers" ? [
-      ...definitions.map((definition) => ({
-        id: definition.id,
-        name: definition.name,
-        talents: sortRows(rows.filter((row) => row.followerCount != null && definition.accepts(row.followerCount))).map((row) => ({ ...row, valueLabel: valueLabel(row.value) }))
-      })),
-      {
-        id: "followers-unknown",
-        name: "暂无粉丝数据",
-        talents: sortRows(rows.filter((row) => row.followerCount == null)).map((row) => ({ ...row, valueLabel: valueLabel(null) }))
-      }
-    ] : [
+    tiers: mode === "followers" ? (followerSort === "followers" ? [
+        ...definitions.map((definition) => ({
+          id: definition.id,
+          name: definition.name,
+          talents: sortRows(rows.filter((row) => row.followerCount != null && definition.accepts(row.followerCount))).map((row) => ({ ...row, valueLabel: valueLabel(row.value) }))
+        })),
+        {
+          id: "followers-unknown",
+          name: "暂无粉丝数据",
+          talents: sortRows(rows.filter((row) => row.followerCount == null)).map((row) => ({ ...row, valueLabel: valueLabel(null) }))
+        }
+      ] : [{
+        id: `followers-${followerSort}-ranking`,
+        name: "全部达人",
+        talents: sortRows(rows).map((row) => ({ ...row, valueLabel: valueLabel(row.value) }))
+      }]) : [
       ...definitions.map((definition) => ({
         id: definition.id,
         name: definition.name,

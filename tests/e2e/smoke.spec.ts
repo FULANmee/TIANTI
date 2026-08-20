@@ -744,7 +744,7 @@ test("public talent and ladder grids use the approved desktop density", async ({
   await expectGridColumnCount(page.getByTestId("field-records-grid"), 6);
 
   await page.goto("/ladder");
-  await expectGridColumnCount(page.getByTestId("ladder-tier-grid").first(), 10);
+  await expectGridColumnCount(page.getByTestId("ladder-tier-grid").first(), 8);
 });
 
 test("public pages remain browsable on mobile", async ({ page }) => {
