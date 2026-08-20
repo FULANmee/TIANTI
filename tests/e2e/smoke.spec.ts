@@ -240,6 +240,7 @@ test("activity lineup search submits the talent shown after filtering", async ({
   await login(page);
   await page.goto("/admin/archives");
   await page.getByTestId("new-event-button").click();
+  await expect(page.getByTestId("save-activity")).toBeVisible();
   await page.locator('input[name="startsAt"]').fill(firstDate);
   await page.locator('input[name="endsAt"]').fill(secondDate);
 
