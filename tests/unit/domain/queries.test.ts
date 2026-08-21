@@ -107,6 +107,30 @@ describe("domain queries", () => {
       followerGrowthRate: 0.2,
       followerRecordedDays: 4
     });
+    const historicalGrowth = getAutomaticLadder(
+      state,
+      "followers",
+      "growth",
+      { from: "2026-03-20", to: "2026-04-26" }
+    ).tiers[0]!.talents.find((item) => item.talent.id === first.id);
+    expect(historicalGrowth).toMatchObject({
+      followerCount: 120_000,
+      followerGrowth: 20_000,
+      followerGrowthRate: 0.25,
+      followerRecordedDays: 37
+    });
+    const singleObservation = getAutomaticLadder(
+      state,
+      "followers",
+      "growth",
+      { from: "2026-04-27", to: "2026-04-29" }
+    ).tiers[0]!.talents.find((item) => item.talent.id === first.id);
+    expect(singleObservation).toMatchObject({
+      followerCount: 120_000,
+      followerGrowth: null,
+      followerGrowthRate: null,
+      followerRecordedDays: null
+    });
     expect(getTalentDetail(state, first.id)?.douyinProfile).toMatchObject({ followerGrowth: 20_000, followerRecordedDays: 4 });
   });
 

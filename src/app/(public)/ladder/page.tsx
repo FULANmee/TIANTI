@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { CalendarRange } from "lucide-react";
+import type { CSSProperties } from "react";
 import { FramedImage } from "@/components/ui/framed-image";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
 import { SectionFrame } from "@/components/ui/section-frame";
 import { getAssetDisplayPreset } from "@/lib/asset-display";
+import { getDateOnlyKey, getShanghaiDateKey } from "@/lib/date";
 import { getTalentPath } from "@/lib/public-path";
 import { buildMetadata } from "@/lib/site";
 import { getAutomaticLadderPage, getLadderPage, getSiteEditors } from "@/modules/content/service";
@@ -11,6 +14,26 @@ import { formatDouyinFollowerCount, formatDouyinFollowerDelta } from "@/modules/
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type FollowerSort = "followers" | "growth" | "rate";
+type FollowerComparisonRange = { from: string; to: string };
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function getDateKeyDaysAgo(days: number) {
+  return getShanghaiDateKey(new Date(Date.now() - days * DAY_IN_MS));
+}
+
+function getFollowerComparisonRange(params: Record<string, string | string[] | undefined>) {
+  const today = getShanghaiDateKey();
+  const requestedFrom = typeof params.from === "string" ? getDateOnlyKey(params.from) : null;
+  const requestedTo = typeof params.to === "string" ? getDateOnlyKey(params.to) : null;
+  const from = requestedFrom && requestedFrom <= today ? requestedFrom : getDateKeyDaysAgo(30);
+  const to = requestedTo && requestedTo <= today ? requestedTo : today;
+  return from <= to ? { from, to, today } : { from: to, to: from, today };
+}
+
+function getFollowerHref(sort: FollowerSort, range: FollowerComparisonRange) {
+  const query = new URLSearchParams({ view: "followers", sort, from: range.from, to: range.to });
+  return `/ladder?${query.toString()}`;
+}
 
 interface FollowerMetricsProps {
   followerCount: number | null;
@@ -53,7 +76,7 @@ function FollowerMetrics({ followerCount, followerGrowth, followerGrowthRate, fo
         const line = lines[key];
         return <p key={line.id} className={`${line.tone} ${index === 0 ? "text-[11px] font-semibold" : "text-[10px]"}`}>{line.label} {line.value}</p>;
       })}
-      <p className="text-[10px] ui-muted">{followerRecordedDays == null ? "暂无历史" : followerRecordedDays >= 30 ? "近 30 天" : `基于 ${followerRecordedDays} 天记录`}</p>
+      <p className="text-[10px] ui-muted">{followerRecordedDays == null ? "暂无历史" : `基于 ${followerRecordedDays} 天记录`}</p>
     </div>
   );
 }
@@ -83,9 +106,16 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
   const followerSort = typeof params.sort === "string" && followerSorts.includes(params.sort as typeof followerSorts[number])
     ? params.sort as typeof followerSorts[number]
     : "followers";
+  const followerRange = getFollowerComparisonRange(params);
+  const followerComparisonRange = { from: followerRange.from, to: followerRange.to };
+  const followerShortcuts = [
+    { id: "yesterday", label: "与昨天", range: { from: getDateKeyDaysAgo(1), to: followerRange.today } },
+    { id: "seven-days", label: "近 7 天", range: { from: getDateKeyDaysAgo(7), to: followerRange.today } },
+    { id: "thirty-days", label: "近 30 天", range: { from: getDateKeyDaysAgo(30), to: followerRange.today } }
+  ];
   const averageMode = editorSlug === "lin" || editorSlug === "yu" ? `average-${editorSlug}` as const : null;
   const automaticMode = isFollowers ? "followers" : editorMode === "average" ? averageMode : null;
-  const automaticData = automaticMode ? await getAutomaticLadderPage(automaticMode, followerSort) : null;
+  const automaticData = automaticMode ? await getAutomaticLadderPage(automaticMode, followerSort, isFollowers ? followerComparisonRange : undefined) : null;
   const data = automaticData ? {
     ladder: { title: automaticData.title, subtitle: automaticData.subtitle },
     editor: automaticData.editor ?? { name: "自动计算" },
@@ -123,7 +153,38 @@ export default async function LadderPage({ searchParams }: { searchParams: Searc
 
         {data ? (
           <>
-            {isFollowers ? <div className="inline-flex rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-1" aria-label="粉丝天梯排序方式">{([{ id: "followers", label: "粉丝量" }, { id: "growth", label: "涨粉量" }, { id: "rate", label: "涨粉比率" }] as const).map((item) => <Link key={item.id} href={`/ladder?view=followers&sort=${item.id}`} className={`rounded-[0.6rem] px-4 py-2 text-sm ${followerSort === item.id ? "bg-[var(--surface-strong)] font-semibold shadow-sm" : "ui-muted"}`}>{item.label}</Link>)}</div> : editorSlug ? <div className="inline-flex rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-1" aria-label={`${data.editor.name}天梯类型`}>{([{ id: "manual", label: "普通天梯" }, { id: "average", label: "平均天梯" }] as const).map((item) => <Link key={item.id} href={`/ladder?editor=${editorSlug}${item.id === "average" ? "&mode=average" : ""}`} className={`rounded-[0.6rem] px-4 py-2 text-sm ${editorMode === item.id ? "bg-[var(--surface-strong)] font-semibold shadow-sm" : "ui-muted"}`}>{item.label}</Link>)}</div> : null}
+            {isFollowers ? (
+              <div className="space-y-4">
+                <div className="inline-flex rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-1" aria-label="粉丝天梯排序方式">
+                  {([{ id: "followers", label: "粉丝量" }, { id: "growth", label: "涨粉量" }, { id: "rate", label: "涨粉比率" }] as const).map((item) => (
+                    <Link key={item.id} href={getFollowerHref(item.id, followerComparisonRange)} className={`rounded-[0.6rem] px-4 py-2 text-sm ${followerSort === item.id ? "bg-[var(--surface-strong)] font-semibold shadow-sm" : "ui-muted"}`}>{item.label}</Link>
+                  ))}
+                </div>
+
+                <section data-testid="follower-date-filter" className="ui-status-spine surface rounded-[1.25rem] p-4 pl-5" style={{ "--status-color": "var(--color-accent)" } as CSSProperties}>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]"><CalendarRange aria-hidden="true" className="size-4 text-[var(--color-accent)]" />对比区间</p>
+                      <p className="mt-1 font-mono text-xs ui-muted">{followerRange.from} → {followerRange.to}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2" aria-label="快捷对比区间">
+                      {followerShortcuts.map((shortcut) => {
+                        const active = shortcut.range.from === followerRange.from && shortcut.range.to === followerRange.to;
+                        return <Link key={shortcut.id} data-testid={`follower-range-${shortcut.id}`} href={getFollowerHref(followerSort, shortcut.range)} className={`ui-pill px-3 py-2 text-xs ${active ? "border-[rgba(43,109,246,0.28)] bg-[rgba(43,109,246,0.1)] font-semibold text-[var(--color-accent)]" : ""}`}>{shortcut.label}</Link>;
+                      })}
+                    </div>
+                  </div>
+                  <form action="/ladder" method="get" className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] sm:items-end">
+                    <input type="hidden" name="view" value="followers" />
+                    <input type="hidden" name="sort" value={followerSort} />
+                    <label className="ui-field-label"><span>起始日期</span><input data-testid="follower-range-from" type="date" name="from" defaultValue={followerRange.from} max={followerRange.today} className="ui-input font-mono text-sm" /></label>
+                    <span aria-hidden="true" className="hidden pb-3 text-sm ui-muted sm:block">至</span>
+                    <label className="ui-field-label"><span>结束日期</span><input data-testid="follower-range-to" type="date" name="to" defaultValue={followerRange.to} max={followerRange.today} className="ui-input font-mono text-sm" /></label>
+                    <button type="submit" data-testid="apply-follower-range" className="ui-button-primary px-4 text-sm">应用对比</button>
+                  </form>
+                </section>
+              </div>
+            ) : editorSlug ? <div className="inline-flex rounded-[0.8rem] border border-[var(--line-soft)] bg-[var(--surface-tint)] p-1" aria-label={`${data.editor.name}天梯类型`}>{([{ id: "manual", label: "普通天梯" }, { id: "average", label: "平均天梯" }] as const).map((item) => <Link key={item.id} href={`/ladder?editor=${editorSlug}${item.id === "average" ? "&mode=average" : ""}`} className={`rounded-[0.6rem] px-4 py-2 text-sm ${editorMode === item.id ? "bg-[var(--surface-strong)] font-semibold shadow-sm" : "ui-muted"}`}>{item.label}</Link>)}</div> : null}
             <section className="public-stage surface overflow-hidden rounded-[2rem] p-6 md:p-7">
               <div className="grid gap-6 md:grid-cols-[1.1fr_0.9fr]">
                 <div className="space-y-3">

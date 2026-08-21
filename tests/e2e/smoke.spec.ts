@@ -673,6 +673,37 @@ test("editor can update ladder subtitle while the derived title stays public", a
   await expect(page.getByText("CI subtitle from smoke")).toBeVisible();
 });
 
+test("follower ladder keeps custom comparison dates across sorting and offers quick ranges", async ({ page }) => {
+  await page.goto("/ladder?view=followers&sort=growth&from=2026-04-01&to=2026-04-10");
+
+  await expect(page.getByTestId("follower-range-from")).toHaveValue("2026-04-01");
+  await expect(page.getByTestId("follower-range-to")).toHaveValue("2026-04-10");
+  await expect(page.getByText("2026-04-01 至 2026-04-10 的实际记录对比；当前粉丝始终显示最新值。")).toBeVisible();
+
+  await page.getByRole("link", { name: "涨粉比率" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("rate");
+  let url = new URL(page.url());
+  expect(url.searchParams.get("sort")).toBe("rate");
+  expect(url.searchParams.get("from")).toBe("2026-04-01");
+  expect(url.searchParams.get("to")).toBe("2026-04-10");
+
+  await page.getByTestId("follower-range-yesterday").click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("from")).not.toBe("2026-04-01");
+  url = new URL(page.url());
+  const shortcutFrom = new Date(`${url.searchParams.get("from")}T12:00:00+08:00`);
+  const shortcutTo = new Date(`${url.searchParams.get("to")}T12:00:00+08:00`);
+  expect((shortcutTo.getTime() - shortcutFrom.getTime()) / DAY_IN_MS).toBe(1);
+  expect(url.searchParams.get("sort")).toBe("rate");
+
+  await page.getByTestId("follower-range-from").fill("2026-03-01");
+  await page.getByTestId("follower-range-to").fill("2026-03-15");
+  await page.getByTestId("apply-follower-range").click();
+  await expect(page).toHaveURL(/from=2026-03-01/);
+  url = new URL(page.url());
+  expect(url.searchParams.get("to")).toBe("2026-03-15");
+  expect(url.searchParams.get("sort")).toBe("rate");
+});
+
 test("editor can rename their display name and see it reflected publicly", async ({ page }) => {
   await login(page);
 

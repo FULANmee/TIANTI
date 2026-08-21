@@ -15,6 +15,7 @@ import {
   listTalents,
   searchSite,
   type EventFilters,
+  type FollowerComparisonRange,
   type TalentFilters
 } from "@/modules/domain/queries";
 import { getContentRepository } from "@/modules/repository";
@@ -75,9 +76,10 @@ export async function getLadderPage(editorSlug: string) {
 
 export async function getAutomaticLadderPage(
   mode: "followers" | `average-${"lin" | "yu"}`,
-  followerSort: "followers" | "growth" | "rate" = "followers"
+  followerSort: "followers" | "growth" | "rate" = "followers",
+  followerComparisonRange?: FollowerComparisonRange
 ) {
-  return getAutomaticLadder(await getContentState(), mode, followerSort);
+  return getAutomaticLadder(await getContentState(), mode, followerSort, followerComparisonRange);
 }
 
 export async function getPublicLocationItineraries() {

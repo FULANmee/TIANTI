@@ -990,34 +990,53 @@ function getAverageBeautyTier(state: ContentState, editorId: string, talentId: s
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-function getFollowerMetrics(state: ContentState, talentId: string) {
+export interface FollowerComparisonRange {
+  from: string;
+  to: string;
+}
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function getFollowerMetrics(state: ContentState, talentId: string, comparisonRange?: FollowerComparisonRange) {
   const profile = state.douyinProfiles.find((item) => item.talentId === talentId && item.lastSuccessAt);
   if (profile?.followerCount == null || !profile.lastSuccessAt) {
     return { followerGrowth: null, followerGrowthRate: null, followerRecordedDays: null };
   }
   const currentTime = Date.parse(profile.lastSuccessAt);
-  const cutoff = currentTime - 30 * 24 * 60 * 60 * 1000;
-  const baseline = state.douyinFollowerSnapshots
-    .filter((snapshot) => {
-      const snapshotTime = Date.parse(snapshot.fetchedAt);
-      return snapshot.talentId === talentId && snapshotTime >= cutoff && snapshotTime < currentTime;
-    })
-    .sort((left, right) => Date.parse(left.fetchedAt) - Date.parse(right.fetchedAt))[0];
-  if (!baseline) {
+  const rangeStart = comparisonRange ? Date.parse(`${comparisonRange.from}T00:00:00+08:00`) : currentTime - 30 * DAY_IN_MS;
+  const requestedRangeEnd = comparisonRange ? Date.parse(`${comparisonRange.to}T23:59:59.999+08:00`) : currentTime;
+  const rangeEnd = Math.min(requestedRangeEnd, currentTime);
+  const observationsByTime = new Map<number, { followerCount: number; fetchedAt: string }>();
+
+  for (const snapshot of state.douyinFollowerSnapshots) {
+    if (snapshot.talentId !== talentId) continue;
+    const snapshotTime = Date.parse(snapshot.fetchedAt);
+    if (!Number.isFinite(snapshotTime)) continue;
+    observationsByTime.set(snapshotTime, snapshot);
+  }
+  observationsByTime.set(currentTime, { followerCount: profile.followerCount, fetchedAt: profile.lastSuccessAt });
+
+  const observations = [...observationsByTime.entries()]
+    .filter(([time]) => time >= rangeStart && time <= rangeEnd)
+    .sort(([left], [right]) => left - right);
+  const baseline = observations[0];
+  const endpoint = observations.at(-1);
+  if (!baseline || !endpoint || baseline[0] === endpoint[0]) {
     return { followerGrowth: null, followerGrowthRate: null, followerRecordedDays: null };
   }
-  const followerGrowth = profile.followerCount - baseline.followerCount;
+  const followerGrowth = endpoint[1].followerCount - baseline[1].followerCount;
   return {
     followerGrowth,
-    followerGrowthRate: baseline.followerCount > 0 ? followerGrowth / baseline.followerCount : null,
-    followerRecordedDays: Math.min(30, Math.max(1, Math.ceil((currentTime - Date.parse(baseline.fetchedAt)) / (24 * 60 * 60 * 1000))))
+    followerGrowthRate: baseline[1].followerCount > 0 ? followerGrowth / baseline[1].followerCount : null,
+    followerRecordedDays: Math.max(1, Math.ceil((endpoint[0] - baseline[0]) / DAY_IN_MS))
   };
 }
 
 export function getAutomaticLadder(
   state: ContentState,
   mode: "followers" | `average-${"lin" | "yu"}`,
-  followerSort: "followers" | "growth" | "rate" = "followers"
+  followerSort: "followers" | "growth" | "rate" = "followers",
+  followerComparisonRange?: FollowerComparisonRange
 ) {
   const assetMap = byId(state.assets);
   const editorSlug = mode.startsWith("average-") ? mode.slice("average-".length) : null;
@@ -1026,7 +1045,7 @@ export function getAutomaticLadder(
     const profile = state.douyinProfiles.find((item) => item.talentId === talent.id && item.lastSuccessAt);
     const hasBoundProfile = Boolean(getPrimaryDouyinProfileLink(talent).link);
     const followerCount = hasBoundProfile ? profile?.followerCount ?? null : null;
-    const metrics = hasBoundProfile ? getFollowerMetrics(state, talent.id) : { followerGrowth: null, followerGrowthRate: null, followerRecordedDays: null };
+    const metrics = hasBoundProfile ? getFollowerMetrics(state, talent.id, followerComparisonRange) : { followerGrowth: null, followerGrowthRate: null, followerRecordedDays: null };
     const value = mode === "followers"
       ? (followerSort === "followers" ? followerCount : followerSort === "growth" ? metrics.followerGrowth : metrics.followerGrowthRate)
       : (editor ? getAverageBeautyTier(state, editor.id, talent.id) : null);
@@ -1058,7 +1077,11 @@ export function getAutomaticLadder(
   return {
     mode,
     title: mode === "followers" ? "粉丝天梯" : `${editor?.name ?? "编辑人"}的平均天梯`,
-    subtitle: mode === "followers" ? "同时查看当前粉丝、最多近 30 天的真实涨粉量与涨粉比率。" : "依据该编辑人的全部已评分现场档案自动计算。",
+    subtitle: mode === "followers"
+      ? followerComparisonRange
+        ? `${followerComparisonRange.from} 至 ${followerComparisonRange.to} 的实际记录对比；当前粉丝始终显示最新值。`
+        : "同时查看当前粉丝、最多近 30 天的真实涨粉量与涨粉比率。"
+      : "依据该编辑人的全部已评分现场档案自动计算。",
     editor,
     tiers: mode === "followers" ? (followerSort === "followers" ? [
         ...definitions.map((definition) => ({
